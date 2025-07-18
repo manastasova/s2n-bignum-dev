@@ -14,18 +14,17 @@ S2N_BN_SYMBOL(mlkem_keccak_f1600_loop_no_stack):
         push   r13
         push   r14
         push   r15 
-		
 		sub    rsp, 0xd0
 		
 		mov    r15, rsi
 		not    QWORD PTR [rdi+0x64-0x5c]
 		not    QWORD PTR [rdi+0x64-0x54]
 		not    QWORD PTR [rdi+0x64-0x24]
-		not    QWORD PTR [rdi+0x64-0x4]
+		not    QWORD PTR [rdi+0x60]
 		not    QWORD PTR [rdi+0x64+0x24]
 		not    QWORD PTR [rdi+0x64+0x3c]
 
-		lea    rsi, [rsp]
+		mov    rsi, rsp
 		mov    rax, QWORD PTR [rdi+0x64+0x3c]
 		mov    rbx, QWORD PTR [rdi+0x64+0x44]
 		mov    rcx, QWORD PTR [rdi+0x64+0x4c]
@@ -84,7 +83,7 @@ loop_keccak:
 		 rol    r12, 0xe
 		 xor    r9, QWORD PTR [r15]
 		 mov    r14, r12
-		 and    r12, r11		 
+		 and    r12, r11		
 		 mov    QWORD PTR [rsi+0x64-0x64], r9
 		 xor    r12, r10
 		 not    r10
@@ -228,17 +227,17 @@ loop_keccak:
 		 mov    QWORD PTR [rdi+0x64+0x44], rbx
 		 mov    rbp, rdx
 		 mov    rdx, r13
-		 lea    r15, [r15+0x8]     // Second loop
-		 mov    r8, QWORD PTR [rdi+0x64-0x64]
+		 add    r15, 0x8     // Second loop
+		 mov    r8, QWORD PTR [rdi+0x64-0x64] // problematic read RAX s223 = word_rol (read RAX s222) 1\` is erased, but it might have contained useful information
 		 mov    r9, QWORD PTR [rdi+0x64-0x34]
 		 mov    r10, QWORD PTR [rdi+0x64-0x4]
 		 mov    r11, QWORD PTR [rdi+0x64+0x2c]
 		 xor    rcx, QWORD PTR [rdi+0x64-0x54]
 		 xor    rdx, QWORD PTR [rdi+0x64-0x4c]
-		 xor    rax, r8
+		 xor    rax, r8  // porblematic   `read RAX s203 =  ((word_rol    ((word_rol ((((init_rax ^^ A_0) ^^ A_5) ^^ A_10) ^^ A_15) 1 ^^      (((init_rdx ^^ A_3) ^^ A_8) ^^ A_13) ^^      A_18) ^^     A_14)    39 &&    ~~word_rol      ((word_rol ((((init_rbp ^^ A_4) ^^ A_9) ^^ A_14) ^^ A_19) 1 ^^        (((init_rcx ^^ A_2) ^^ A_7) ^^ A_12) ^^        A_17) ^^       A_8)      55) ^^   word_rol   ((word_rol ((((init_rdx ^^ A_3) ^^ A_8) ^^ A_13) ^^ A_18) 1 ^^     (((init_rbx ^^ A_1) ^^ A_6) ^^ A_11) ^^     A_16) ^^    A_2)   62) ^^  read R8 s202\` is erased, but it might have contained useful information
 		 xor    rbx, QWORD PTR [rdi+0x64-0x5c]
 		 xor    rcx, QWORD PTR [rdi+0x64-0x2c]
-		 xor    rax, QWORD PTR [rdi+0x64-0x3c]
+		 xor    rax, QWORD PTR [rdi+0x64-0x3c] // 
 		 mov    r12, rbp
 		 xor    rbp, QWORD PTR [rdi+0x64-0x44]
 		 xor    rcx, r10
@@ -247,16 +246,16 @@ loop_keccak:
 		 xor    rbx, r9
 		 xor    rbp, QWORD PTR [rdi+0x64-0x1c]
 		 xor    rcx, QWORD PTR [rdi+0x64+0x24]
-		 xor    rax, QWORD PTR [rdi+0x64+0x14]
+		 xor    rax, QWORD PTR [rdi+0x64+0x14] // porblematic (the long error...)
 		 xor    rdx, QWORD PTR [rdi+0x64+0x4]
 		 xor    rbx, QWORD PTR [rdi+0x64-0xc]
 		 xor    rbp, QWORD PTR [rdi+0x64+0xc]
 		 mov    r13, rcx
 		 rol    rcx, 1
-		 xor    rcx, rax
+		 xor    rcx, rax // porblematic (the long error...)
 		 xor    rdx, r11
-		 rol    rax, 1
-		 xor    rax, rdx
+		 rol    rax, 1  // porblematic read RAX s223 = word_rol (read RAX s222) 1\` is erased, but it might have contained useful information
+		 xor    rax, rdx // problematic (the long error... ) 
 		 xor    rbx, QWORD PTR [rdi+0x64+0x1c]
 		 rol    rdx, 1
 		 xor    rdx, rbx
@@ -264,12 +263,12 @@ loop_keccak:
 		 rol    rbx, 1
 		 xor    rbx, rbp
 		 rol    rbp, 1
-		 xor    rbp, r13
-		 xor    r9, rcx
+		 xor    rbp, r13 
+		 xor    r9, rcx // new problem for r9 \`read R9 s233 = ((word_rol   (A_16 ^^    word_rol ((((init_rcx ^^ A_2) ^^ A_7) ^^ A_12) ^^ A_17) 1 ^^    (((init_rax ^^ A_0) ^^ A_5) ^^ A_10) ^^    A_15)   45 &&   word_rol   (A_10 ^^    word_rol ((((init_rbx ^^ A_1) ^^ A_6) ^^ A_11) ^^ A_16) 1 ^^    (((init_rbp ^^ A_4) ^^ A_9) ^^ A_14) ^^    A_19)   3) ^^  word_rol  (A_9 ^^   word_rol ((((init_rax ^^ A_0) ^^ A_5) ^^ A_10) ^^ A_15) 1 ^^   (((init_rdx ^^ A_3) ^^ A_8) ^^ A_13) ^^   A_18)  20) ^^ read RCX s232\` is erased, but it might have contained useful information
 		 xor    r10, rdx
 		 rol    r9, 0x2c
 		 xor    r11, rbp
-		 xor    r12, rax
+		 xor    r12, rax // problematic  \`read R12 s237 = ((word_rol   ((word_rol ((((init_rdx ^^ A_3) ^^ A_8) ^^ A_13) ^^ A_18) 1 ^^     (((init_rbx ^^ A_1) ^^ A_6) ^^ A_11) ^^     A_16) ^^    A_2)   62 &&   word_rol   ((word_rol ((((init_rbp ^^ A_4) ^^ A_9) ^^ A_14) ^^ A_19) 1 ^^     (((init_rcx ^^ A_2) ^^ A_7) ^^ A_12) ^^     A_17) ^^    A_8)   55) ^^  word_rol  ((word_rol ((((init_rcx ^^ A_2) ^^ A_7) ^^ A_12) ^^ A_17) 1 ^^    (((init_rax ^^ A_0) ^^ A_5) ^^ A_10) ^^    A_15) ^^   A_21)  2) ^^ read RAX s236\` is erased, but it might have contained useful information
 		 rol    r10, 0x2b
 		 xor    r8, rbx
 		 mov    r13, r9
@@ -423,12 +422,12 @@ loop_keccak:
 		 mov    QWORD PTR [rdi+0x64+0x44], rbx
 		 mov    rbp, rdx
 		 mov    rdx, r13
-		 lea    r15, [r15+0x8]
+		 add    r15, 0x8
 		mov   r8,  QWORD PTR [rsp + 0xc8]
 		add r8, 0x2
 		cmp r8,  24
 		jne    loop_keccak
-		lea    r15, [r15-0xc0]
+
 		not    QWORD PTR [rdi+0x64-0x5c]
 		not    QWORD PTR [rdi+0x64-0x54]
 		not    QWORD PTR [rdi+0x64-0x24]
