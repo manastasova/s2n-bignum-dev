@@ -228,7 +228,7 @@ loop_keccak:
 		 mov    rbp, rdx
 		 mov    rdx, r13
 		 add    r15, 0x8     // Second loop
-		 mov    r8, QWORD PTR [rdi+0x64-0x64] // problematic read RAX s223 = word_rol (read RAX s222) 1\` is erased, but it might have contained useful information
+		 mov    r8, QWORD PTR [rdi+0x64-0x64] // problematic Info: assumption \`read R8 s197 = read (memory :> bytes64 stackpointer) s196\` is erased, but it might have contained useful information
 		 mov    r9, QWORD PTR [rdi+0x64-0x34]
 		 mov    r10, QWORD PTR [rdi+0x64-0x4]
 		 mov    r11, QWORD PTR [rdi+0x64+0x2c]
