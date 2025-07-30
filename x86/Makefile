@@ -394,7 +394,6 @@ BIGNUM_OBJ = curve25519/bignum_add_p25519.o \
              sm2/bignum_tomont_sm2.o \
              sm2/bignum_triple_sm2.o \
              sm2/bignum_triple_sm2_alt.o \
-              mlkem/mlkem_keccak_f1600_loop_unroll_x2.o \
               mlkem/mlkem_keccak_f1600_no_stack.o
 
 OBJ = $(POINT_OBJ) $(BIGNUM_OBJ)

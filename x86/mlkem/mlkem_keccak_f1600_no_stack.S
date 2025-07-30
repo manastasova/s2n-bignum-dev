@@ -37,7 +37,7 @@ loop_keccak:
 		 mov    r9, QWORD PTR [rdi+0x64-0x34]
 		 mov    r10, QWORD PTR [rdi+0x64-0x4]
 		 mov    r11, QWORD PTR [rdi+0x64+0x2c]
-		 xor    rcx, QWORD PTR [rdi+0x64-0x54] // R12 = R12 xor A13
+		 xor    rcx, QWORD PTR [rdi+0x64-0x54]
 		 xor    rdx, QWORD PTR [rdi+0x64-0x4c]
 		 xor    rax, r8
 		 xor    rbx, QWORD PTR [rdi+0x64-0x5c]
