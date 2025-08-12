@@ -776,11 +776,6 @@ let WORDLIST_FROM_MEMORY_CONV =
 
                     CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
 
-
-
-
-
-
                     (* CHANGED_TAC(REWRITE_TAC[MAP2]) THEN *)
                     CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
                     (* CHANGED_TAC(REPEAT CONJ_TAC) THEN *)
@@ -791,16 +786,65 @@ let WORDLIST_FROM_MEMORY_CONV =
                     CHANGED_TAC(REWRITE_TAC[MAP2; CONS_11]) THEN
 
                     CHANGED_TAC(REPEAT CONJ_TAC) THEN
-                    CHANGED_TAC(REWRITE_TAC[WORD_XOR_ASSOC]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
                     CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
                     KECCAK_BITBLAST_TAC THEN
 
+                    CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
 
-                    (* Elements that are NOT-ed
-                    A_1, A_2, A_8,  *)
+                    CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
+                    KECCAK_BITBLAST_TAC THEN
+
+                    CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
+                    KECCAK_BITBLAST_TAC THEN
+
+
+                    CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
+                    KECCAK_BITBLAST_TAC THEN
+
+
+                    (CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
+                    KECCAK_BITBLAST_TAC) THEN
+
+                    CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `4 = ((0 + 1) + 1 + 1) + 1`]) THEN
+                    CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `2 = (0 + 1) + 1`]) THEN
+                    CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `3 = (0 + 1) + 1 + 1`]) THEN
+
+                    CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+                    (* CHANGED_TAC(REPEAT CONJ_TAC) THEN *)
+                    CHANGED_TAC(REWRITE_TAC[rc_table]) THEN 
+                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+                    (* Expand all list of 25 bitstate elements as a conjunction and then split the conjunction *)
+                    CHANGED_TAC(REWRITE_TAC[MAP2; CONS_11]) THEN
+                    CHANGED_TAC(REPEAT CONJ_TAC) THEN
+
+
+                    CHANGED_TAC(REWRITE_TAC[keccak; keccak_round]) THEN
+                    CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
+                   
+                    (CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT;OR_NEG_TRY_DEMORGAN;WORD_ROL_NOT;WORD_NOT_NOT]) THEN
+                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+                    KECCAK_BITBLAST_TAC) THEN
 
                   (* UNTIL HERE *)
 
