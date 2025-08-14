@@ -43,7 +43,7 @@ let NEG_DEMORGAN = prove(
     WORD_BITWISE_TAC);;
 
 
-  let OR_NEG_TRY_DEMORGAN = prove(
+  let OR_NEG_DEMORGAN = prove(
   `!(p:N word) (q:N word). 
     (word_or p (word_not q)) = word_not(word_and (word_not p) q)`,
     REPEAT GEN_TAC THEN
@@ -745,55 +745,141 @@ let WORDLIST_FROM_MEMORY_CONV =
       ASM_REWRITE_TAC[] THEN
       REWRITE_TAC[CONJ_ASSOC] THEN 
       REPEAT CONJ_TAC THENL
-       [
-      CONV_TAC WORD_RULE;
-      CONV_TAC WORD_RULE; 
+      [
+        CONV_TAC WORD_RULE;
+        CONV_TAC WORD_RULE;
     
-            (* EXPAND_TAC "A" THEN *)
-              UNDISCH_TAC `i < 12` THEN SPEC_TAC(`i:num`,`i:num`) THEN
-              (* Expand for all value of i *)
-              CONV_TAC EXPAND_CASES_CONV THEN
-              CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV))] THEN
-              GEN_REWRITE_TAC I [CONJ_ASSOC] THEN 
-              REPEAT CONJ_TAC THENL
-              (* [CONJ_TAC THEN  *)
-              (* CONV_TAC(LAND_CONV WORDLIST_FROM_MEMORY_CONV) THEN] *)
+        (* UNDISCH_TAC `i < 12` THEN SPEC_TAC(`i:num`,`i:num`) THEN *)
+        REWRITE_TAC[ARITH_RULE `2 * (i + 1) = (2 * i + 1) + 1`] THEN
+        CHANGED_TAC(REWRITE_TAC[keccak]) THEN 
+        CHANGED_TAC(FIRST_X_ASSUM(fun th ->
+        REWRITE_TAC [SYM th])) THEN
+        REWRITE_TAC[keccak_round] THEN  
+        CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+        CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+        REWRITE_TAC[rc_table; MAP2] THEN REWRITE_TAC[CONS_11] THEN
+        CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+  
+
+        (* Expand for all value of i *)
+        (* CONV_TAC EXPAND_CASES_CONV THEN *)
+        (* CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV))] THEN *)
+        (* [CONJ_TAC THEN  *)
+        (* CONV_TAC(LAND_CONV WORDLIST_FROM_MEMORY_CONV) THEN] *)
 
                     (* [CONV_TAC(ONCE_DEPTH_CONV NORMALIZE_RELATIVE_ADDRESS_CONV) THEN
                      ASM_REWRITE_TAC[] THEN
                      ALL_TAC] THEN *)
 
+(*   
                     CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `2 = (0 + 1) + 1`]) THEN
                     REWRITE_TAC[keccak; keccak_round] THEN
                     CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `0 + 1 = 1`]) THEN
                     CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `1 + 1 = 2`]) THEN
-                    (* REWRITE_TAC[WORD_ROL_NOT] THEN
-                    REWRITE_TAC[WORD_NOT_NOT] THEN
-                    REWRITE_TAC[WORD_XOR_NOT] THEN *)
-                    CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT; WORD_ROL_NOT;WORD_XOR_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[rc_table]) THEN
+                    CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+                    CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+
+                    CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+
+                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN *)
+                    
+        REWRITE_TAC[WORD_XOR_NOT;WORD_ROL_NOT] THEN 
+        REWRITE_TAC[OR_NEG_DEMORGAN;WORD_NOT_NOT] THEN 
+        REPEAT CONJ_TAC THEN KECCAK_BITBLAST_TAC THEN
+
+        (* The jump *)
+        REWRITE_TAC [WORD_BLAST `word_add x (word 18446744073709551594):int64 = 
+                  word_sub x (word 22)`] THEN
+        REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN 
+        REWRITE_TAC[VAL_WORD;DIMINDEX_64] THEN
+        IMP_REWRITE_TAC[MOD_LT; ARITH_RULE`22 < 2 EXP 64`] THEN
+        CONJ_TAC THENL [
+          UNDISCH_TAC `i < 12` 
+          THEN ARITH_TAC;
+          ARITH_TAC
+        ]
+
+
+        (* Until Here *)
+
+
+
+
+        VAL_INT64_TAC `i:num` THEN
+        REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN
+        REWRITE_TAC[VAL_WORD;DIMINDEX_64] THEN
+        UNDISCH_TAC `i < 12`  THEN
+
+
+
+    REWRITE_TAC[rc_table; CONS_11; GSYM CONJ_ASSOC;
+    WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s`] THEN
+
+ X86_SIM_TAC MLKEM_KECCAK_F1600_EXEC_9 [1] THEN
+
+ VAL_INT64_TAC `i:num` THEN
+    ASM_REWRITE_TAC[] THEN CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV) THEN
+    ASM_SIMP_TAC[LT_IMP_NE];
+
+
+
+
+
+
+    
+                      REWRITE_TAC [WORD_BLAST `word_add ((word 2)*i) (word 18446744073709551594):int64 =
+                             word_sub ((word 2)*i) (word 11)`] THEN
+
+
+
+                    (* UNTIL HERE *)
+
+                    CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `4 = (0 + 2) + 1 + 1`]) THEN
+                    CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `2 = (0 + 1) + 1`]) THEN
+
+                    CHANGED_TAC(REWRITE_TAC[keccak; keccak_round]) THEN
+                    CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
+                    CHANGED_TAC(REWRITE_TAC[rc_table]) THEN
+                    CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+                    CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+                    CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+                    REWRITE_TAC[MAP2; CONS_11] THEN
+                    REPEAT CONJ_TAC THEN
+                    (REWRITE_TAC[WORD_XOR_NOT;WORD_ROL_NOT] THEN REWRITE_TAC[OR_NEG_DEMORGAN;WORD_NOT_NOT]) THEN
+                    KECCAK_BITBLAST_TAC THEN
+
+
+
+                    REWRITE_TAC[WORD_XOR_NOT;OR_NEG_DEMORGAN;WORD_ROL_NOT;WORD_NOT_NOT] THEN
+
+                    REWRITE_TAC[WORD_XOR_NOT;OR_NEG_DEMORGAN;WORD_ROL_NOT;WORD_NOT_NOT] THEN
+
+                    REWRITE_TAC[WORD_XOR_NOT;OR_NEG_DEMORGAN;WORD_ROL_NOT;WORD_NOT_NOT] THEN
+
+                    KECCAK_BITBLAST_TAC THEN
+
 
                     CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
-
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
 
                     (* CHANGED_TAC(REWRITE_TAC[MAP2]) THEN *)
-                    CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+                  
                     (* CHANGED_TAC(REPEAT CONJ_TAC) THEN *)
-                    CHANGED_TAC(REWRITE_TAC[rc_table]) THEN 
-                    CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+                    
 
                     (* Expand all list of 25 bitstate elements as a conjunction and then split the conjunction *)
                     CHANGED_TAC(REWRITE_TAC[MAP2; CONS_11]) THEN
 
                     CHANGED_TAC(REPEAT CONJ_TAC) THEN
-                    CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT;OR_NEG_DEMORGAN;WORD_ROL_NOT;WORD_NOT_NOT]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
                     KECCAK_BITBLAST_TAC THEN
 
                     CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
 
                     CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
@@ -801,27 +887,27 @@ let WORDLIST_FROM_MEMORY_CONV =
                     KECCAK_BITBLAST_TAC THEN
 
                     CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
                     KECCAK_BITBLAST_TAC THEN
 
 
                     CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
                     KECCAK_BITBLAST_TAC THEN
 
 
                     (CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_ROL_NOT]) THEN
-                    CHANGED_TAC(REWRITE_TAC[OR_NEG_TRY_DEMORGAN]) THEN
+                    CHANGED_TAC(REWRITE_TAC[OR_NEG_DEMORGAN]) THEN
                     CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
                     CHANGED_TAC(REWRITE_TAC[WORD_NOT_NOT]) THEN
                     KECCAK_BITBLAST_TAC) THEN
@@ -842,7 +928,7 @@ let WORDLIST_FROM_MEMORY_CONV =
                     CHANGED_TAC(REWRITE_TAC[keccak; keccak_round]) THEN
                     CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
                    
-                    (CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT;OR_NEG_TRY_DEMORGAN;WORD_ROL_NOT;WORD_NOT_NOT]) THEN
+                    (CHANGED_TAC(REWRITE_TAC[WORD_XOR_NOT;OR_NEG_DEMORGAN;WORD_ROL_NOT;WORD_NOT_NOT]) THEN
                     CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
                     KECCAK_BITBLAST_TAC) THEN
 
