@@ -20,29 +20,6 @@
   ASM_ARITH_TAC);;
 
 
-  (* ~~(ROL (~~(ROL a, 1), 2)) *)
-(* 
-
-~(p AND q) = (~p OR ~q)
-~(p OR q) = (~p AND ~q) 
-
-~p AND q = ~(p OR ~q)
-
-*)
-let DOUBLE_NEG_DEMORGAN = prove(
-  `!(p:N word) (q:N word). 
-    word_and (word_not p) q = word_not(word_or p (word_not q))`,
-    REPEAT GEN_TAC THEN
-    WORD_BITWISE_TAC);;
-
-
-let NEG_DEMORGAN = prove(
-  `!(p:N word) (q:N word). 
-    word_and (word_not p) q = word_not(word_or p (word_not q))`,
-    REPEAT GEN_TAC THEN
-    WORD_BITWISE_TAC);;
-
-
   let OR_NEG_DEMORGAN = prove(
   `!(p:N word) (q:N word). 
     (word_or p (word_not q)) = word_not(word_and (word_not p) q)`,
@@ -741,25 +718,118 @@ let WORDLIST_FROM_MEMORY_CONV =
             ALL_TAC] THEN 
 
       X86_STEPS_TAC MLKEM_KECCAK_F1600_EXEC_9 (1--394) THEN
-      ENSURES_FINAL_STATE_TAC THEN 
-      ASM_REWRITE_TAC[] THEN
-      REWRITE_TAC[CONJ_ASSOC] THEN 
-      REPEAT CONJ_TAC THENL
+      ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+      REWRITE_TAC[CONJ_ASSOC] THEN REPEAT CONJ_TAC THENL
       [
-        CONV_TAC WORD_RULE;
-        CONV_TAC WORD_RULE;
-    
-        (* UNDISCH_TAC `i < 12` THEN SPEC_TAC(`i:num`,`i:num`) THEN *)
-        REWRITE_TAC[ARITH_RULE `2 * (i + 1) = (2 * i + 1) + 1`] THEN
-        CHANGED_TAC(REWRITE_TAC[keccak]) THEN 
-        CHANGED_TAC(FIRST_X_ASSUM(fun th ->
-        REWRITE_TAC [SYM th])) THEN
-        REWRITE_TAC[keccak_round] THEN  
-        CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
-        CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
-        REWRITE_TAC[rc_table; MAP2] THEN REWRITE_TAC[CONS_11] THEN
-        CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
-  
+                CONV_TAC WORD_RULE;
+
+                CONV_TAC WORD_RULE;
+          
+                REWRITE_TAC[ARITH_RULE `2 * (i + 1) = (2 * i + 1) + 1`] THEN
+                CHANGED_TAC(REWRITE_TAC[keccak]) THEN 
+                CHANGED_TAC(FIRST_X_ASSUM(fun th ->
+                REWRITE_TAC [SYM th])) THEN
+                REWRITE_TAC[keccak_round] THEN
+                CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+                CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
+                REWRITE_TAC[rc_table; MAP2] THEN REWRITE_TAC[CONS_11] THEN                    
+                REWRITE_TAC[WORD_XOR_NOT;WORD_ROL_NOT] THEN 
+                REWRITE_TAC[OR_NEG_DEMORGAN;WORD_NOT_NOT] THEN
+                REPEAT CONJ_TAC THEN KECCAK_BITBLAST_TAC;
+      ]
+
+        (* ask for parallel *)
+
+        (* The jump *)
+        REWRITE_TAC [WORD_BLAST `word_add x (word 18446744073709551594):int64 = 
+                  word_sub x (word 22)`] THEN
+        REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN 
+        REWRITE_TAC[VAL_WORD;DIMINDEX_64] THEN
+        IMP_REWRITE_TAC[MOD_LT; ARITH_RULE`22 < 2 EXP 64`] THEN
+        CONJ_TAC THENL [
+                UNDISCH_TAC `i < 12` 
+                THEN ARITH_TAC;
+                ARITH_TAC
+        ]
+
+        REPEAT STRIP_TAC THEN
+        ASM_REWRITE_TAC[rc_table; CONS_11; GSYM CONJ_ASSOC; WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`] THEN
+        ASM_REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+        ENSURES_INIT_TAC "s0" THEN
+        X86_STEPS_TAC MLKEM_KECCAK_F1600_EXEC_9 (1--1) THEN
+        ENSURES_FINAL_STATE_TAC THEN 
+        ASM_REWRITE_TAC[] THEN
+
+        (* After loop ends *)
+        CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
+        CONV_TAC(RATOR_CONV(LAND_CONV
+          (ONCE_DEPTH_CONV WORDLIST_FROM_MEMORY_CONV) THENC
+          ONCE_DEPTH_CONV NORMALIZE_RELATIVE_ADDRESS_CONV)) THEN
+
+        ASM_REWRITE_TAC[rc_table; CONS_11; GSYM CONJ_ASSOC; WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`] THEN
+        ASM_REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+
+        (* ISPECL takes a general thm and passing the list of terms, specializes it *)
+        (* MP_TAC adds the speciallized thm as antecedent (in the preconsitions) *)
+        MP_TAC(ISPECL [`A:int64 list`; `24`] LENGTH_KECCAK) THEN
+        
+        ASM_REWRITE_TAC[IMP_IMP] THEN 
+        REWRITE_TAC[LENGTH_EQ_25] THEN
+
+        DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN SUBST1_TAC) THEN
+        CHANGED_TAC(REWRITE_TAC[MAP2]) THEN
+        (* Expand the list equality into a conjusnction of element-by-element equalities *)
+        CHANGED_TAC(REWRITE_TAC[CONS_11]) THEN
+        ENSURES_INIT_TAC "s0" THEN
+
+        X86_STEPS_TAC MLKEM_KECCAK_F1600_EXEC_9 (1--8) THEN
+        ENSURES_FINAL_STATE_TAC THEN 
+        ASM_REWRITE_TAC[WORD_NOT_NOT]
+      ]
+
+      (* DONE *)
+
+      (* CHEAT_TAC THEN *)
+
+
+
+
+
+
+
+
+
+
+
+
+
+(* milaaws' desperate attempts to solve this proof *)
+
+
+
+  (* ~~(ROL (~~(ROL a, 1), 2)) *)
+(* 
+
+~(p AND q) = (~p OR ~q)
+~(p OR q) = (~p AND ~q) 
+
+~p AND q = ~(p OR ~q)
+
+*)
+(* let DOUBLE_NEG_DEMORGAN = prove(
+  `!(p:N word) (q:N word). 
+    word_and (word_not p) q = word_not(word_or p (word_not q))`,
+    REPEAT GEN_TAC THEN
+    WORD_BITWISE_TAC);;
+
+
+let NEG_DEMORGAN = prove(
+  `!(p:N word) (q:N word). 
+    word_and (word_not p) q = word_not(word_or p (word_not q))`,
+    REPEAT GEN_TAC THEN
+    WORD_BITWISE_TAC);; *)
+
+
 
         (* Expand for all value of i *)
         (* CONV_TAC EXPAND_CASES_CONV THEN *)
@@ -783,28 +853,135 @@ let WORDLIST_FROM_MEMORY_CONV =
                     CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
 
                     CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN *)
-                    
-        REWRITE_TAC[WORD_XOR_NOT;WORD_ROL_NOT] THEN 
-        REWRITE_TAC[OR_NEG_DEMORGAN;WORD_NOT_NOT] THEN 
-        REPEAT CONJ_TAC THEN KECCAK_BITBLAST_TAC THEN
 
-        (* The jump *)
-        REWRITE_TAC [WORD_BLAST `word_add x (word 18446744073709551594):int64 = 
-                  word_sub x (word 22)`] THEN
-        REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN 
-        REWRITE_TAC[VAL_WORD;DIMINDEX_64] THEN
-        IMP_REWRITE_TAC[MOD_LT; ARITH_RULE`22 < 2 EXP 64`] THEN
-        CONJ_TAC THENL [
-          UNDISCH_TAC `i < 12` 
-          THEN ARITH_TAC;
-          ARITH_TAC
-        ]
+(* 
 
-
-        (* Until Here *)
+        REPEAT STRIP_TAC THEN
+        ASM_REWRITE_TAC[rc_table; CONS_11; GSYM CONJ_ASSOC; WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`] THEN
+        ASM_REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+        MP_TAC(ISPECL [`A:int64 list`; `24`] LENGTH_KECCAK) THEN
+        
+        ASM_REWRITE_TAC[IMP_IMP] THEN 
+        REWRITE_TAC[LENGTH_EQ_25] THEN
+        DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN SUBST1_TAC) THEN
+        (* CHANGED_TAC(REWRITE_TAC[MAP2]) THEN *)
+        CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
+        CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `24 = (22 + 1) + 1`]) THEN
 
 
 
+
+        REWRITE_TAC[keccak] THEN
+        CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
+        REWRITE_TAC[rc_table] THEN 
+        CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+        CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+        CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+        REWRITE_TAC[MAP2] THEN
+        REWRITE_TAC[CONS_11] THEN
+
+
+(*  assuming the invariant is correct  *)
+
+        ENSURES_INIT_TAC "s0" THEN
+        BIGNUM_DIGITIZE_TAC "A_" `read (memory :> bytes (bitstate_in,8 * 25)) s0` THEN
+        X86_STEPS_TAC MLKEM_KECCAK_F1600_EXEC_9  (1--7) THEN
+        ENSURES_FINAL_STATE_TAC THEN 
+
+        ASM_REWRITE_TAC[rc_table; CONS_11; GSYM CONJ_ASSOC; WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`] THEN
+        ASM_REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+        
+        ASM_REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+        CHANGED_TAC(PURE_ONCE_REWRITE_TAC[ARITH_RULE `24 = (22 + 1) + 1`]) THEN
+        REWRITE_TAC[keccak; keccak_round] THEN 
+        CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
+        REWRITE_TAC[rc_table] THEN 
+        CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+        CHANGED_TAC(CONV_TAC(TOP_DEPTH_CONV let_CONV)) THEN
+        CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
+
+
+
+
+
+
+
+    CONJ_TAC THEN ASM_REWRITE_TAC[] THEN 
+    ASM_REWRITE_TAC[WORD_NOT_NOT] THEN
+    ASM_REWRITE_TAC[WORD_NOT_NOT] THEN
+
+
+
+
+
+
+        REWRITE_TAC[keccak; keccak_round] THEN 
+        REWRITE_TAC[CONS_11] THEN
+
+
+        REPEAT CONJ_TAC THEN
+
+
+
+
+
+     REWRITE_TAC[rc_table; MAP2] THEN 
+     
+     REWRITE_TAC[CONS_11] THEN
+
+    ASM_REWRITE_TAC[] THEN
+    FIRST_X_ASSUM(fun th -> GEN_REWRITE_TAC RAND_CONV [SYM th]) THEN
+    REWRITE_TAC[MAP2; CONS_11] THEN
+    CONJ_TAC THEN ASM_REWRITE_TAC[] THEN 
+ASM_REWRITE_TAC[WORD_NOT_NOT] THEN
+    ASM_REWRITE_TAC[WORD_NOT_NOT] THEN
+
+
+     BITBLAST_TAC])
+
+
+
+
+        CONV_TAC(RATOR_CONV(LAND_CONV
+          (ONCE_DEPTH_CONV WORDLIST_FROM_MEMORY_CONV) THENC
+          ONCE_DEPTH_CONV NORMALIZE_RELATIVE_ADDRESS_CONV)) THEN
+
+        ASM_REWRITE_TAC[rc_table; CONS_11; GSYM CONJ_ASSOC; WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`] THEN
+        ASM_REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+
+        (* ISPECL takes a general thm and passing the list of terms, specializes it *)
+        (* MP_TAC adds the speciallized thm as antecedent (in the preconsitions) *)
+        MP_TAC(ISPECL [`A:int64 list`; `2 * i`] LENGTH_KECCAK) THEN
+
+
+        ASM_REWRITE_TAC[IMP_IMP] THEN 
+        REWRITE_TAC[LENGTH_EQ_25] THEN
+
+        DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN SUBST1_TAC) THEN
+        CHANGED_TAC(REWRITE_TAC[MAP2]) THEN
+
+
+        ASM_REWRITE_TAC[rc_table; CONS_11; GSYM CONJ_ASSOC; WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`] THEN
+        ASM_REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+        CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
+
+        ENSURES_INIT_TAC "s0" THEN
+
+        X86_STEPS_TAC MLKEM_KECCAK_F1600_EXEC_9 (1--8) THEN
+        CHANGED_TAC(REWRITE_TAC[MAP2]) THEN 
+        
+        ENSURES_FINAL_STATE_TAC THEN 
+        ASM_REWRITE_TAC[WORD_NOT_NOT] THEN
+
+
+        CONV_TAC(LAND_CONV WORDLIST_FROM_MEMORY_CONV) THEN
+    ASM_REWRITE_TAC[] THEN
+    FIRST_X_ASSUM(fun th -> REWRITE_TAC [SYM th]) THEN
+    REWRITE_TAC[MAP2; CONS_11] THEN
+    REPEAT CONJ_TAC THEN 
+    BITBLAST_TAC]);; *)
+
+(* 
 
         VAL_INT64_TAC `i:num` THEN
         REWRITE_TAC[VAL_WORD_SUB_EQ_0] THEN
@@ -932,7 +1109,7 @@ let WORDLIST_FROM_MEMORY_CONV =
                     CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV EL_CONV)) THEN
                     KECCAK_BITBLAST_TAC) THEN
 
-                  (* UNTIL HERE *)
+                  UNTIL HERE *)
 
   ]);
 
