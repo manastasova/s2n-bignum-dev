@@ -35,8 +35,8 @@
  (**** print_literal_from_elf "x86/mlkem/mlkem_keccak_f1600_no_stack.o";;
  ****)
 
-let mlkem_keccak_f1600_x86_mc_9 = define_assert_from_elf
-  "mlkem_keccak_f1600_x86_mc_9" "x86/mlkem/mlkem_keccak_f1600_no_stack.o"
+let mlkem_keccak_f1600_x86_mc = define_assert_from_elf
+  "mlkem_keccak_f1600_x86_mc" "x86/mlkem/mlkem_keccak_f1600_no_stack.o"
 [
   0x53;                    (* PUSH (% rbx) *)
   0x55;                    (* PUSH (% rbp) *)
@@ -517,7 +517,7 @@ let mlkem_keccak_f1600_x86_mc_9 = define_assert_from_elf
                            (* NOT (Memop Quadword (%% (rdi,160))) *)
   0x48; 0x81; 0xc4; 0xd0; 0x00; 0x00; 0x00;
                            (* ADD (% rsp) (Imm32 (word 208)) *)
-  0x5e;                    (* POP (% rsi) *)
+  0x41; 0x5f;              (* POP (% r15) *)
   0x41; 0x5e;              (* POP (% r14) *)
   0x41; 0x5d;              (* POP (% r13) *)
   0x41; 0x5c;              (* POP (% r12) *)
@@ -527,7 +527,7 @@ let mlkem_keccak_f1600_x86_mc_9 = define_assert_from_elf
 ];;
 
 
-let MLKEM_KECCAK_F1600_EXEC_9 = X86_MK_EXEC_RULE mlkem_keccak_f1600_x86_mc_9;;
+let MLKEM_KECCAK_F1600_EXEC_9 = X86_MK_EXEC_RULE mlkem_keccak_f1600_x86_mc;;
 
  let wordlist_from_memory = define
  `wordlist_from_memory(bitstate_in,0) s = [] /\
@@ -550,16 +550,16 @@ let WORDLIST_FROM_MEMORY_CONV =
 
   let MLKEM_KECCAK_F1600_SPEC = prove
     (`forall rc_pointer:int64 pc:num stackpointer:int64 bitstate_in:int64 A.
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val  stackpointer, 264) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val bitstate_in, 200) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val  stackpointer, 264) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val bitstate_in, 200) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val rc_pointer, 192) /\
 
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in,200) (val rc_pointer,192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in,200) (val stackpointer, 264) /\
 
   nonoverlapping_modulo (2 EXP 64) (val stackpointer, 264) (val rc_pointer,192)
       ==> ensures x86
-  (\s. bytes_loaded s (word pc) mlkem_keccak_f1600_x86_mc_9 /\
+  (\s. bytes_loaded s (word pc) mlkem_keccak_f1600_x86_mc /\
        read RIP s = word (pc + 0x11) /\
        read RSP s = stackpointer /\
        read RSI s = rc_pointer /\
@@ -575,7 +575,7 @@ let WORDLIST_FROM_MEMORY_CONV =
 
   REWRITE_TAC[SOME_FLAGS] THEN
   MAP_EVERY X_GEN_TAC [`rc_pointer:int64`; `pc:num`] THEN
-  REWRITE_TAC [(REWRITE_CONV [mlkem_keccak_f1600_x86_mc_9] THENC LENGTH_CONV) `LENGTH mlkem_keccak_f1600_x86_mc_9`] THEN
+  REWRITE_TAC [(REWRITE_CONV [mlkem_keccak_f1600_x86_mc] THENC LENGTH_CONV) `LENGTH mlkem_keccak_f1600_x86_mc`] THEN
   MAP_EVERY X_GEN_TAC [`stackpointer:int64`;`bitstate_in:int64`;`A:int64 list`] THEN
   REWRITE_TAC[fst MLKEM_KECCAK_F1600_EXEC_9] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; C_ARGUMENTS;
@@ -738,7 +738,7 @@ let WORDLIST_FROM_MEMORY_CONV =
         ENSURES_INIT_TAC "s0" THEN
         X86_STEPS_TAC MLKEM_KECCAK_F1600_EXEC_9 (1--1) THEN
         ENSURES_FINAL_STATE_TAC THEN
-        ASM_REWRITE_TAC[] THEN
+        ASM_REWRITE_TAC[];
 
         (* After loop ends *)
         CHANGED_TAC(CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV)) THEN
@@ -766,14 +766,14 @@ let WORDLIST_FROM_MEMORY_CONV =
 
 let KECCAK_NOIBT_SUBROUTINE_CORRECT = time prove
  (`forall rc_pointer:int64 pc:num stackpointer:int64 bitstate_in:int64 A.
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val  stackpointer, 264) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val bitstate_in, 200) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val  stackpointer, 264) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val bitstate_in, 200) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val rc_pointer, 192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in,200) (val rc_pointer,192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in,200) (val stackpointer, 264) /\
   nonoverlapping_modulo (2 EXP 64) (val stackpointer, 264) (val rc_pointer,192)
       ==> ensures x86
-           (\s. bytes_loaded s (word pc) mlkem_keccak_f1600_x86_mc_9 /\
+           (\s. bytes_loaded s (word pc) mlkem_keccak_f1600_x86_mc /\
                 read RIP s = word pc /\
                 read RSP s = stackpointer /\
                 read RSI s = rc_pointer /\
@@ -802,9 +802,9 @@ let KECCAK_NOIBT_SUBROUTINE_CORRECT = time prove
 
 
      `forall rc_pointer:int64 pc:num stackpointer:int64 bitstate_in:int64 A.
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val  stackpointer, 264) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val bitstate_in, 200) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc_9) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val  stackpointer, 264) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val bitstate_in, 200) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH mlkem_keccak_f1600_x86_mc) (val rc_pointer, 192) /\
 
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in,200) (val rc_pointer,192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in,200) (val stackpointer, 264) /\
@@ -812,7 +812,7 @@ let KECCAK_NOIBT_SUBROUTINE_CORRECT = time prove
   nonoverlapping_modulo (2 EXP 64) (val stackpointer, 264) (val rc_pointer,192)
       ==> ensures x86
   // Precondition
-  (\s. bytes_loaded s (word pc) mlkem_keccak_f1600_x86_mc_9 /\
+  (\s. bytes_loaded s (word pc) mlkem_keccak_f1600_x86_mc /\
        read RIP s = word (pc + 0x11) /\
        read RSP s = stackpointer /\
        read RSI s = rc_pointer /\
