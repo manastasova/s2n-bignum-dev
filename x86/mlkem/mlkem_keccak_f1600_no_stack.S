@@ -8,6 +8,15 @@
 		.text	
 
 S2N_BN_SYMBOL(mlkem_keccak_f1600_loop_no_stack):
+        _CET_ENDBR
+
+#if WINDOWS_ABI
+        push    rdi
+        push    rsi
+        mov     rdi, rcx
+        mov     rsi, rdx
+#endif
+
         push   rbx
         push   rbp
         push   r12
@@ -435,13 +444,17 @@ loop_keccak:
 		not    QWORD PTR [rdi+0x64+0x24]
 		not    QWORD PTR [rdi+0x64+0x3c]
 		add    rsp, 0xd0
-		pop    rsi
+		pop    r15
 		pop    r14
 		pop    r13
 		pop    r12
 		pop    rbp
 		pop    rbx
 		
+#if WINDOWS_ABI
+        pop    rsi
+        pop    rdi
+#endif
 		retq
 
 #if defined(__linux__) && defined(__ELF__)
