@@ -3,8 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
  *)
 
+Sys.chdir "/home/ubuntu/hol/my_s2n-bignum-dev/s2n-bignum-dev";;
  needs "x86/proofs/base.ml";;
  needs "x86/proofs/utils/keccak_spec.ml";;
+
+  x86_print_log := true;;
+ components_print_log := true;;
 
 (**** print_literal_from_elf "x86/sha3/sha3_keccak_f1600.o";;
 ****)
@@ -12,7 +16,7 @@
 let sha3_keccak_f1600_mc = define_assert_from_elf
   "sha3_keccak_f1600_mc" "x86/sha3/sha3_keccak_f1600.o"
 [
-  0xf3; 0x0f; 0x1e; 0xfa;  (* ENDBR64 *)
+  0xf3; 0x0f; 0x1e; 0xfa;  (* ENDBR64 *) (* Indirect Branch Target *)
   0x53;                    (* PUSH (% rbx) *)
   0x55;                    (* PUSH (% rbp) *)
   0x41; 0x54;              (* PUSH (% r12) *)
@@ -501,17 +505,47 @@ let sha3_keccak_f1600_mc = define_assert_from_elf
   0xc3                     (* RET *)
 ];;
 
+(* Define the binary as a constant (trimmed due to the ENDBR64) *)
+
 let sha3_keccak_f1600_tmc = define_trimmed "sha3_keccak_f1600_tmc" sha3_keccak_f1600_mc;;
 
+(* Create the execution rule *)
+// succefully decodes the program , does not print all 
 let SHA3_KECCAK_F1600_EXEC = X86_MK_CORE_EXEC_RULE sha3_keccak_f1600_tmc;;
 
 (* ------------------------------------------------------------------------- *)
 (* Additional definitions and tactics used in proof.                         *)
 (* ------------------------------------------------------------------------- *)
 
+(* ~~ (a <<< 5 XOR (~~ b) <<< 4)
+(~~ b) <<< 4 <=> ~~ (b <<< 4) *)
+
+  (* remove universal quanifier *)
+  (* split the conditions into 2 goals *)
+  (* // thm is sotred as a rule
+  // when you have 
+  // tactic -> apply a tactic to tranform the goal into another term
+  //way of tranforming the hoal
+
+
+  x <<< 4 
+
+  i = 1
+
+  0101..........
+  ..........0101
+
+  1 + 64 - 4
+ *)
+
+
+  (* // antecedent ==> consequnet goal 
+  // post and pre condition is when we describe program verif
+  // *)
+
  let WORD_ROL_NOT_SYM = prove
  (`!(x:N word) n. word_rol (word_not x) n = word_not (word_rol x n)`,
-  REWRITE_TAC[WORD_EQ_BITS_ALT; BIT_WORD_ROL; BIT_WORD_NOT] THEN
+  REWRITE_TAC[WORD_EQ_BITS_ALT;BIT_WORD_ROL;BIT_WORD_NOT] THEN
   REPEAT GEN_TAC THEN
   REPEAT(COND_CASES_TAC THEN ASM_SIMP_TAC[]) THEN
   ASM_SIMP_TAC[TAUT `(p /\ q <=> q) <=> q ==> p`] THEN
@@ -546,19 +580,46 @@ let SHA3_KECCAK_F1600_CORRECT = prove
             MAYCHANGE [memory :> bytes (stackpointer, 208)],,
             MAYCHANGE [memory :> bytes (bitstate_in, 200)])`,
   REWRITE_TAC[SOME_FLAGS] THEN
+  (* REPEAT GEN_TAC THEN *)
   MAP_EVERY X_GEN_TAC [`rc_pointer:int64`; `bitstate_in:int64`;`A:int64 list`] THEN
   MAP_EVERY X_GEN_TAC [`pc:num`;`stackpointer:int64`] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; C_ARGUMENTS;
               ALL; ALLPAIRS; NONOVERLAPPING_CLAUSES] THEN
+
+  (* DISCH_THEN moves the antecedent as assumption and implications as goal*)
+  (* Each of the assumptions repeatedly are moved to the precondition *)
   DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
 
+  (* prove that A is actually  *)
   ASM_CASES_TAC `LENGTH(A:int64 list) = 25` THENL
    [ALL_TAC;
+   (*  the precondition has infor about A that we neeed to use  it will move things in the assumptions which we can later use*)
     ENSURES_INIT_TAC "s0" THEN 
+    (* p is a variable that means like everything *)
+    (* modus ponens rule with a tautology that states "if False is true, then any proposition p follows." *)
+    (* When used in a proof, this tactic is typically employed when you've reached a contradictory or impossible state in your assumptions, and you want to use that contradiction to prove your goal. After applying this tactic, you would need to show that your assumptions lead to F (False). *)
     MATCH_MP_TAC(TAUT `F ==> p`) THEN
+    (* repeat to search for the first assumption that the rule can be applied succesfullty
+     MP_TAC move assumptuon as antecedent 
+     AP_TERM applied on both sides the lenght definitoin *)
     REPEAT(FIRST_X_ASSUM(MP_TAC o AP_TERM `LENGTH:int64 list->num`)) THEN
+
+    (* converions cannot be directly used 
+    CONV_TAC convert a conversion into a tactic *)
+(* ONCE_DEPTH_CONV search for a term that satisfies a term that is inside another term and thna pply once *)
     CONV_TAC(ONCE_DEPTH_CONV WORDLIST_FROM_MEMORY_CONV) THEN
-    REWRITE_TAC[LENGTH; ARITH] THEN ASM_MESON_TAC[]] THEN
+    REWRITE_TAC[LENGTH; ARITH] THEN 
+    ASM_MESON_TAC[]] THEN
+
+    (* instead I can use subgoal then *)
+
+(* SUBGOAL_THEN `LENGTH(A: ...) = 25` ASSUME_TAC THENL [CHEAT_TAC; ALL_TAC] THEN *)
+
+
+
+  (*** UNITL HERE ***)
+
+
 
   (*** Set up the loop invariant ***)
 
@@ -588,20 +649,32 @@ let SHA3_KECCAK_F1600_CORRECT = prove
 
     (*** Initial holding of the invariant ***)
 
-    REWRITE_TAC[round_constants; CONS_11; GSYM CONJ_ASSOC; 
-     WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`;
-     WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
+    REWRITE_TAC[round_constants] THEN 
+     (* REWRITE_TAC[GSYM CONJ_ASSOC] THEN  *)
+    REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(rc_pointer,24) s:int64 list`] THEN
+    REWRITE_TAC[WORDLIST_FROM_MEMORY_CONV `wordlist_from_memory(bitstate_in,25) s:int64 list`] THEN
     ENSURES_INIT_TAC "s0" THEN
+    (* symbolic exec requires not to be in a list -- it should be in a individual read memory *)
     BIGNUM_DIGITIZE_TAC "A_" `read (memory :> bytes (bitstate_in,8 * 25)) s0` THEN
 
     X86_STEPS_TAC SHA3_KECCAK_F1600_EXEC (1--13) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
 
     REPEAT CONJ_TAC THENL 
+    (* Conversion apply word_rule on the lefthandside -- word a + word b =>  *)
+    (* it  *)
+    WORD_NUM_RED_CONV THEN
+
+    (* WORD_REDUCE_CONV `word (2 * 0)`;;
+
+    (DEPTH_CONV NUM_REDUCE_CONV) `word (2 * 0)`;; *)
+    (* _conv takes the left side -> 
+    the term represents something that should be true, then it modifies the left side, then makes it a theorem *)
+
     [CONV_TAC WORD_RULE;
     CONV_TAC WORD_RULE;
     EXPAND_TAC "A" THEN
-    PURE_ONCE_REWRITE_TAC[ARITH_RULE `2 * 0 = 0`] THEN
+    REWRITE_TAC[ARITH_RULE `2 * 0 = 0`] THEN
     REWRITE_TAC[keccak] THEN 
     REWRITE_TAC[MAP2]];
 
