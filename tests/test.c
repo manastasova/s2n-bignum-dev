@@ -13696,9 +13696,6 @@ int test_sha3_keccak2_f1600_alt(void)
 
 int test_sha3_keccak4_f1600(void)
 {
-#ifdef __x86_64__
-  return 1;
-#else
   uint64_t t, i;
   uint64_t a[100], b[100], c[100];
   printf("Testing sha3_keccak4_f1600 with %d cases\n",tests);
@@ -13730,7 +13727,6 @@ int test_sha3_keccak4_f1600(void)
    }
   printf("All OK\n");
   return 0;
-#endif
 }
 
 int test_sha3_keccak4_f1600_alt(void)
@@ -15250,6 +15246,7 @@ int main(int argc, char *argv[])
   functionaltest(bmi,"secp256k1_jmixadd",test_secp256k1_jmixadd);
   functionaltest(all,"secp256k1_jmixadd_alt",test_secp256k1_jmixadd_alt);
   functionaltest(all,"sha3_keccak_f1600",test_sha3_keccak_f1600);
+  functionaltest(all,"sha3_keccak4_f1600",test_sha3_keccak4_f1600);
   functionaltest(bmi,"sm2_montjadd",test_sm2_montjadd);
   functionaltest(all,"sm2_montjadd_alt",test_sm2_montjadd_alt);
   functionaltest(bmi,"sm2_montjdouble",test_sm2_montjdouble);
@@ -15284,7 +15281,6 @@ int main(int argc, char *argv[])
     functionaltest(arm,"sha3_keccak_f1600_alt2",test_sha3_keccak_f1600_alt2);
     functionaltest(sha3,"sha3_keccak2_f1600",test_sha3_keccak2_f1600);
     functionaltest(sha3,"sha3_keccak2_f1600_alt",test_sha3_keccak2_f1600_alt);
-    functionaltest(sha3,"sha3_keccak4_f1600",test_sha3_keccak4_f1600);
     functionaltest(arm,"sha3_keccak4_f1600_alt",test_sha3_keccak4_f1600_alt);
     functionaltest(sha3,"sha3_keccak4_f1600_alt2",test_sha3_keccak4_f1600_alt2);
 
