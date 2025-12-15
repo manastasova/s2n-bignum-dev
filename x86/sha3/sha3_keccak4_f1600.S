@@ -42,19 +42,19 @@ S2N_BN_SYMBOL(sha3_keccak4_f1600):
    mov    rbp,rsp
    and    rsp,0xffffffffffffffe0
    sub    rsp,0x360
-   vmovdqu ymm0,YMMWORD PTR [rdi]
+   vmovdqu ymm5,YMMWORD PTR [rdi]
    vmovdqu ymm1,YMMWORD PTR [rdi+0xc8]
    vmovdqu ymm2,YMMWORD PTR [rdi+0x190]
    vmovdqu ymm3,YMMWORD PTR [rdi+0x258]
-   vpunpcklqdq ymm4,ymm0,ymm1
-   vpunpckhqdq ymm5,ymm0,ymm1
+   vpunpcklqdq ymm4,ymm5,ymm1
+   vpunpckhqdq ymm0,ymm5,ymm1
    vpunpcklqdq ymm6,ymm2,ymm3
    vpunpckhqdq ymm7,ymm2,ymm3
-   vperm2i128 ymm0,ymm4,ymm6,0x20
+   vperm2i128 ymm5,ymm4,ymm6,0x20
    vperm2i128 ymm2,ymm4,ymm6,0x31
-   vperm2i128 ymm1,ymm5,ymm7,0x20
-   vperm2i128 ymm3,ymm5,ymm7,0x31
-   vmovdqa ymm5,ymm0
+   vperm2i128 ymm1,ymm0,ymm7,0x20
+   vperm2i128 ymm3,ymm0,ymm7,0x31
+   // vmovdqa ymm5,ymm0
    vmovdqa YMMWORD PTR [rsp],ymm1
    vmovdqa YMMWORD PTR [rsp+0x20],ymm2
    vmovdqa YMMWORD PTR [rsp+0x40],ymm3
@@ -533,4 +533,3 @@ S2N_BN_SYMBOL(sha3_keccak4_f1600):
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack,  "",  %progbits
 #endif
-
