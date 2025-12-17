@@ -26,21 +26,39 @@
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(sha3_keccak4_f1600)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(sha3_keccak4_f1600)
         .text    
-        .align 32
+        .align 64
 
 S2N_BN_SYMBOL(sha3_keccak4_f1600):
-        _CET_ENDBR
+        //_CET_ENDBR
 
 #if WINDOWS_ABI
     push    rdi
     push    rsi
     mov     rdi, rcx
     mov     rsi, rdx
+        CFI_DEC_RSP(176)
+        CFI_STACKSAVEU(xmm6,0)
+        CFI_STACKSAVEU(xmm7,16)
+        CFI_STACKSAVEU(xmm8,32)
+        CFI_STACKSAVEU(xmm9,48)
+        CFI_STACKSAVEU(xmm10,64)
+        CFI_STACKSAVEU(xmm11,80)
+        CFI_STACKSAVEU(xmm12,96)
+        CFI_STACKSAVEU(xmm13,112)
+        CFI_STACKSAVEU(xmm14,128)
+        CFI_STACKSAVEU(xmm15,144)
+        CFI_STACKSAVE(rdi,160)
+        CFI_STACKSAVE(rsi,168)
 #endif
 
    push   rbp
    mov    rbp,rsp
-   and    rsp,0xffffffffffffffe0
+
+   //mov    rax, 0xffffffffffffffe0
+   //and    rsp, QWORD PTR 0xffffffffffffffe0
+   or     rsp, 0x1f
+   xor    rsp, 0x1f
+
    sub    rsp,0x360
    vmovdqu ymm5,YMMWORD PTR [rdi]
    vmovdqu ymm1,YMMWORD PTR [rdi+0xc8]
