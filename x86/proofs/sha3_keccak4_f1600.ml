@@ -1138,7 +1138,7 @@ let SHA3_KECCAK4_F1600_NOIBT_SUBROUTINE_CORRECT = prove
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_mc) (val bitstate_in, 800) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_mc) (val rc_pointer, 192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val rc_pointer, 192) /\
-  nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val (word_sub stackpointer (word 0x387)), 0x387 + 8) /\
+  nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val (word_sub stackpointer (word 0x387)), 0x37f + 8) /\
   nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x37f)), 0x37f + 8) (val rc_pointer, 192)
   ==> ensures x86
          (\s. bytes_loaded s (word pc) sha3_keccak4_4_f1600_mc /\
