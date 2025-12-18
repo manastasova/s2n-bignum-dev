@@ -1134,12 +1134,12 @@ let mila_lemma = prove
 
 let SHA3_KECCAK4_F1600_NOIBT_SUBROUTINE_CORRECT = prove
  (`!rc_pointer:int64 bitstate_in:int64 A1 A2 A3 A4 pc:num stackpointer:int64 returnaddress.
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_mc) (val (word_sub stackpointer (word 0x37f)), 0x37f) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_mc) (val (word_sub stackpointer (word 0x37f)), 0x37f + 8) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_mc) (val bitstate_in, 800) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_mc) (val rc_pointer, 192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val rc_pointer, 192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val (word_sub stackpointer (word 0x387)), 0x387 + 8) /\
-  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x37f)), 0x37f) (val rc_pointer, 192)
+  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x37f)), 0x37f + 8) (val rc_pointer, 192)
   ==> ensures x86
          (\s. bytes_loaded s (word pc) sha3_keccak4_4_f1600_mc /\
               read RIP s = word pc /\
@@ -1169,7 +1169,7 @@ let SHA3_KECCAK4_F1600_NOIBT_SUBROUTINE_CORRECT = prove
   CONV_TAC TWEAK_CONV THEN
   X86_PROMOTE_RETURN_STACK_TAC sha3_keccak4_4_f1600_mc
     (CONV_RULE TWEAK_CONV SHA3_KECCAK4_F1600_CORRECT_1)
-    `[RBP]` 0x387);;
+    `[RBP]` 0x37f);;
 
 
 
