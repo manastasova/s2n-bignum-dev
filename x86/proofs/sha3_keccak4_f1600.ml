@@ -1121,14 +1121,15 @@ let SHA3_KECCAK4_F1600_CORRECT_1 = prove
       ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
       REPEAT CONJ_TAC THEN BITBLAST_TAC;]);;
 
-let SHA3_KECCAK4_F1600_NOIBT_SUBROUTINE_CORRECT = time prove
+      
+let SHA3_KECCAK4_F1600_NOIBT_SUBROUTINE_CORRECT = prove
   (`!rc_pointer:int64 bitstate_in:int64 A1 A2 A3 A4 pc:num stackpointer:int64 returnaddress.
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_tmc) (val (word_sub stackpointer (word 0x368)), 0x368) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_tmc) (val (word_sub stackpointer (word 0x37f)), 0x37f) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_tmc) (val bitstate_in, 800) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_4_f1600_tmc) (val rc_pointer, 192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in,800) (val rc_pointer,192) /\
-  nonoverlapping_modulo (2 EXP 64) (val bitstate_in,800) (val (word_sub stackpointer (word 0x368)), 0x376) /\
-  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x368)), 0x368) (val rc_pointer,192)
+  nonoverlapping_modulo (2 EXP 64) (val bitstate_in,800) (val (word_sub stackpointer (word 0x37f)), 0x387) /\
+  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x37f)), 0x37f) (val rc_pointer,192)
   ==> ensures x86
          (\s. bytes_loaded s (word pc) (sha3_keccak4_4_f1600_tmc) /\
               read RIP s = word pc /\
@@ -1148,12 +1149,12 @@ let SHA3_KECCAK4_F1600_NOIBT_SUBROUTINE_CORRECT = time prove
                   wordlist_from_memory(word_add bitstate_in (word 600),25) s = keccak 24 A4)
          (MAYCHANGE [RSP] ,, MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes (bitstate_in, 800);
-                     memory :> bytes(word_sub stackpointer (word 0x368),0x368)])`,
+                     memory :> bytes(word_sub stackpointer (word 0x37f),0x37f)])`,
   let TWEAK_CONV = ONCE_DEPTH_CONV WORDLIST_FROM_MEMORY_CONV in
   CONV_TAC TWEAK_CONV THEN
   X86_PROMOTE_RETURN_STACK_TAC sha3_keccak4_4_f1600_tmc
     (CONV_RULE TWEAK_CONV SHA3_KECCAK4_F1600_CORRECT_1)
-    `[RBP]` 0x368);;
+    `[RBX]` 0x37f);;
 
 
 
@@ -1195,7 +1196,7 @@ let SHA3_KECCAK4_F1600_NOIBT_SUBROUTINE_CORRECT = time prove
     CONV_TAC TWEAK_CONV THEN
     X86_PROMOTE_RETURN_STACK_TAC sha3_keccak4_4_f1600_tmc
       (CONV_RULE TWEAK_CONV SHA3_KECCAK4_F1600_CORRECT)
-      `[RBP]` 0x368);;
+      `[RBP]` 368);;
 –
 let SHA3_KECCAK_F1600_NOIBT_SUBROUTINE_CORRECT = time prove
  (`!rc_pointer:int64 bitstate_in:int64 A pc:num stackpointer:int64 returnaddress.
