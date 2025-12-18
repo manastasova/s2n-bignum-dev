@@ -1128,7 +1128,7 @@ let mila_lemma = prove
       word_sub (word_and stackpointer (word 0xffffffffffffffe0))
                (word 0x360)
       ==> contained (stackpointer',0x360)
-                    (word_sub stackpointer (word 0x387),0x387)`,
+                    (word_sub stackpointer (word 0x37f),0x37f)`,
   REPEAT STRIP_TAC THEN ASM_REWRITE_TAC[CONTAINED_QFREE] THEN
   DISCH_TAC THEN CONV_TAC BITBLAST_RULE);;
 
