@@ -249,7 +249,20 @@ BIGNUM_OBJ = curve25519/bignum_add_p25519.o \
              generic/word_negmodinv.o \
              generic/word_popcount.o \
              generic/word_recip.o \
+             mldsa/mldsa_ntt.o \
              mldsa/mldsa_poly_reduce.o \
+             mlkem/mlkem_basemul_k2.o \
+             mlkem/mlkem_basemul_k3.o \
+             mlkem/mlkem_basemul_k4.o \
+             mlkem/mlkem_frombytes.o \
+             mlkem/mlkem_intt.o \
+             mlkem/mlkem_mulcache_compute.o \
+             mlkem/mlkem_ntt.o \
+             mlkem/mlkem_reduce.o \
+             mlkem/mlkem_rej_uniform_VARIABLE_TIME.o \
+             mlkem/mlkem_tobytes.o \
+             mlkem/mlkem_tomont.o \
+             mlkem/mlkem_unpack.o \
              p256/bignum_add_p256.o \
              p256/bignum_bigendian_4.o \
              p256/bignum_cmul_p256.o \
@@ -529,7 +542,7 @@ proofs: run_proofs ; ../tools/count-proofs.sh .
 tutorial: build_tutorial $(TUTORIAL_PROOF_LOGS);
 
 
-x86-insns.ml: $(OBJ) $(WINOBJ); ../tools/list-x86-insns.sh x86-insns.ml
+x86-insns.ml: ; ../tools/list-x86-insns.sh x86-insns.ml
 # Always run sematest regardless of dependency check
 FORCE: ;
 # Always use max. # of cores because in Makefile one cannot get the passed number of -j.

@@ -253,6 +253,7 @@ let instruction_INDUCTION,instruction_RECURSION = define_type
    | CALL operand
    | CALL_ABSOLUTE (64 word)
    | CLC
+   | CLD
    | CMC
    | CMOV condition operand operand
    | CMP operand operand
@@ -267,6 +268,7 @@ let instruction_INDUCTION,instruction_RECURSION = define_type
    | MOV operand operand
    | MOVD operand operand
    | MOVQ operand operand
+   | MOVSB bool operand operand operand
    | MOVSX operand operand
    | MOVZX operand operand
    | MOVAPS operand operand
@@ -311,9 +313,12 @@ let instruction_INDUCTION,instruction_RECURSION = define_type
    | SHLD operand operand operand
    | SHRD operand operand operand
    | STCF
+   | STD
    | SUB operand operand
    | TEST operand operand
    | TZCNT operand operand
+   | VMOVD operand operand
+   | VMOVQ operand operand
    | VMOVDQA operand operand
    | VMOVDQU operand operand
    | VMOVSHDUP operand operand
@@ -321,6 +326,7 @@ let instruction_INDUCTION,instruction_RECURSION = define_type
    | VPADDW operand operand operand
    | VPADDD operand operand operand
    | VPAND operand operand operand
+   | VPANDN operand operand operand
    | VPBLENDD operand operand operand operand
    | VPBLENDW operand operand operand operand
    | VPBROADCASTD operand operand
@@ -328,6 +334,12 @@ let instruction_INDUCTION,instruction_RECURSION = define_type
    | VPERMD operand operand operand
    | VPERMQ operand operand operand
    | VPERM2I128 operand operand operand operand
+   | VPEXTRD operand operand operand
+   | VPEXTRQ operand operand operand
+   | VPINSRD operand operand operand operand
+   | VPINSRQ operand operand operand operand
+   | VEXTRACTI128 operand operand operand
+   | VINSERTI128 operand operand operand operand
    | VPMULDQ operand operand operand
    | VPMULHW operand operand operand
    | VPMULLD operand operand operand
