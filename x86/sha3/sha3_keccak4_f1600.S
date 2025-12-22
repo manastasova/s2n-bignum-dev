@@ -20,45 +20,39 @@
 // Microsoft x64 ABI:   RCX = a, RDX = rc
 // ----------------------------------------------------------------------------
 
-#include "_internal_s2n_bignum.h"
+#include "_internal_s2n_bignum_x86.h"
 
         .intel_syntax noprefix
         S2N_BN_SYM_VISIBILITY_DIRECTIVE(sha3_keccak4_f1600)
+        S2N_BN_FUNCTION_TYPE_DIRECTIVE(sha3_keccak4_f1600)
         S2N_BN_SYM_PRIVACY_DIRECTIVE(sha3_keccak4_f1600)
         .text    
-        .align 64
+        .align 32
 
 S2N_BN_SYMBOL(sha3_keccak4_f1600):
-        //_CET_ENDBR
+      CFI_START
+       _CET_ENDBR
 
 #if WINDOWS_ABI
-    push    rdi
-    push    rsi
-    mov     rdi, rcx
-    mov     rsi, rdx
-        CFI_DEC_RSP(176)
-        CFI_STACKSAVEU(xmm6,0)
-        CFI_STACKSAVEU(xmm7,16)
-        CFI_STACKSAVEU(xmm8,32)
-        CFI_STACKSAVEU(xmm9,48)
-        CFI_STACKSAVEU(xmm10,64)
-        CFI_STACKSAVEU(xmm11,80)
-        CFI_STACKSAVEU(xmm12,96)
-        CFI_STACKSAVEU(xmm13,112)
-        CFI_STACKSAVEU(xmm14,128)
-        CFI_STACKSAVEU(xmm15,144)
-        CFI_STACKSAVE(rdi,160)
-        CFI_STACKSAVE(rsi,168)
+    CFI_DEC_RSP(176)
+    CFI_STACKSAVEU(xmm6,0)
+    CFI_STACKSAVEU(xmm7,16)
+    CFI_STACKSAVEU(xmm8,32)
+    CFI_STACKSAVEU(xmm9,48)
+    CFI_STACKSAVEU(xmm10,64)
+    CFI_STACKSAVEU(xmm11,80)
+    CFI_STACKSAVEU(xmm12,96)
+    CFI_STACKSAVEU(xmm13,112)
+    CFI_STACKSAVEU(xmm14,128)
+    CFI_STACKSAVEU(xmm15,144)
+    CFI_STACKSAVE(rdi,160)
+    CFI_STACKSAVE(rsi,168)
+    mov rdi, rcx
+    mov rsi, rdx
 #endif
 
-   push   rbp
-   mov    rbp,rsp
-
-   //mov    rax, 0xffffffffffffffe0
-   //and    rsp, QWORD PTR 0xffffffffffffffe0
-   or     rsp, 0x1f
-   xor    rsp, 0x1f
-
+   mov    rcx,rsp
+   and    rsp, QWORD PTR 0xffffffffffffffe0
    sub    rsp,0x360
    vmovdqu ymm5,YMMWORD PTR [rdi]
    vmovdqu ymm1,YMMWORD PTR [rdi+0xc8]
@@ -538,15 +532,27 @@ S2N_BN_SYMBOL(sha3_keccak4_f1600):
    vpextrq QWORD PTR [rdi+0x188],xmm0,0x1
    vmovq  QWORD PTR [rdi+0x250],xmm1
    vpextrq QWORD PTR [rdi+0x318],xmm1,0x1
-   mov    rsp,rbp
-   pop    rbp
+   mov    rsp,rcx
 
 #if WINDOWS_ABI
-    pop    rsi
-    pop    rdi
+    CFI_STACKLOADU(xmm6,0)
+    CFI_STACKLOADU(xmm7,16)
+    CFI_STACKLOADU(xmm8,32)
+    CFI_STACKLOADU(xmm9,48)
+    CFI_STACKLOADU(xmm10,64)
+    CFI_STACKLOADU(xmm11,80)
+    CFI_STACKLOADU(xmm12,96)
+    CFI_STACKLOADU(xmm13,112)
+    CFI_STACKLOADU(xmm14,128)
+    CFI_STACKLOADU(xmm15,144)
+    CFI_STACKLOAD(rdi,160)
+    CFI_STACKLOAD(rsi,168)
+    CFI_INC_RSP(176)
 #endif
 
-    ret
+    CFI_RET
+
+S2N_BN_SIZE_DIRECTIVE(sha3_keccak4_f1600)
 
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack,  "",  %progbits
