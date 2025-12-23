@@ -66,7 +66,6 @@ S2N_BN_SYMBOL(sha3_keccak4_f1600):
    vperm2i128 ymm2,ymm4,ymm6,0x31
    vperm2i128 ymm1,ymm0,ymm7,0x20
    vperm2i128 ymm3,ymm0,ymm7,0x31
-   // vmovdqu ymm5,ymm0
    vmovdqu YMMWORD PTR [rsp],ymm1
    vmovdqu YMMWORD PTR [rsp+0x20],ymm2
    vmovdqu YMMWORD PTR [rsp+0x40],ymm3
