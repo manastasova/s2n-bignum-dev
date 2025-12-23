@@ -14200,7 +14200,6 @@ int test_sha3_keccak4_f1600(void)
   for (t = 0; t < tests; ++t)
    { random_bignum(100,a);
      for (i = 0; i < 100; ++i) c[i] = a[i];
-     
      reference_keccak_f1600(b,a);
      reference_keccak_f1600(b+25,a+25);
      reference_keccak_f1600(b+50,a+50);
@@ -15430,7 +15429,6 @@ int main(int argc, char *argv[])
 
   if (tests == 0) tests = TESTS;
 
-  #if 0 
   functionaltest(all,"bignum_add",test_bignum_add);
   functionaltest(all,"bignum_add_p25519",test_bignum_add_p25519);
   functionaltest(all,"bignum_add_p256",test_bignum_add_p256);
@@ -15754,10 +15752,8 @@ int main(int argc, char *argv[])
   functionaltest(all,"secp256k1_jdouble_alt",test_secp256k1_jdouble_alt);
   functionaltest(bmi,"secp256k1_jmixadd",test_secp256k1_jmixadd);
   functionaltest(all,"secp256k1_jmixadd_alt",test_secp256k1_jmixadd_alt);
-  #endif
   functionaltest(all,"sha3_keccak_f1600",test_sha3_keccak_f1600);
   functionaltest(all,"sha3_keccak4_f1600",test_sha3_keccak4_f1600);
-  #if 0
   functionaltest(bmi,"sm2_montjadd",test_sm2_montjadd);
   functionaltest(all,"sm2_montjadd_alt",test_sm2_montjadd_alt);
   functionaltest(bmi,"sm2_montjdouble",test_sm2_montjdouble);
@@ -15775,7 +15771,6 @@ int main(int argc, char *argv[])
   functionaltest(all,"word_negmodinv",test_word_negmodinv);
   functionaltest(all,"word_popcount",test_word_popcount);
   functionaltest(all,"word_recip",test_word_recip);
-    #endif
 
   if (get_arch_name() == ARCH_AARCH64) {
     functionaltest(all,"bignum_copy_row_from_table_8n",test_bignum_copy_row_from_table_8n);
@@ -15790,7 +15785,7 @@ int main(int argc, char *argv[])
     functionaltest(sha3,"sha3_keccak4_f1600_alt2",test_sha3_keccak4_f1600_alt2);
 
   }
-#if 0
+
   if (extrastrigger) function_to_test = "_";
 
   functionaltest(bmi,"known value tests",test_known_values);
@@ -15805,7 +15800,7 @@ int main(int argc, char *argv[])
   functionaltest(all,"curve25519_x25519base_byte_alt (TweetNaCl)",test_curve25519_x25519base_byte_alt_tweetnacl);
   functionaltest(bmi,"edwards25519_scalarmulbase (TweetNaCl)",test_edwards25519_scalarmulbase_tweetnacl);
   functionaltest(all,"edwards25519_scalarmulbase_alt (TweetNaCl)",test_edwards25519_scalarmulbase_alt_tweetnacl);
-#endif
+
   if (successes == tested)
    { printf("All %d tests run, all passed\n",successes);
      return 0;

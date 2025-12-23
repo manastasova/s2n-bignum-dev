@@ -1201,7 +1201,6 @@ int main(int argc, char *argv[])
 
   // Now the main tests
 
-  #if 0
   timingtest(all,"bignum_add (4x4->4)",call_bignum_add__4_4);
   timingtest(all,"bignum_add (6x6->6)",call_bignum_add__6_6);
   timingtest(all,"bignum_add (32x32->32)",call_bignum_add__32_32);
@@ -1578,7 +1577,6 @@ int main(int argc, char *argv[])
   timingtest(all,"secp256k1_jdouble_alt",call_secp256k1_jdouble_alt);
   timingtest(bmi,"secp256k1_jmixadd",call_secp256k1_jmixadd);
   timingtest(all,"secp256k1_jmixadd_alt",call_secp256k1_jmixadd_alt);
-  #endif
   timingtest(all,"sha3_keccak_f1600",call_sha3_keccak_f1600);
   timingtest(sha3,"sha3_keccak_f1600_alt",call_sha3_keccak_f1600_alt);
   timingtest(arm,"sha3_keccak_f1600_alt2",call_sha3_keccak_f1600_alt2);
@@ -1586,14 +1584,12 @@ int main(int argc, char *argv[])
   timingtest(sha3,"sha3_keccak2_f1600_alt",call_sha3_keccak2_f1600_alt);
   timingtest(arm,"sha3_keccak4_f1600_alt",call_sha3_keccak4_f1600_alt);
   timingtest(sha3,"sha3_keccak4_f1600_alt2",call_sha3_keccak4_f1600_alt2);
-  //timingtest(sha3,"sha3_keccak_f1600_alt",call_sha3_keccak_f1600_alt);
-  //timingtest(sha3,"sha3_keccak2_f1600",call_sha3_keccak2_f1600);
-  //timingtest(sha3,"sha3_keccak2_f1600_alt",call_sha3_keccak2_f1600_alt);
+  timingtest(sha3,"sha3_keccak_f1600_alt",call_sha3_keccak_f1600_alt);
+  timingtest(sha3,"sha3_keccak2_f1600",call_sha3_keccak2_f1600);
+  timingtest(sha3,"sha3_keccak2_f1600_alt",call_sha3_keccak2_f1600_alt);
   timingtest(all,"sha3_keccak4_f1600",call_sha3_keccak4_f1600);
-  //timingtest(sha3,"sha3_keccak4_f1600_alt",call_sha3_keccak4_f1600_alt);
-  //timingtest(sha3,"sha3_keccak4_f1600_alt2",call_sha3_keccak4_f1600_alt2);
-  #if 0
->>>>>>> Stashed changes
+  timingtest(sha3,"sha3_keccak4_f1600_alt",call_sha3_keccak4_f1600_alt);
+  timingtest(sha3,"sha3_keccak4_f1600_alt2",call_sha3_keccak4_f1600_alt2);
   timingtest(bmi,"sm2_montjadd",call_sm2_montjadd);
   timingtest(all,"sm2_montjadd_alt",call_sm2_montjadd_alt);
   timingtest(bmi,"sm2_montjdouble",call_sm2_montjdouble);
@@ -1611,7 +1607,6 @@ int main(int argc, char *argv[])
   timingtest(all,"word_negmodinv",call_word_negmodinv);
   timingtest(all,"word_popcount",call_word_popcount);
   timingtest(all,"word_recip",call_word_recip);
-  #endif
 
   // Summarize performance in arithmetic and geometric means
 
