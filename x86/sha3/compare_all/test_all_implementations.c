@@ -20,6 +20,7 @@
 #include <inttypes.h>
 #include <time.h>
 #include <math.h>
+#include <x86intrin.h>
 
 /* =============================================================================
  * Configuration
@@ -369,16 +370,19 @@ static void timingtest(int enabled, const char *name, void (*f)(void)) {
     if (strncmp(name, function_to_test, testline)) return;
 
     double timing[CORE_REPS];
-    clock_t start_time, finish_time;
+    uint64_t start_cycles, end_cycles;
 
     (*f)();  // Warmup
 
     for (uint64_t i = 0; i < CORE_REPS; ++i) {
         random_bignumd(BUFFERSIZE, b0, i % 65);
-        start_time = clock();
+        _mm_mfence();
+        _mm_lfence();
+        start_cycles = __rdtsc();
         (*f)();
-        finish_time = clock();
-        timing[i] = (1e9 * (double)(finish_time - start_time)) / ((double)inner_reps * (double)CLOCKS_PER_SEC);
+        _mm_lfence();
+        end_cycles = __rdtsc();
+        timing[i] = (double)(end_cycles - start_cycles) / (double)inner_reps;
     }
 
     double mean = 0.0, variance = 0.0, covariance = 0.0, dvariance = 0.0;
@@ -391,8 +395,8 @@ static void timingtest(int enabled, const char *name, void (*f)(void)) {
     variance /= CORE_REPF; covariance /= CORE_REPF; dvariance /= CORE_REPF;
 
     double stddev = sqrt(variance), dstddev = sqrt(dvariance);
-    printf("%-55s: %7.1f ns each (var %4.1f%%, corr %5.2f) = %10.0f ops/sec\n",
-           name, mean, 100.0 * stddev / mean, covariance / (stddev * dstddev), 1e9 / mean);
+    printf("%-55s: %7.1f cycles each (var %4.1f%%, corr %5.2f)\n",
+           name, mean, 100.0 * stddev / mean, covariance / (stddev * dstddev));
 
     arithmean += mean;
     geomean += log(mean);
@@ -431,7 +435,7 @@ static void run_all_benchmarks(void) {
         arithmean /= (double)benchmark_tests;
         geomean = exp(geomean / (double)benchmark_tests);
         printf("\n================================================================================\n");
-        printf("ARITHMEAN (%3d tests): %6.1f ns | GEOMEAN: %6.1f ns\n", benchmark_tests, arithmean, geomean);
+        printf("ARITHMEAN (%3d tests): %6.1f cycles | GEOMEAN: %6.1f cycles\n", benchmark_tests, arithmean, geomean);
         printf("================================================================================\n");
     }
 }
