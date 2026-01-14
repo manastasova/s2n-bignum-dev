@@ -1,16 +1,29 @@
 # Makefile for Keccak-f1600x4 Implementation Test & Benchmark Suite
 
 CC = gcc
-CFLAGS = -mavx2 -O3 -Wall
+CFLAGS = -mavx2 -mno-avx512f \
+-mno-avx512cd \
+-mno-avx512er \
+-mno-avx512pf \
+-mno-avx512dq \
+-mno-avx512bw \
+-mno-avx512vl \
+-mno-avx512ifma \
+-mno-avx512vbmi \
+-mno-avx5124fmaps \
+-mno-avx5124vnniw \
+-mno-avx512vpopcntdq \
+-mno-avx512vbmi2 \
+-mno-avx512vnni \
+-mno-avx512bitalg \
+-mno-avx512bf16 \
+-mno-avx512vp2intersect \
+-mno-avx512fp16 -O3 -fno-unroll-loops -funroll-loops -fno-unroll-loops -funroll-all-loops -fno-unroll-all-loops -Wall
 LDFLAGS = -lm
 
-# Macros required for the implementations
-COMMON_DEFINES = -DMLK_FIPS202_X86_64_XKCP \
-                 -DMLK_ALIGN="__attribute__((aligned(32)))" \
-                 -DMLK_EMPTY_CU\(x\)=
 
 # Final implementation needs additional defines for little-endian
-FINAL_DEFINES = $(COMMON_DEFINES) -DMLK_SYS_LITTLE_ENDIAN
+FINAL_DEFINES = -DMLK_SYS_LITTLE_ENDIAN
 
 # Source files (numbered naming scheme)
 ORG_SRC = 1_KeccakP_1600_times4_SIMD256_org_standalone.c
@@ -24,6 +37,7 @@ X2_UNROLLED_ONE_ARG_SRC = 8_KeccakP_1600_times4_SIMD256_x2_unrolled_once_arg.c
 X2_UNROLLED_ONE_ARG_SPECIAL_RHO_SRC = 9_KeccakP_1600_times4_SIMD256_x2_unrolled_once_arg_special_rho.c
 LOOP_SPECIAL_RHO_SRC = 10_KeccakP_1600_times4_SIMD256_loop_special_rho.c
 X2_ADDS_SRC = 11_KeccakP_1600_times4_SIMD256_x2_unrolled_once_arg_special_rho_adds.c
+S2N_ASM_SRC = sha3_keccak4_f1600.S
 TEST_SRC = test_all_implementations.c
 
 # Object files
@@ -38,9 +52,10 @@ X2_UNROLLED_ONE_ARG_OBJ = 8_KeccakP_1600_times4_SIMD256_x2_unrolled_once_arg.o
 X2_UNROLLED_ONE_ARG_SPECIAL_RHO_OBJ = 9_KeccakP_1600_times4_SIMD256_x2_unrolled_once_arg_special_rho.o
 LOOP_SPECIAL_RHO_OBJ = 10_KeccakP_1600_times4_SIMD256_loop_special_rho.o
 X2_ADDS_OBJ = 11_KeccakP_1600_times4_SIMD256_x2_unrolled_once_arg_special_rho_adds.o
+S2N_ASM_OBJ = sha3_keccak4_f1600.o
 
 # All object files
-OBJS = $(ORG_OBJ) $(RC_TABLE_OBJ) $(NO_SPECIAL_RHO_OBJ) $(NO_THETA_PREPS_OBJ) $(UPDATE_LOAD_OBJ) $(X2_UNROLLED_OBJ) $(LOOP_OBJ) $(X2_UNROLLED_ONE_ARG_OBJ) $(X2_UNROLLED_ONE_ARG_SPECIAL_RHO_OBJ) $(LOOP_SPECIAL_RHO_OBJ) $(FINAL_OBJ) $(X2_ADDS_OBJ)
+OBJS = $(ORG_OBJ) $(RC_TABLE_OBJ) $(NO_SPECIAL_RHO_OBJ) $(NO_THETA_PREPS_OBJ) $(UPDATE_LOAD_OBJ) $(X2_UNROLLED_OBJ) $(LOOP_OBJ) $(X2_UNROLLED_ONE_ARG_OBJ) $(X2_UNROLLED_ONE_ARG_SPECIAL_RHO_OBJ) $(LOOP_SPECIAL_RHO_OBJ) $(FINAL_OBJ) $(X2_ADDS_OBJ) $(S2N_ASM_OBJ)
 
 # Target executable
 TARGET = test_all_implementations
@@ -53,7 +68,7 @@ $(TARGET): $(TEST_SRC) $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(TEST_SRC) $(OBJS) $(LDFLAGS)
 
 $(ORG_OBJ): $(ORG_SRC)
-	$(CC) $(CFLAGS) $(COMMON_DEFINES) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(RC_TABLE_OBJ): $(RC_TABLE_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -86,6 +101,9 @@ $(FINAL_OBJ): $(FINAL_SRC) KeccakP_1600_times4_SIMD256.h
 	$(CC) $(CFLAGS) $(FINAL_DEFINES) -c $< -o $@
 
 $(X2_ADDS_OBJ): $(X2_ADDS_SRC)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(S2N_ASM_OBJ): $(S2N_ASM_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(TARGET)

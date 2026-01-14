@@ -51,6 +51,9 @@ extern void mlk_keccakf1600x4_permute24_x2_unrolled_one_arg_special_rho(void *st
 extern void mlk_keccakf1600x4_permute24_loop_special_rho(void *states, const uint64_t rc[24]);
 extern void mlk_keccakf1600x4_permute24_x2_unrolled_one_arg_special_rho_adds(void *states, const uint64_t rc[24]);
 
+// Assembly implementation from s2n-bignum
+extern void sha3_keccak4_f1600(void *states, const uint64_t rc[24]);
+
 /* =============================================================================
  * Keccak round constants
  * ============================================================================= */
@@ -201,6 +204,8 @@ static implementation_t implementations[] = {
       mlk_keccakf1600x4_permute24_loop_special_rho, 1, 1 },
     { "mlk_keccakf1600x4_permute24_x2_unrolled_one_arg_special_rho_adds", "x2_adds",
       mlk_keccakf1600x4_permute24_x2_unrolled_one_arg_special_rho_adds, 1, 1 },
+    { "sha3_keccak4_f1600 (s2n-bignum assembly)", "s2n_asm",
+      sha3_keccak4_f1600, 1, 1 },
     { NULL, NULL, NULL, 0, 0 }
 };
 
