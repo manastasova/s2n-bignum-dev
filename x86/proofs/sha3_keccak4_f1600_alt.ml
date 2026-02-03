@@ -1099,6 +1099,45 @@ let WORD_SUBWORD_JOIN_EXTRACT_128 = prove
    REPEAT GEN_TAC THEN
    BITBLAST_TAC);;
 
+
+
+
+(* Theorem for XOR of word_joins distributing to components *)
+let WORD_XOR_JOIN_256 = prove
+ (`!a1:int64 b1:int64 c1:int64 d1:int64 a2:int64 b2:int64 c2:int64 d2:int64.
+   (word_join ((word_join a1 b1):int128) ((word_join c1 d1):int128):int256) ^^
+   (word_join ((word_join a2 b2):int128) ((word_join c2 d2):int128):int256) =
+   word_join ((word_join (a1 ^^ a2) (b1 ^^ b2)):int128) 
+             ((word_join (c1 ^^ c2) (d1 ^^ d2)):int128)`,
+  REPEAT GEN_TAC THEN BITBLAST_TAC);;
+
+
+(* For the full 256-bit SIMD pattern: extract, rotate, rejoin *)
+let SIMD_ROL_256_64 = prove
+ (`!v:int256 n. n < 64 ==>
+   word_join
+     ((word_join
+       (word_or (word_shl ((word_subword v (192,64)):int64) n)
+                (word_ushr ((word_subword v (192,64)):int64) (64 - n)))
+       (word_or (word_shl ((word_subword v (128,64)):int64) n)
+                (word_ushr ((word_subword v (128,64)):int64) (64 - n)))):int128)
+     ((word_join
+       (word_or (word_shl ((word_subword v (64,64)):int64) n)
+                (word_ushr ((word_subword v (64,64)):int64) (64 - n)))
+       (word_or (word_shl ((word_subword v (0,64)):int64) n)
+                (word_ushr ((word_subword v (0,64)):int64) (64 - n)))):int128) =
+   word_join
+     ((word_join
+       (word_rol ((word_subword v (192,64)):int64) n)
+       (word_rol ((word_subword v (128,64)):int64) n)):int128)
+     ((word_join
+       (word_rol ((word_subword v (64,64)):int64) n)
+       (word_rol ((word_subword v (0,64)):int64) n)):int128)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `64 - n < 64` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  ASM_SIMP_TAC[WORD_SHL_OR_USHR_EQ_ROL_64]);;
+
+
 let sha3_keccak4_f1600_alt_5_CORRECT = prove
   (`!rc_pointer:int64 bitstate_in:int64 rho8_ptr:int64 rho56_ptr:int64 A1 A2 A3 A4 pc:num stackpointer:int64.
   nonoverlapping_modulo (2 EXP 64) (pc, 0xe31) (val stackpointer, 0x340) /\
@@ -1172,6 +1211,8 @@ let sha3_keccak4_f1600_alt_5_CORRECT = prove
       (read R10 s = word (2*i) /\
        read RDI s = bitstate_in /\
        read RSP s = stackpointer /\
+       read RDX s = rho8_ptr /\
+       read RCX s = rho56_ptr /\
        read RSI s = word_add rc_pointer (word (16 * i)) /\
        wordlist_from_memory(rho8_ptr,4) s = rho8_constant /\
        wordlist_from_memory(rho56_ptr,4) s = rho56_constant /\
@@ -1288,12 +1329,54 @@ let sha3_keccak4_f1600_alt_5_CORRECT = prove
     MEMORY_256_FROM_64_TAC "rho56_ptr" 0 4 THEN
     ASM_REWRITE_TAC[WORD_ADD_0] THEN REPEAT STRIP_TAC THEN
     X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (1--10) THEN
-     X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (11--20) THEN
-    X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (21--31) THEN
+     X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (11--31) THEN
+    X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (32--32) THEN
+
+    CHANGED_TAC(ASM_REWRITE_TAC [WORD_ROL_SHIFTS; WORD_ROR_SHIFTS]) THEN
+
+
     X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (32--40) THEN
-    X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (41--100) THEN
-     X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (65--65) THEN
-    X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (66--418) THEN
+    X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (41--140) THEN
+    X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (141--200) THEN
+
+
+
+
+ASM_REWRITE_TAC [WORD_XOR_JOIN_256] THEN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (201--250) THEN
+
+
+
+
+
+
+
+
+
+
+      X86_STEPS_TAC sha3_keccak4_f1600_alt_5_EXEC (201--418) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
     REPEAT CONJ_TAC THENL
       [CONV_TAC WORD_BLAST;

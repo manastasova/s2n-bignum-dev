@@ -6,7 +6,7 @@
  needs "x86/proofs/base.ml";;
  needs "x86/proofs/utils/keccak_spec.ml";;
 
-(**** print_literal_from_elf "x86/sha3/sha3_keccak_f1600.o";;
+(**** print_literal_from_elf "x86/sha3/sha3_keccak4_f1600_alt.o";;
 ****)
 
 let sha3_keccak_f1600_mc = define_assert_from_elf
@@ -660,7 +660,7 @@ let SHA3_KECCAK_F1600_CORRECT = prove
       REWRITE_TAC[keccak_round] THEN
       CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
       CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
-      REWRITE_TAC[round_constants; MAP2] THEN REWRITE_TAC[CONS_11] THEN                    
+      REWRITE_TAC[rho8_constant; rho56_constant; round_constants; MAP2] THEN REWRITE_TAC[CONS_11] THEN                    
       REWRITE_TAC[WORD_XOR_NOT;WORD_ROL_NOT_SYM] THEN 
       REWRITE_TAC[WORD_NEG_EL_DEMORGAN;WORD_NOT_NOT] THEN
       REPEAT CONJ_TAC THEN KECCAK_BITBLAST_TAC;

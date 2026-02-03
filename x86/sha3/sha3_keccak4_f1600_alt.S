@@ -31,7 +31,7 @@
 
 S2N_BN_SYMBOL(sha3_keccak4_f1600_alt):
         CFI_START
-       // _CET_ENDBR
+       //_CET_ENDBR
 		mov	r11, rsp
         and    rsp,0xffffffffffffffe0
         sub    rsp,0x340
@@ -159,11 +159,21 @@ vmovdqu [rsp+0x200],ymm2                      // store A[23] -> on stack
 
 // Load A[24] from each of the 4 states
 // A[24] is the last element (only 8 bytes per state)
-mov    QWORD PTR [rsp+0x8],rax              // store state1[24] -> on stack (part of A[24])
-mov    rax,QWORD PTR [rdi+0x250]              // Load state2[24] into rax
-mov    QWORD PTR [rsp+0x10],rax              // store state2[24] -> on stack (part of A[24])
-mov    rax,QWORD PTR [rdi+0x318]              // Load state3[24] into rax
-mov    QWORD PTR [rsp+0x18],rax              // store state3[24] -> on stack (part of A[24])
+// mov    rax,QWORD PTR [rdi+0xc0]               // Load state0[24] into rax
+// mov    QWORD PTR [rsp+0x0],rax              // store state0[24] -> on stack (part of A[24])
+// mov    rax,QWORD PTR [rdi+0x188]              // Load state1[24] into rax
+// mov    QWORD PTR [rsp+0x8],rax              // store state1[24] -> on stack (part of A[24])
+// mov    rax,QWORD PTR [rdi+0x250]              // Load state2[24] into rax
+// mov    QWORD PTR [rsp+0x10],rax              // store state2[24] -> on stack (part of A[24])
+// mov    rax,QWORD PTR [rdi+0x318]              // Load state3[24] into rax
+// mov    QWORD PTR [rsp+0x18],rax              // store state3[24] -> on stack (part of A[24])
+
+vmovq  xmm1,[rdi+0xc0]                        // Load state0[24] into lower 64 bits of xmm1
+vpinsrq xmm1,xmm1,[rdi+0x188],0x1             // Insert state1[24] into upper 64 bits of xmm1 = [state0[24] | state1[24]]
+vmovq  xmm2,[rdi+0x250]                       // Load state2[24] into lower 64 bits of xmm2
+vpinsrq xmm2,xmm2,[rdi+0x318],0x1             // Insert state3[24] into upper 64 bits of xmm2 = [state2[24] | state3[24]]
+vinserti128 ymm6,ymm1,xmm2,0x1                // Interleave into ymm3 = A[24] = [state0[24] | state1[24] | state2[24] | state3[24]]
+vmovdqu [rsp+0x0],ymm6                      // store A[24] -> on stack
 
 vmovdqu	ymm6, [rsp+0x0]
 vmovdqu	[rsp+0x0], ymm14

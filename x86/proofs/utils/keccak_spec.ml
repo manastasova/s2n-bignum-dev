@@ -49,6 +49,20 @@ let round_constants = define
     word 0x0000000080000001;
     word 0x8000000080008008]`;;
 
+let rho8_constant = define
+ `rho8_constant:int64 list =
+   [word 0x0605040302010007;
+    word 0x0E0D0C0B0A09080F;
+    word 0x1615141312111017;
+    word 0x1E1D1C1B1A19181F]`;;
+
+let rho56_constant = define
+ `rho56_constant:int64 list =
+   [word 0x0007060504030201;
+    word 0x080F0E0D0C0B0A09;
+    word 0x1017161514131211;
+    word 0x181F1E1D1C1B1A19]`;;
+
 (*** An individual round, with input and output lists in row-major order ***)
 
 let keccak_round = define

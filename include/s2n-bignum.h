@@ -1151,10 +1151,11 @@ extern void sha3_keccak2_f1600_alt(uint64_t a[S2N_BIGNUM_STATIC 50],const uint64
 extern void sha3_keccak4_f1600(uint64_t a[S2N_BIGNUM_STATIC 100],const uint64_t rc[S2N_BIGNUM_STATIC 24]);
 #ifdef __x86_64__
 extern void sha3_keccak4_f1600_alt(uint64_t a[S2N_BIGNUM_STATIC 100],const uint64_t rc[S2N_BIGNUM_STATIC 24], const uint64_t mlk_rho8[4], const uint64_t mlk_rho56[4]);
+extern void sha3_keccak4_f1600_alt2(uint64_t a[S2N_BIGNUM_STATIC 100],const uint64_t rc[S2N_BIGNUM_STATIC 24], const uint64_t mlk_rho8[4], const uint64_t mlk_rho56[4]);
 #else
 extern void sha3_keccak4_f1600_alt(uint64_t a[S2N_BIGNUM_STATIC 100],const uint64_t rc[S2N_BIGNUM_STATIC 24]);
-#endif
 extern void sha3_keccak4_f1600_alt2(uint64_t a[S2N_BIGNUM_STATIC 100],const uint64_t rc[S2N_BIGNUM_STATIC 24]);
+#endif
 
 // Point addition on CC curve SM2 in Montgomery-Jacobian coordinates
 // Inputs p1[12], p2[12]; output p3[12]
