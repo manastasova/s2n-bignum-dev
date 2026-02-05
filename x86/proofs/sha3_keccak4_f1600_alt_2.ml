@@ -782,64 +782,25 @@ let WORD_SUBWORD_JOIN_EXTRACT_128 = prove
    REPEAT GEN_TAC THEN
    BITBLAST_TAC);;
 
-
-
-
-(* Theorem for XOR of word_joins distributing to components *)
-let WORD_XOR_JOIN_256 = prove
- (`!a1:int64 b1:int64 c1:int64 d1:int64 a2:int64 b2:int64 c2:int64 d2:int64.
-   (word_join ((word_join a1 b1):int128) ((word_join c1 d1):int128):int256) ^^
-   (word_join ((word_join a2 b2):int128) ((word_join c2 d2):int128):int256) =
-   word_join ((word_join (a1 ^^ a2) (b1 ^^ b2)):int128) 
-             ((word_join (c1 ^^ c2) (d1 ^^ d2)):int128)`,
-  REPEAT GEN_TAC THEN BITBLAST_TAC);;
-
-
-(* For the full 256-bit SIMD pattern: extract, rotate, rejoin *)
-let SIMD_ROL_256_64 = prove
- (`!v:int256 n. n < 64 ==>
-   word_join
-     ((word_join
-       (word_or (word_shl ((word_subword v (192,64)):int64) n)
-                (word_ushr ((word_subword v (192,64)):int64) (64 - n)))
-       (word_or (word_shl ((word_subword v (128,64)):int64) n)
-                (word_ushr ((word_subword v (128,64)):int64) (64 - n)))):int128)
-     ((word_join
-       (word_or (word_shl ((word_subword v (64,64)):int64) n)
-                (word_ushr ((word_subword v (64,64)):int64) (64 - n)))
-       (word_or (word_shl ((word_subword v (0,64)):int64) n)
-                (word_ushr ((word_subword v (0,64)):int64) (64 - n)))):int128) =
-   word_join
-     ((word_join
-       (word_rol ((word_subword v (192,64)):int64) n)
-       (word_rol ((word_subword v (128,64)):int64) n)):int128)
-     ((word_join
-       (word_rol ((word_subword v (64,64)):int64) n)
-       (word_rol ((word_subword v (0,64)):int64) n)):int128)`,
-  REPEAT STRIP_TAC THEN
-  SUBGOAL_THEN `64 - n < 64` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-  ASM_SIMP_TAC[WORD_SHL_OR_USHR_EQ_ROL_64]);;
-
-
 let sha3_keccak4_f1600_alt_2_7_CORRECT = prove
   (`!rc_pointer:int64 bitstate_in:int64 rho8_ptr:int64 rho56_ptr:int64 A1 A2 A3 A4 pc:num stackpointer:int64.
-  nonoverlapping_modulo (2 EXP 64) (pc, 0xe31) (val stackpointer, 0x300) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, 0xe31) (val bitstate_in, 832) /\
-  nonoverlapping_modulo (2 EXP 64) (pc, 0xe31) (val rc_pointer, 192) /\
-  nonoverlapping_modulo (2 EXP 64) (val bitstate_in,832) (val rc_pointer,192) /\
-  nonoverlapping_modulo (2 EXP 64) (val bitstate_in,832) (val stackpointer, 0x300) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, 0x9f7) (val stackpointer, 0x300) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, 0x9f7) (val bitstate_in, 800) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, 0x9f7) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (val bitstate_in,800) (val rc_pointer,192) /\
+  nonoverlapping_modulo (2 EXP 64) (val bitstate_in,800) (val stackpointer, 0x300) /\
   nonoverlapping_modulo (2 EXP 64) (val stackpointer, 0x300) (val rc_pointer,192) /\
   
-  nonoverlapping_modulo (2 EXP 64) (pc, 0xe31) (val rho8_ptr, 128) /\
-  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val stackpointer, 0x300) /\
-  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val bitstate_in, 800) /\
-  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, 0x9f7) (val rho8_ptr, 32) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 32) (val stackpointer, 0x300) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 32) (val bitstate_in, 800) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 32) (val rc_pointer, 192) /\
 
-  nonoverlapping_modulo (2 EXP 64) (pc, 0xe31) (val rho56_ptr, 128) /\
-  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 128) (val stackpointer, 0x300) /\
-  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 128) (val bitstate_in, 800) /\
-  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 128) (val rc_pointer, 192) /\
-  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val rho56_ptr, 128)
+  nonoverlapping_modulo (2 EXP 64) (pc, 0x9f7) (val rho56_ptr, 32) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 32) (val stackpointer, 0x300) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 32) (val bitstate_in, 800) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 32) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 32) (val rho56_ptr, 32)
 
   ==> ensures x86
          (\s. bytes_loaded s (word pc) (BUTLAST sha3_keccak4_f1600_alt_2_7_tmc) /\
@@ -854,12 +815,12 @@ let sha3_keccak4_f1600_alt_2_7_CORRECT = prove
               wordlist_from_memory(word_add bitstate_in (word 200),25) s = A2 /\
               wordlist_from_memory(word_add bitstate_in (word 400),25) s = A3 /\
               wordlist_from_memory(word_add bitstate_in (word 600),25) s = A4)
-             (\s. read RIP s = word(pc + 0x9f6) /\
+             (\s. read RIP s = word(pc + 0x9f3) /\
                   wordlist_from_memory(bitstate_in,25) s = keccak 24 A1 /\
                   wordlist_from_memory(word_add bitstate_in (word 200),25) s = keccak 24 A2 /\
                   wordlist_from_memory(word_add bitstate_in (word 400),25) s = keccak 24 A3 /\
                   wordlist_from_memory(word_add bitstate_in (word 600),25) s = keccak 24 A4)
-           (MAYCHANGE [RIP; RAX; RSI; R10; R11] ,, 
+           (MAYCHANGE [RIP; R10; RSI] ,, 
             MAYCHANGE[ZMM0; ZMM1; ZMM2; ZMM3; ZMM4; ZMM5; ZMM6; ZMM7; ZMM8; ZMM9; ZMM10; ZMM11; ZMM12; ZMM13; ZMM14; ZMM15] ,, 
             MAYCHANGE SOME_FLAGS ,, MAYCHANGE [events] ,,
             MAYCHANGE [memory :> bytes (stackpointer, 0x300)],,
@@ -885,10 +846,6 @@ let sha3_keccak4_f1600_alt_2_7_CORRECT = prove
 
   (*** Set up the loop invariant ***)
 
-
-  (* read RDX s = rho_8 /\
-       read RCX s = rho_56 /\
-        *)
   ENSURES_WHILE_PAUP_TAC `0` `24` `pc + 0x27c` `pc + 0x77c`
   `\i s.
       (read R10 s = word i /\
@@ -971,7 +928,7 @@ let sha3_keccak4_f1600_alt_2_7_CORRECT = prove
 
     (*** Preservation of the invariant including end condition code ***)
 
-   X_GEN_TAC `i:num` THEN STRIP_TAC THEN VAL_INT64_TAC `i:num` THEN
+    X_GEN_TAC `i:num` THEN STRIP_TAC THEN VAL_INT64_TAC `i:num` THEN
     CONV_TAC(ONCE_DEPTH_CONV WORDLIST_FROM_MEMORY_CONV) THEN
 
     REWRITE_TAC[rho56_constant; rho8_constant; round_constants; GSYM CONJ_ASSOC] THEN
@@ -997,7 +954,8 @@ let sha3_keccak4_f1600_alt_2_7_CORRECT = prove
       CONV_TAC EXPAND_CASES_CONV THEN
       CONV_TAC(DEPTH_CONV WORD_NUM_RED_CONV) THEN
       ASM_REWRITE_TAC[round_constants; WORD_ADD_0] THEN
-      CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REWRITE_TAC[]; ALL_TAC] THEN
+      CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REWRITE_TAC[]; 
+      ALL_TAC] THEN
     
     ASM_REWRITE_TAC [WORD_SUBWORD_JOIN_EXTRACT_64] THEN
     ASM_REWRITE_TAC [WORD_SUBWORD_JOIN_EXTRACT_128] THEN
@@ -1022,8 +980,6 @@ let sha3_keccak4_f1600_alt_2_7_CORRECT = prove
       CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN 
       REWRITE_TAC[MAP2; CONS_11] THEN
        CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
-
-      (* should be until here *)
       ASM_REWRITE_TAC[] THEN
       REPEAT CONJ_TAC THEN BITBLAST_TAC;
 
@@ -1088,32 +1044,43 @@ let sha3_keccak4_f1600_alt_2_7_CORRECT = prove
     CONV_TAC NUM_REDUCE_CONV THEN
     REWRITE_TAC [keccak; keccak_round] THEN
     ENSURES_INIT_TAC "s0" THEN
-    X86_STEPS_TAC sha3_keccak4_f1600_alt_2_7_EXEC (1--97) THEN
+    X86_STEPS_TAC sha3_keccak4_f1600_alt_2_7_EXEC (1--96) THEN
     REPEAT(FIRST_X_ASSUM(STRIP_ASSUME_TAC o
       CONV_RULE(READ_MEMORY_SPLIT_CONV 2) o
       check (can (term_match [] `read qqq s:int256 = xxx`) o concl))) THEN
     CONV_TAC(ONCE_DEPTH_CONV NORMALIZE_RELATIVE_ADDRESS_CONV) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-    REPEAT CONJ_TAC THEN BITBLAST_TAC;]);;
+    REPEAT CONJ_TAC THEN BITBLAST_TAC]);;
 
 
 let sha3_keccak4_f1600_alt_2_7_FULL_EXEC = X86_MK_EXEC_RULE sha3_keccak4_f1600_alt_2_7_tmc;;
 
 let sha3_keccak4_f1600_alt_2_7_NOIBT_SUBROUTINE_CORRECT = prove
- (`!rc_pointer:int64 bitstate_in:int64 A1 A2 A3 A4 pc:num stackpointer:int64 returnaddress.
-  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_tmc) (val (word_sub stackpointer (word 0x37f)), 0x37f) /\
+ (`!rc_pointer:int64 bitstate_in:int64 rho8_ptr:int64 rho56_ptr:int64 A1 A2 A3 A4 pc:num stackpointer:int64 returnaddress.
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_tmc) (val (word_sub stackpointer (word 0x31f)), 0x31f) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_tmc) (val bitstate_in, 800) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_tmc) (val rc_pointer, 192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val rc_pointer, 192) /\
-  nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val (word_sub stackpointer (word 0x37f)), 0x37f + 8) /\
-  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x37f)), 0x37f) (val rc_pointer, 192)
+  nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val (word_sub stackpointer (word 0x31f)), 0x31f + 8) /\
+  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x31f)), 0x31f) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_tmc) (val rho8_ptr, 128) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val (word_sub stackpointer (word 0x31f)), 0x31f + 8) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val bitstate_in, 800) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_tmc) (val rho56_ptr, 128) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 128) (val (word_sub stackpointer (word 0x31f)), 0x31f + 8) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 128) (val bitstate_in, 800) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho56_ptr, 128) (val rc_pointer, 192) /\
+  nonoverlapping_modulo (2 EXP 64) (val rho8_ptr, 128) (val rho56_ptr, 128)
   ==> ensures x86
          (\s. bytes_loaded s (word pc) sha3_keccak4_f1600_alt_2_7_tmc /\
               read RIP s = word pc /\
               read RSP s = stackpointer /\
               read (memory :> bytes64 stackpointer) s = returnaddress /\
-              C_ARGUMENTS [bitstate_in; rc_pointer] s /\
+              C_ARGUMENTS [bitstate_in; rc_pointer; rho8_ptr; rho56_ptr] s /\
               wordlist_from_memory(rc_pointer, 24) s = round_constants /\
+              wordlist_from_memory(rho8_ptr, 4) s = rho8_constant /\
+              wordlist_from_memory(rho56_ptr, 4) s = rho56_constant /\
               wordlist_from_memory(bitstate_in, 25) s = A1 /\
               wordlist_from_memory(word_add bitstate_in (word 200), 25) s = A2 /\
               wordlist_from_memory(word_add bitstate_in (word 400), 25) s = A3 /\
@@ -1126,9 +1093,9 @@ let sha3_keccak4_f1600_alt_2_7_NOIBT_SUBROUTINE_CORRECT = prove
               wordlist_from_memory(word_add bitstate_in (word 600), 25) s = keccak 24 A4)
          (MAYCHANGE [RSP] ,, MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes (bitstate_in, 800);
-                     memory :> bytes(word_sub stackpointer (word 0x37f), 0x37f)])`,
-  REPLICATE_TAC 7 GEN_TAC THEN CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV NUM_ADD_CONV)) THEN
-  WORD_FORALL_OFFSET_TAC 0x37f THEN
+                     memory :> bytes(word_sub stackpointer (word 0x31f), 0x31f)])`,
+  REPLICATE_TAC 9 GEN_TAC THEN CHANGED_TAC(CONV_TAC(ONCE_DEPTH_CONV NUM_ADD_CONV)) THEN
+  WORD_FORALL_OFFSET_TAC 0x31f THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[C_ARGUMENTS] THEN
   REWRITE_TAC[fst sha3_keccak4_f1600_alt_2_7_FULL_EXEC] THEN
@@ -1141,22 +1108,25 @@ let sha3_keccak4_f1600_alt_2_7_NOIBT_SUBROUTINE_CORRECT = prove
   ABBREV_TAC
    `delta =
     val(word_sub (word 31)
-                 (word_and (word_add stackpointer (word 0x37f)) (word 31)):int64)` THEN
+                 (word_and (word_add stackpointer (word 0x31f)) (word 31)):int64)` THEN
   SUBGOAL_THEN `delta <= 31` ASSUME_TAC THENL
    [EXPAND_TAC "delta" THEN CONV_TAC BITBLAST_RULE; ALL_TAC] THEN
   SUBGOAL_THEN
-   `word_sub (word_and (word_add stackpointer (word 0x37f)) (word 0xffffffffffffffe0))
-            (word 0x360):int64 =
+   `word_sub (word_and (word_add stackpointer (word 0x31f)) (word 0xffffffffffffffe0))
+            (word 0x300):int64 =
     word_add stackpointer (word delta)`
   SUBST_ALL_TAC THENL
     [EXPAND_TAC "delta" THEN CONV_TAC BITBLAST_RULE; ALL_TAC] THEN
-
+ 
   MP_TAC(SPECL
-   [`rc_pointer:int64`; `bitstate_in:int64`;
+   [`rc_pointer:int64`; `bitstate_in:int64`; `rho8_ptr:int64`; `rho56_ptr:int64`;
     `A1:int64 list`; `A2:int64 list`; `A3:int64 list`; `A4:int64 list`;
     `pc:num`; `word_add stackpointer (word delta):int64`]
    sha3_keccak4_f1600_alt_2_7_CORRECT) THEN
-  ANTS_TAC THENL [REPEAT NONOVERLAPPING_TAC; ALL_TAC] THEN
+  ANTS_TAC THENL [REPEAT(FIRST_X_ASSUM(MP_TAC o check (is_imp o concl))) THEN REPEAT NONOVERLAPPING_TAC; ALL_TAC] THEN
+
+  REPEAT CONJ_TAC THEN
+  ASM_REWRITE_TAC[] THEN
 
   REWRITE_TAC[C_ARGUMENTS; SOME_FLAGS] THEN
   REWRITE_TAC[WORDLIST_FROM_MEMORY] THEN
@@ -1173,8 +1143,8 @@ let sha3_keccak4_f1600_alt_2_7_SUBROUTINE_CORRECT = prove
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_mc) (val bitstate_in, 800) /\
   nonoverlapping_modulo (2 EXP 64) (pc, LENGTH sha3_keccak4_f1600_alt_2_7_mc) (val rc_pointer, 192) /\
   nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val rc_pointer, 192) /\
-  nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val (word_sub stackpointer (word 0x37f)), 0x37f + 8) /\
-  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x37f)), 0x37f) (val rc_pointer, 192)
+  nonoverlapping_modulo (2 EXP 64) (val bitstate_in, 800) (val (word_sub stackpointer (word 0x31f)), 0x37f + 8) /\
+  nonoverlapping_modulo (2 EXP 64) (val (word_sub stackpointer (word 0x31f)), 0x31f) (val rc_pointer, 192)
   ==> ensures x86
          (\s. bytes_loaded s (word pc) sha3_keccak4_f1600_alt_2_7_mc /\
               read RIP s = word pc /\
@@ -1194,7 +1164,7 @@ let sha3_keccak4_f1600_alt_2_7_SUBROUTINE_CORRECT = prove
               wordlist_from_memory(word_add bitstate_in (word 600), 25) s = keccak 24 A4)
          (MAYCHANGE [RSP] ,, MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes (bitstate_in, 800);
-                     memory :> bytes(word_sub stackpointer (word 0x37f), 0x37f)])`,
+                     memory :> bytes(word_sub stackpointer (word 0x31f), 0x31f)])`,
   let TWEAK_CONV = ONCE_DEPTH_CONV NUM_ADD_CONV THENC
                    ONCE_DEPTH_CONV WORDLIST_FROM_MEMORY_CONV in
   CONV_TAC TWEAK_CONV THEN

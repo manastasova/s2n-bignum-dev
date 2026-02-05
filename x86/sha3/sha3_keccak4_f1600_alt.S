@@ -31,8 +31,8 @@
 
 S2N_BN_SYMBOL(sha3_keccak4_f1600_alt):
         CFI_START
-       //_CET_ENDBR
-		mov	r11, rsp
+      // _CET_ENDBR
+		mov	   r11, rsp
         and    rsp,0xffffffffffffffe0
         sub    rsp,0x340
 

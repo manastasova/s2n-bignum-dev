@@ -31,7 +31,7 @@
 
 S2N_BN_SYMBOL(sha3_keccak4_f1600):
       CFI_START
-       _CET_ENDBR
+      // _CET_ENDBR
 
 #if WINDOWS_ABI
     CFI_DEC_RSP(176)
