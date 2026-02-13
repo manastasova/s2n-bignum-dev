@@ -105,7 +105,9 @@ let arm_ldst3 = new_definition `arm_ldst3 ld Rt1 =
 let arm_adv_simd_expand_imm = new_definition
   `(arm_adv_simd_expand_imm:(8)word->(1)word->(4)word->((64)word)option)
       abcdefgh op cmode =
-    if val cmode = 14 /\ val op = 1 then
+    if val cmode = 14 /\ val op = 0 then
+      SOME(word_duplicate abcdefgh)
+    else if val cmode = 14 /\ val op = 1 then
       let rep8 = \(x:bool). if x then (word 255:(8)word) else (word 0) in
       let res: (64)word =
         word_join (rep8 (bit 7 abcdefgh))
@@ -568,6 +570,18 @@ let decode = new_definition `!w:int32. decode w =
         let datasize = if q then 128 else 64 in
         let shift = (esize * 2) - val (word_join immh immb:(7)word) in
         SOME (arm_SRI_VEC (QREG' Rd) (QREG' Rn) shift esize datasize)
+    else NONE
+
+  | [0:1; q; 0:1; 0b011110:6; 0b0000:4; abc:3; cmode:4; 0b01:2; defgh:5; Rd:5] ->
+    // MOVI (op=0): 8-bit immediate replicated to all byte lanes
+    if cmode = word 0b1110 then
+      let abcdefgh:(8)word = word_join abc defgh in
+      let imm = arm_adv_simd_expand_imm abcdefgh (word 0:(1)word) cmode in
+      match imm with
+      | SOME imm ->
+        if q then SOME (arm_MOVI (QREG' Rd) imm)
+        else SOME (arm_MOVI (DREG' Rd) imm)
+      | NONE -> NONE
     else NONE
 
   | [0b0001111000100110000000:22; Rn:5; Rd:5] ->

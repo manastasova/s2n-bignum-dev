@@ -59,6 +59,8 @@
 : mov$
 : mov.d$
 : movi$
+: movi.16b$
+: movi.8b$
 : movi.2d$
 : movk$
 : msub$
