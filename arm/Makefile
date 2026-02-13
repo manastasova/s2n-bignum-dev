@@ -49,18 +49,18 @@ SPLIT=tr ';' '\n'
 #  sudo apt-get install binutils-aarch64-linux-gnu
 
 ifeq ($(ARCHTYPE_RESULT),aarch64)
-ASSEMBLE=as -march=armv8.2-a+sha3
+ASSEMBLE=as -march=armv8.2-a+sha3+crypto
 OBJDUMP=objdump -d
 else
 ifeq ($(ARCHTYPE_RESULT),arm64)
-ASSEMBLE=as -march=armv8.2-a+sha3
+ASSEMBLE=as -march=armv8.2-a+sha3+crypto
 OBJDUMP=objdump -d
 else
 ifeq ($(OSTYPE_RESULT),Darwin)
-ASSEMBLE=as -arch arm64 -march=armv8.2-a+sha3
+ASSEMBLE=as -arch arm64 -march=armv8.2-a+sha3+crypto
 OBJDUMP=otool -tvV
 else
-ASSEMBLE=aarch64-linux-gnu-as -march=armv8.2-a+sha3
+ASSEMBLE=aarch64-linux-gnu-as -march=armv8.2-a+sha3+crypto
 OBJDUMP=aarch64-linux-gnu-objdump -d
 endif
 endif
@@ -404,7 +404,7 @@ UNOPT_OBJ = p256/unopt/bignum_montmul_p256_base.o \
             fastmul/unopt/bignum_mul_8_16_base.o \
             fastmul/unopt/bignum_sqr_8_16_base.o
 
-OBJ = $(POINT_OBJ) $(BIGNUM_OBJ)
+OBJ = $(POINT_OBJ) $(BIGNUM_OBJ) aes-gcm/ghashv8-armx.o
 
 # Tutorial assembly files
 
