@@ -180,85 +180,104 @@ static const uint64_t *keccakf1600RoundConstants;
   A##ma = Tma; A##me = Tme; A##mi = Tmi; A##mo = Tmo; A##mu = Tmu; \
   A##sa = Tsa; A##se = Tse; A##si = Tsi; A##so = Tso; A##su = Tsu;
 
-#define LOAD_LANE(X, state, lane) \
+#define LOAD_LANE_4X(X0, X1, X2, X3, state, lane) \
   do { \
     const uint64_t *state64 = (const uint64_t *)(state); \
-    __m256i t0, t1, t2, t3, t4, t6; \
+    __m256i t0, t1, t2, t3; \
     t0 = _mm256_loadu_si256((const __m256i *)&state64[lane]); \
     t1 = _mm256_loadu_si256((const __m256i *)&state64[lane + 25]); \
     t2 = _mm256_loadu_si256((const __m256i *)&state64[lane + 50]); \
     t3 = _mm256_loadu_si256((const __m256i *)&state64[lane + 75]); \
-    t4 = _mm256_unpacklo_epi64(t0, t1); \
-    t6 = _mm256_unpacklo_epi64(t2, t3); \
-    X = _mm256_permute2x128_si256(t4, t6, 0x20); \
+    \
+    __m256i tmp0 = _mm256_unpacklo_epi64(t0, t1); \
+    __m256i tmp1 = _mm256_unpackhi_epi64(t0, t1); \
+    __m256i tmp2 = _mm256_unpacklo_epi64(t2, t3); \
+    __m256i tmp3 = _mm256_unpackhi_epi64(t2, t3); \
+    \
+    X0 = _mm256_permute2x128_si256(tmp0, tmp2, 0x20); \
+    X1 = _mm256_permute2x128_si256(tmp1, tmp3, 0x20); \
+    X2 = _mm256_permute2x128_si256(tmp0, tmp2, 0x31); \
+    X3 = _mm256_permute2x128_si256(tmp1, tmp3, 0x31); \
+  } while(0)
+
+#define LOAD_LANE_1X(X, state, lane) \
+  do { \
+    const uint64_t *state64 = (const uint64_t *)(state); \
+    X = _mm256_set_epi64x( \
+      state64[lane + 75], \
+      state64[lane + 50], \
+      state64[lane + 25], \
+      state64[lane]); \
   } while(0)
 
 #define copyFromState(X, state) \
   do { \
-    LOAD_LANE(X##ba, state, 0); \
-    LOAD_LANE(X##be, state, 1); \
-    LOAD_LANE(X##bi, state, 2); \
-    LOAD_LANE(X##bo, state, 3); \
-    LOAD_LANE(X##bu, state, 4); \
-    LOAD_LANE(X##ga, state, 5); \
-    LOAD_LANE(X##ge, state, 6); \
-    LOAD_LANE(X##gi, state, 7); \
-    LOAD_LANE(X##go, state, 8); \
-    LOAD_LANE(X##gu, state, 9); \
-    LOAD_LANE(X##ka, state, 10); \
-    LOAD_LANE(X##ke, state, 11); \
-    LOAD_LANE(X##ki, state, 12); \
-    LOAD_LANE(X##ko, state, 13); \
-    LOAD_LANE(X##ku, state, 14); \
-    LOAD_LANE(X##ma, state, 15); \
-    LOAD_LANE(X##me, state, 16); \
-    LOAD_LANE(X##mi, state, 17); \
-    LOAD_LANE(X##mo, state, 18); \
-    LOAD_LANE(X##mu, state, 19); \
-    LOAD_LANE(X##sa, state, 20); \
-    LOAD_LANE(X##se, state, 21); \
-    LOAD_LANE(X##si, state, 22); \
-    LOAD_LANE(X##so, state, 23); \
-    LOAD_LANE(X##su, state, 24); \
+    LOAD_LANE_4X(X##ba, X##be, X##bi, X##bo, state, 0); \
+    LOAD_LANE_4X(X##bu, X##ga, X##ge, X##gi, state, 4); \
+    LOAD_LANE_4X(X##go, X##gu, X##ka, X##ke, state, 8); \
+    LOAD_LANE_4X(X##ki, X##ko, X##ku, X##ma, state, 12); \
+    LOAD_LANE_4X(X##me, X##mi, X##mo, X##mu, state, 16); \
+    LOAD_LANE_4X(X##sa, X##se, X##si, X##so, state, 20); \
+    LOAD_LANE_1X(X##su, state, 24); \
   } while(0)
 
-#define SCATTER_STORE256(state, idx, v)                        \
-  do {                                                         \
-    uint64_t *state64 = (uint64_t *)(state);                   \
-    __m128d t = _mm_castsi128_pd(_mm256_castsi256_si128((v))); \
-    _mm_storel_pd((double *)&state64[0 + (idx)], t);           \
-    _mm_storeh_pd((double *)&state64[25 + (idx)], t);          \
-    t = _mm_castsi128_pd(_mm256_extracti128_si256((v), 1));    \
-    _mm_storel_pd((double *)&state64[50 + (idx)], t);          \
-    _mm_storeh_pd((double *)&state64[75 + (idx)], t);          \
+#define SCATTER_STORE256_4X(state, idx, lane0, lane1, lane2, lane3) \
+  do { \
+    uint64_t *state64 = (uint64_t *)(state); \
+    \
+    /* Inverse transpose: from interleaved lanes to consecutive per-instance storage */ \
+    __m256i tmp0 = _mm256_unpacklo_epi64(lane0, lane1); \
+    __m256i tmp1 = _mm256_unpackhi_epi64(lane0, lane1); \
+    __m256i tmp2 = _mm256_unpacklo_epi64(lane2, lane3); \
+    __m256i tmp3 = _mm256_unpackhi_epi64(lane2, lane3); \
+    \
+    __m256i t0 = _mm256_permute2x128_si256(tmp0, tmp2, 0x20); \
+    __m256i t1 = _mm256_permute2x128_si256(tmp1, tmp3, 0x20); \
+    __m256i t2 = _mm256_permute2x128_si256(tmp0, tmp2, 0x31); \
+    __m256i t3 = _mm256_permute2x128_si256(tmp1, tmp3, 0x31); \
+    \
+    /* Store 4 consecutive lanes for each instance */ \
+    _mm256_storeu_si256((__m256i *)&state64[(idx)], t0);      /* A0[idx+0..3] */ \
+    _mm256_storeu_si256((__m256i *)&state64[(idx) + 25], t1); /* A1[idx+0..3] */ \
+    _mm256_storeu_si256((__m256i *)&state64[(idx) + 50], t2); /* A2[idx+0..3] */ \
+    _mm256_storeu_si256((__m256i *)&state64[(idx) + 75], t3); /* A3[idx+0..3] */ \
   } while (0)
 
-#define copyToState(state, X)         \
-  SCATTER_STORE256(state, 0, X##ba);  \
-  SCATTER_STORE256(state, 1, X##be);  \
-  SCATTER_STORE256(state, 2, X##bi);  \
-  SCATTER_STORE256(state, 3, X##bo);  \
-  SCATTER_STORE256(state, 4, X##bu);  \
-  SCATTER_STORE256(state, 5, X##ga);  \
-  SCATTER_STORE256(state, 6, X##ge);  \
-  SCATTER_STORE256(state, 7, X##gi);  \
-  SCATTER_STORE256(state, 8, X##go);  \
-  SCATTER_STORE256(state, 9, X##gu);  \
-  SCATTER_STORE256(state, 10, X##ka); \
-  SCATTER_STORE256(state, 11, X##ke); \
-  SCATTER_STORE256(state, 12, X##ki); \
-  SCATTER_STORE256(state, 13, X##ko); \
-  SCATTER_STORE256(state, 14, X##ku); \
-  SCATTER_STORE256(state, 15, X##ma); \
-  SCATTER_STORE256(state, 16, X##me); \
-  SCATTER_STORE256(state, 17, X##mi); \
-  SCATTER_STORE256(state, 18, X##mo); \
-  SCATTER_STORE256(state, 19, X##mu); \
-  SCATTER_STORE256(state, 20, X##sa); \
-  SCATTER_STORE256(state, 21, X##se); \
-  SCATTER_STORE256(state, 22, X##si); \
-  SCATTER_STORE256(state, 23, X##so); \
-  SCATTER_STORE256(state, 24, X##su);
+/* Keep single-lane scatter for lane 24 */
+#define SCATTER_STORE256_1X(state, idx, v) \
+  do { \
+    uint64_t *state64 = (uint64_t *)(state); \
+    __m128d t = _mm_castsi128_pd(_mm256_castsi256_si128((v))); \
+    _mm_storel_pd((double *)&state64[0 + (idx)], t); \
+    _mm_storeh_pd((double *)&state64[25 + (idx)], t); \
+    t = _mm_castsi128_pd(_mm256_extracti128_si256((v), 1)); \
+    _mm_storel_pd((double *)&state64[50 + (idx)], t); \
+    _mm_storeh_pd((double *)&state64[75 + (idx)], t); \
+  } while (0)
+
+#define copyToState(state, X) \
+  do { \
+    /* Store lanes 0-3 */ \
+    SCATTER_STORE256_4X(state, 0, X##ba, X##be, X##bi, X##bo); \
+    \
+    /* Store lanes 4-7 */ \
+    SCATTER_STORE256_4X(state, 4, X##bu, X##ga, X##ge, X##gi); \
+    \
+    /* Store lanes 8-11 */ \
+    SCATTER_STORE256_4X(state, 8, X##go, X##gu, X##ka, X##ke); \
+    \
+    /* Store lanes 12-15 */ \
+    SCATTER_STORE256_4X(state, 12, X##ki, X##ko, X##ku, X##ma); \
+    \
+    /* Store lanes 16-19 */ \
+    SCATTER_STORE256_4X(state, 16, X##me, X##mi, X##mo, X##mu); \
+    \
+    /* Store lanes 20-23 */ \
+    SCATTER_STORE256_4X(state, 20, X##sa, X##se, X##si, X##so); \
+    \
+    /* Store lane 24 */ \
+    SCATTER_STORE256_1X(state, 24, X##su); \
+  } while(0)
 
 /* 
  * rounds24 using a loop: 12 iterations, 2 rounds per iteration
