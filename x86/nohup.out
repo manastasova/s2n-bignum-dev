@@ -1,0 +1,969 @@
+cat curve25519/curve25519_ladderstep.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_ladderstep.obj -
+cat curve25519/curve25519_ladderstep_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_ladderstep_alt.obj -
+cat curve25519/curve25519_pxscalarmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_pxscalarmul.obj -
+cat curve25519/curve25519_pxscalarmul_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_pxscalarmul_alt.obj -
+cat curve25519/curve25519_x25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_x25519.obj -
+cat curve25519/bignum_inv_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_inv_p25519.obj -
+cat curve25519/curve25519_x25519_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_x25519_alt.obj -
+cat curve25519/curve25519_x25519base.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_x25519base.obj -
+cat curve25519/curve25519_x25519base_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/curve25519_x25519base_alt.obj -
+cat curve25519/edwards25519_decode.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_decode.obj -
+cat curve25519/edwards25519_decode_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_decode_alt.obj -
+cat curve25519/edwards25519_encode.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_encode.obj -
+cat curve25519/edwards25519_epadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_epadd.obj -
+cat curve25519/edwards25519_epadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_epadd_alt.obj -
+cat curve25519/edwards25519_epdouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_epdouble.obj -
+cat curve25519/edwards25519_epdouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_epdouble_alt.obj -
+cat curve25519/edwards25519_pdouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_pdouble.obj -
+cat curve25519/edwards25519_pdouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_pdouble_alt.obj -
+cat curve25519/edwards25519_pepadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_pepadd.obj -
+cat curve25519/edwards25519_pepadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_pepadd_alt.obj -
+cat curve25519/edwards25519_scalarmulbase.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_scalarmulbase.obj -
+cat curve25519/edwards25519_scalarmulbase_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_scalarmulbase_alt.obj -
+cat curve25519/edwards25519_scalarmuldouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_scalarmuldouble.obj -
+cat curve25519/edwards25519_scalarmuldouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/edwards25519_scalarmuldouble_alt.obj -
+cat p256/p256_montjadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjadd.obj -
+cat p256/bignum_montsqr_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_montsqr_p256.obj -
+cat p256/bignum_montmul_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_montmul_p256.obj -
+cat p256/bignum_sub_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_sub_p256.obj -
+cat p256/p256_montjadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjadd_alt.obj -
+cat p256/p256_montjdouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjdouble.obj -
+cat p256/bignum_add_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_add_p256.obj -
+cat p256/p256_montjdouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjdouble_alt.obj -
+cat p256/p256_montjmixadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjmixadd.obj -
+cat p256/p256_montjmixadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjmixadd_alt.obj -
+cat p256/p256_montjscalarmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjscalarmul.obj -
+cat p256/p256_montjscalarmul_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_montjscalarmul_alt.obj -
+cat p256/p256_scalarmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_scalarmul.obj -
+cat p256/bignum_demont_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_demont_p256.obj -
+cat p256/bignum_inv_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_inv_p256.obj -
+cat p256/bignum_tomont_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_tomont_p256.obj -
+cat p256/p256_scalarmul_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_scalarmul_alt.obj -
+cat p256/p256_scalarmulbase.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_scalarmulbase.obj -
+cat p256/p256_scalarmulbase_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/p256_scalarmulbase_alt.obj -
+cat p384/p384_montjadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjadd.obj -
+cat p384/bignum_montsqr_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_montsqr_p384.obj -
+cat p384/bignum_montmul_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_montmul_p384.obj -
+cat p384/bignum_sub_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_sub_p384.obj -
+cat p384/p384_montjadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjadd_alt.obj -
+cat p384/p384_montjdouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjdouble.obj -
+cat p384/bignum_add_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_add_p384.obj -
+cat p384/p384_montjdouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjdouble_alt.obj -
+cat p384/p384_montjmixadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjmixadd.obj -
+cat p384/p384_montjmixadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjmixadd_alt.obj -
+cat p384/p384_montjscalarmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjscalarmul.obj -
+cat p384/p384_montjscalarmul_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/p384_montjscalarmul_alt.obj -
+cat p521/p521_jadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jadd.obj -
+cat p521/bignum_mul_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_mul_p521.obj -
+cat p521/bignum_sqr_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_sqr_p521.obj -
+cat p521/p521_jadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jadd_alt.obj -
+cat p521/p521_jdouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jdouble.obj -
+cat p521/p521_jdouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jdouble_alt.obj -
+cat p521/p521_jmixadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jmixadd.obj -
+cat p521/p521_jmixadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jmixadd_alt.obj -
+cat p521/p521_jscalarmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jscalarmul.obj -
+cat p521/bignum_mod_n521_9.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_mod_n521_9.obj -
+cat p521/p521_jscalarmul_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/p521_jscalarmul_alt.obj -
+cat secp256k1/secp256k1_jadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/secp256k1_jadd.obj -
+cat secp256k1/secp256k1_jadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/secp256k1_jadd_alt.obj -
+cat secp256k1/secp256k1_jdouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/secp256k1_jdouble.obj -
+cat secp256k1/secp256k1_jdouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/secp256k1_jdouble_alt.obj -
+cat secp256k1/secp256k1_jmixadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/secp256k1_jmixadd.obj -
+cat secp256k1/secp256k1_jmixadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/secp256k1_jmixadd_alt.obj -
+cat sm2/sm2_montjadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjadd.obj -
+cat sm2/sm2_montjadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjadd_alt.obj -
+cat sm2/sm2_montjdouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjdouble.obj -
+cat sm2/sm2_montjdouble_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjdouble_alt.obj -
+cat sm2/sm2_montjmixadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjmixadd.obj -
+cat sm2/sm2_montjmixadd_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjmixadd_alt.obj -
+cat sm2/sm2_montjscalarmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjscalarmul.obj -
+cat sm2/sm2_montjscalarmul_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/sm2_montjscalarmul_alt.obj -
+cat curve25519/bignum_add_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_add_p25519.obj -
+cat curve25519/bignum_cmul_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_cmul_p25519.obj -
+cat curve25519/bignum_cmul_p25519_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_cmul_p25519_alt.obj -
+cat curve25519/bignum_double_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_double_p25519.obj -
+cat curve25519/bignum_invsqrt_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_invsqrt_p25519.obj -
+cat curve25519/bignum_invsqrt_p25519_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_invsqrt_p25519_alt.obj -
+cat curve25519/bignum_madd_n25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_madd_n25519.obj -
+cat curve25519/bignum_madd_n25519_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_madd_n25519_alt.obj -
+cat curve25519/bignum_mod_m25519_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_mod_m25519_4.obj -
+cat curve25519/bignum_mod_n25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_mod_n25519.obj -
+cat curve25519/bignum_mod_n25519_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_mod_n25519_4.obj -
+cat curve25519/bignum_mod_p25519_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_mod_p25519_4.obj -
+cat curve25519/bignum_mul_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_mul_p25519.obj -
+cat curve25519/bignum_mul_p25519_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_mul_p25519_alt.obj -
+cat curve25519/bignum_neg_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_neg_p25519.obj -
+cat curve25519/bignum_optneg_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_optneg_p25519.obj -
+cat curve25519/bignum_sqr_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_sqr_p25519.obj -
+cat curve25519/bignum_sqr_p25519_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_sqr_p25519_alt.obj -
+cat curve25519/bignum_sqrt_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_sqrt_p25519.obj -
+cat curve25519/bignum_sqrt_p25519_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_sqrt_p25519_alt.obj -
+cat curve25519/bignum_sub_p25519.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o curve25519/bignum_sub_p25519.obj -
+cat fastmul/bignum_emontredc_8n.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_emontredc_8n.obj -
+cat fastmul/bignum_kmul_16_32.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_kmul_16_32.obj -
+cat fastmul/bignum_kmul_32_64.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_kmul_32_64.obj -
+cat fastmul/bignum_ksqr_16_32.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_ksqr_16_32.obj -
+cat fastmul/bignum_ksqr_32_64.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_ksqr_32_64.obj -
+cat fastmul/bignum_mul_4_8.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_mul_4_8.obj -
+cat fastmul/bignum_mul_4_8_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_mul_4_8_alt.obj -
+cat fastmul/bignum_mul_6_12.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_mul_6_12.obj -
+cat fastmul/bignum_mul_6_12_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_mul_6_12_alt.obj -
+cat fastmul/bignum_mul_8_16.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_mul_8_16.obj -
+cat fastmul/bignum_mul_8_16_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_mul_8_16_alt.obj -
+cat fastmul/bignum_sqr_4_8.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_sqr_4_8.obj -
+cat fastmul/bignum_sqr_4_8_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_sqr_4_8_alt.obj -
+cat fastmul/bignum_sqr_6_12.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_sqr_6_12.obj -
+cat fastmul/bignum_sqr_6_12_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_sqr_6_12_alt.obj -
+cat fastmul/bignum_sqr_8_16.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_sqr_8_16.obj -
+cat fastmul/bignum_sqr_8_16_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o fastmul/bignum_sqr_8_16_alt.obj -
+cat generic/bignum_add.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_add.obj -
+cat generic/bignum_amontifier.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_amontifier.obj -
+cat generic/bignum_amontmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_amontmul.obj -
+cat generic/bignum_amontredc.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_amontredc.obj -
+cat generic/bignum_amontsqr.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_amontsqr.obj -
+cat generic/bignum_bitfield.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_bitfield.obj -
+cat generic/bignum_bitsize.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_bitsize.obj -
+cat generic/bignum_cdiv.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_cdiv.obj -
+cat generic/bignum_cdiv_exact.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_cdiv_exact.obj -
+cat generic/bignum_cld.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_cld.obj -
+cat generic/bignum_clz.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_clz.obj -
+cat generic/bignum_cmadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_cmadd.obj -
+cat generic/bignum_cmnegadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_cmnegadd.obj -
+cat generic/bignum_cmod.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_cmod.obj -
+cat generic/bignum_cmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_cmul.obj -
+cat generic/bignum_coprime.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_coprime.obj -
+cat generic/bignum_copy.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_copy.obj -
+cat generic/bignum_copy_row_from_table.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_copy_row_from_table.obj -
+cat generic/bignum_ctd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_ctd.obj -
+cat generic/bignum_ctz.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_ctz.obj -
+cat generic/bignum_demont.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_demont.obj -
+cat generic/bignum_digit.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_digit.obj -
+cat generic/bignum_digitsize.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_digitsize.obj -
+cat generic/bignum_divmod10.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_divmod10.obj -
+cat generic/bignum_emontredc.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_emontredc.obj -
+cat generic/bignum_eq.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_eq.obj -
+cat generic/bignum_even.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_even.obj -
+cat generic/bignum_ge.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_ge.obj -
+cat generic/bignum_gt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_gt.obj -
+cat generic/bignum_iszero.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_iszero.obj -
+cat generic/bignum_le.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_le.obj -
+cat generic/bignum_lt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_lt.obj -
+cat generic/bignum_madd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_madd.obj -
+cat generic/bignum_modadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_modadd.obj -
+cat generic/bignum_moddouble.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_moddouble.obj -
+cat generic/bignum_modexp.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_modexp.obj -
+cat generic/bignum_mux.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_mux.obj -
+cat generic/bignum_modifier.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_modifier.obj -
+cat generic/bignum_modinv.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_modinv.obj -
+cat generic/bignum_modoptneg.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_modoptneg.obj -
+cat generic/bignum_modsub.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_modsub.obj -
+cat generic/bignum_montifier.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_montifier.obj -
+cat generic/bignum_montmul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_montmul.obj -
+cat generic/bignum_montredc.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_montredc.obj -
+cat generic/bignum_montsqr.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_montsqr.obj -
+cat generic/bignum_mul.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_mul.obj -
+cat generic/bignum_muladd10.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_muladd10.obj -
+cat generic/bignum_mux16.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_mux16.obj -
+cat generic/bignum_negmodinv.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_negmodinv.obj -
+cat generic/bignum_nonzero.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_nonzero.obj -
+cat generic/bignum_normalize.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_normalize.obj -
+cat generic/bignum_odd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_odd.obj -
+cat generic/bignum_of_word.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_of_word.obj -
+cat generic/bignum_optadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_optadd.obj -
+cat generic/bignum_optneg.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_optneg.obj -
+cat generic/bignum_optsub.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_optsub.obj -
+cat generic/bignum_optsubadd.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_optsubadd.obj -
+cat generic/bignum_pow2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_pow2.obj -
+cat generic/bignum_shl_small.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_shl_small.obj -
+cat generic/bignum_shr_small.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_shr_small.obj -
+cat generic/bignum_sqr.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_sqr.obj -
+cat generic/bignum_sub.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/bignum_sub.obj -
+cat generic/word_bytereverse.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_bytereverse.obj -
+cat generic/word_clz.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_clz.obj -
+cat generic/word_ctz.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_ctz.obj -
+cat generic/word_divstep59.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_divstep59.obj -
+cat generic/word_max.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_max.obj -
+cat generic/word_min.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_min.obj -
+cat generic/word_negmodinv.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_negmodinv.obj -
+cat generic/word_popcount.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_popcount.obj -
+cat generic/word_recip.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o generic/word_recip.obj -
+cat mldsa/mldsa_ntt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mldsa/mldsa_ntt.obj -
+cat mldsa/mldsa_poly_reduce.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mldsa/mldsa_poly_reduce.obj -
+cat mlkem/mlkem_basemul_k2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_basemul_k2.obj -
+cat mlkem/mlkem_basemul_k3.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_basemul_k3.obj -
+cat mlkem/mlkem_basemul_k4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_basemul_k4.obj -
+cat mlkem/mlkem_frombytes.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_frombytes.obj -
+cat mlkem/mlkem_intt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_intt.obj -
+cat mlkem/mlkem_mulcache_compute.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_mulcache_compute.obj -
+cat mlkem/mlkem_ntt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_ntt.obj -
+cat mlkem/mlkem_reduce.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_reduce.obj -
+cat mlkem/mlkem_rej_uniform_VARIABLE_TIME.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_rej_uniform_VARIABLE_TIME.obj -
+cat mlkem/mlkem_tobytes.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_tobytes.obj -
+../tools/build-proof.sh "proofs/mlkem_tomont.ml" "/home/ubuntu/hol/hol-light/hol.sh" "mlkem/mlkem_tomont.native"
+cat mlkem/mlkem_unpack.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o mlkem/mlkem_unpack.obj -
+cat p256/bignum_bigendian_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_bigendian_4.obj -
+cat p256/bignum_cmul_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_cmul_p256.obj -
+cat p256/bignum_cmul_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_cmul_p256_alt.obj -
+cat p256/bignum_deamont_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_deamont_p256.obj -
+cat p256/bignum_deamont_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_deamont_p256_alt.obj -
+cat p256/bignum_demont_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_demont_p256_alt.obj -
+cat p256/bignum_double_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_double_p256.obj -
+cat p256/bignum_half_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_half_p256.obj -
+cat p256/bignum_littleendian_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_littleendian_4.obj -
+cat p256/bignum_mod_n256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_mod_n256.obj -
+Generating a template .ml that loads the file...: /tmp/tmp.ksld16PuyG.ml
+cat p256/bignum_mod_n256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_mod_n256_alt.obj -
+cat p256/bignum_mod_n256_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_mod_n256_4.obj -
+cat p256/bignum_mod_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_mod_p256.obj -
+cat p256/bignum_mod_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_mod_p256_alt.obj -
+cat p256/bignum_mod_p256_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_mod_p256_4.obj -
+cat p256/bignum_montinv_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_montinv_p256.obj -
+cat p256/bignum_montmul_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_montmul_p256_alt.obj -
+cat p256/bignum_montsqr_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_montsqr_p256_alt.obj -
+cat p256/bignum_mux_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_mux_4.obj -
+cat p256/bignum_neg_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_neg_p256.obj -
+cat p256/bignum_nonzero_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_nonzero_4.obj -
+cat p256/bignum_optneg_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_optneg_p256.obj -
+cat p256/bignum_tomont_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_tomont_p256_alt.obj -
+cat p256/bignum_triple_p256.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_triple_p256.obj -
+cat p256/bignum_triple_p256_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p256/bignum_triple_p256_alt.obj -
+cat p384/bignum_bigendian_6.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_bigendian_6.obj -
+cat p384/bignum_cmul_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_cmul_p384.obj -
+cat p384/bignum_cmul_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_cmul_p384_alt.obj -
+cat p384/bignum_deamont_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_deamont_p384.obj -
+cat p384/bignum_deamont_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_deamont_p384_alt.obj -
+cat p384/bignum_demont_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_demont_p384.obj -
+cat p384/bignum_demont_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_demont_p384_alt.obj -
+cat p384/bignum_double_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_double_p384.obj -
+cat p384/bignum_half_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_half_p384.obj -
+cat p384/bignum_inv_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_inv_p384.obj -
+cat p384/bignum_littleendian_6.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_littleendian_6.obj -
+cat p384/bignum_mod_n384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_mod_n384.obj -
+cat p384/bignum_mod_n384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_mod_n384_alt.obj -
+cat p384/bignum_mod_n384_6.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_mod_n384_6.obj -
+cat p384/bignum_mod_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_mod_p384.obj -
+cat p384/bignum_mod_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_mod_p384_alt.obj -
+cat p384/bignum_mod_p384_6.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_mod_p384_6.obj -
+cat p384/bignum_montinv_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_montinv_p384.obj -
+cat p384/bignum_montmul_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_montmul_p384_alt.obj -
+cat p384/bignum_montsqr_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_montsqr_p384_alt.obj -
+cat p384/bignum_mux_6.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_mux_6.obj -
+cat p384/bignum_neg_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_neg_p384.obj -
+cat p384/bignum_nonzero_6.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_nonzero_6.obj -
+cat p384/bignum_optneg_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_optneg_p384.obj -
+cat p384/bignum_tomont_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_tomont_p384.obj -
+cat p384/bignum_tomont_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_tomont_p384_alt.obj -
+cat p384/bignum_triple_p384.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_triple_p384.obj -
+cat p384/bignum_triple_p384_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p384/bignum_triple_p384_alt.obj -
+cat p521/bignum_add_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_add_p521.obj -
+cat p521/bignum_cmul_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_cmul_p521.obj -
+cat p521/bignum_cmul_p521_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_cmul_p521_alt.obj -
+cat p521/bignum_deamont_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_deamont_p521.obj -
+cat p521/bignum_demont_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_demont_p521.obj -
+cat p521/bignum_double_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_double_p521.obj -
+cat p521/bignum_fromlebytes_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_fromlebytes_p521.obj -
+cat p521/bignum_half_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_half_p521.obj -
+cat p521/bignum_inv_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_inv_p521.obj -
+cat p521/bignum_mod_n521_9_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_mod_n521_9_alt.obj -
+cat p521/bignum_mod_p521_9.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_mod_p521_9.obj -
+cat p521/bignum_montmul_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_montmul_p521.obj -
+cat p521/bignum_montmul_p521_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_montmul_p521_alt.obj -
+cat p521/bignum_montsqr_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_montsqr_p521.obj -
+cat p521/bignum_montsqr_p521_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_montsqr_p521_alt.obj -
+cat p521/bignum_mul_p521_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_mul_p521_alt.obj -
+cat p521/bignum_neg_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_neg_p521.obj -
+cat p521/bignum_optneg_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_optneg_p521.obj -
+cat p521/bignum_sqr_p521_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_sqr_p521_alt.obj -
+cat p521/bignum_sub_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_sub_p521.obj -
+cat p521/bignum_tolebytes_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_tolebytes_p521.obj -
+cat p521/bignum_tomont_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_tomont_p521.obj -
+cat p521/bignum_triple_p521.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_triple_p521.obj -
+cat p521/bignum_triple_p521_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o p521/bignum_triple_p521_alt.obj -
+cat secp256k1/bignum_add_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_add_p256k1.obj -
+cat secp256k1/bignum_cmul_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_cmul_p256k1.obj -
+cat secp256k1/bignum_cmul_p256k1_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_cmul_p256k1_alt.obj -
+cat secp256k1/bignum_deamont_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_deamont_p256k1.obj -
+cat secp256k1/bignum_demont_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_demont_p256k1.obj -
+cat secp256k1/bignum_double_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_double_p256k1.obj -
+cat secp256k1/bignum_half_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_half_p256k1.obj -
+cat secp256k1/bignum_mod_n256k1_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_mod_n256k1_4.obj -
+cat secp256k1/bignum_mod_p256k1_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_mod_p256k1_4.obj -
+cat secp256k1/bignum_montmul_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_montmul_p256k1.obj -
+cat secp256k1/bignum_montmul_p256k1_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_montmul_p256k1_alt.obj -
+cat secp256k1/bignum_montsqr_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_montsqr_p256k1.obj -
+cat secp256k1/bignum_montsqr_p256k1_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_montsqr_p256k1_alt.obj -
+cat secp256k1/bignum_mul_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_mul_p256k1.obj -
+cat secp256k1/bignum_mul_p256k1_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_mul_p256k1_alt.obj -
+cat secp256k1/bignum_neg_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_neg_p256k1.obj -
+cat secp256k1/bignum_optneg_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_optneg_p256k1.obj -
+cat secp256k1/bignum_sqr_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_sqr_p256k1.obj -
+cat secp256k1/bignum_sqr_p256k1_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_sqr_p256k1_alt.obj -
+cat secp256k1/bignum_sub_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_sub_p256k1.obj -
+cat secp256k1/bignum_tomont_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_tomont_p256k1.obj -
+cat secp256k1/bignum_tomont_p256k1_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_tomont_p256k1_alt.obj -
+cat secp256k1/bignum_triple_p256k1.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_triple_p256k1.obj -
+cat secp256k1/bignum_triple_p256k1_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o secp256k1/bignum_triple_p256k1_alt.obj -
+cat sha3/sha3_keccak_f1600.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sha3/sha3_keccak_f1600.obj -
+cat sha3/sha3_keccak4_f1600.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sha3/sha3_keccak4_f1600.obj -
+cat sm2/bignum_add_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_add_sm2.obj -
+cat sm2/bignum_cmul_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_cmul_sm2.obj -
+cat sm2/bignum_cmul_sm2_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_cmul_sm2_alt.obj -
+cat sm2/bignum_deamont_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_deamont_sm2.obj -
+cat sm2/bignum_demont_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_demont_sm2.obj -
+cat sm2/bignum_double_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_double_sm2.obj -
+cat sm2/bignum_half_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_half_sm2.obj -
+cat sm2/bignum_inv_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_inv_sm2.obj -
+cat sm2/bignum_mod_nsm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_mod_nsm2.obj -
+cat sm2/bignum_mod_nsm2_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_mod_nsm2_alt.obj -
+cat sm2/bignum_mod_nsm2_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_mod_nsm2_4.obj -
+cat sm2/bignum_mod_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_mod_sm2.obj -
+cat sm2/bignum_mod_sm2_4.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_mod_sm2_4.obj -
+cat sm2/bignum_montinv_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_montinv_sm2.obj -
+cat sm2/bignum_montmul_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_montmul_sm2.obj -
+cat sm2/bignum_montmul_sm2_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_montmul_sm2_alt.obj -
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+cat sm2/bignum_montsqr_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_montsqr_sm2.obj -
+cat sm2/bignum_montsqr_sm2_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_montsqr_sm2_alt.obj -
+cat sm2/bignum_neg_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_neg_sm2.obj -
+cat sm2/bignum_optneg_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_optneg_sm2.obj -
+cat sm2/bignum_sub_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_sub_sm2.obj -
+cat sm2/bignum_tomont_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_tomont_sm2.obj -
+cat sm2/bignum_triple_sm2.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_triple_sm2.obj -
+cat sm2/bignum_triple_sm2_alt.S | cc -E -I../include -DWINDOWS_ABI=1 -xassembler-with-cpp - | tr ';' '\n' | as -o sm2/bignum_triple_sm2_alt.obj -
+../tools/build-proof.sh "proofs/curve25519_ladderstep.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/curve25519_ladderstep.native"
+../tools/build-proof.sh "proofs/curve25519_ladderstep_alt.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/curve25519_ladderstep_alt.native"
+../tools/build-proof.sh "proofs/curve25519_pxscalarmul.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/curve25519_pxscalarmul.native"
+../tools/build-proof.sh "proofs/curve25519_pxscalarmul_alt.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/curve25519_pxscalarmul_alt.native"
+../tools/build-proof.sh "proofs/bignum_inv_p25519.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/bignum_inv_p25519.native"
+../tools/build-proof.sh "proofs/edwards25519_decode.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_decode.native"
+../tools/build-proof.sh "proofs/edwards25519_decode_alt.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_decode_alt.native"
+../tools/build-proof.sh "proofs/edwards25519_encode.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_encode.native"
+../tools/build-proof.sh "proofs/edwards25519_epadd.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_epadd.native"
+../tools/build-proof.sh "proofs/edwards25519_epadd_alt.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_epadd_alt.native"
+../tools/build-proof.sh "proofs/edwards25519_epdouble.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_epdouble.native"
+../tools/build-proof.sh "proofs/edwards25519_epdouble_alt.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_epdouble_alt.native"
+../tools/build-proof.sh "proofs/edwards25519_pdouble.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_pdouble.native"
+../tools/build-proof.sh "proofs/edwards25519_pdouble_alt.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_pdouble_alt.native"
+../tools/build-proof.sh "proofs/edwards25519_pepadd.ml" "/home/ubuntu/hol/hol-light/hol.sh" "curve25519/edwards25519_pepadd.native"
+Generating a template .ml that loads the file...: /tmp/tmp.xrXJbUDGwn.ml
+Generating a template .ml that loads the file...: /tmp/tmp.VTbwmXMKwL.ml
+Generating a template .ml that loads the file...: /tmp/tmp.890sbsfxo3.ml
+Generating a template .ml that loads the file...: /tmp/tmp.9ZckIFw8r8.ml
+Generating a template .ml that loads the file...: /tmp/tmp.YhdcA32U7a.ml
+Generating a template .ml that loads the file...: /tmp/tmp.fjzlDBp1cx.ml
+Generating a template .ml that loads the file...: /tmp/tmp.ufxkOzKCrP.ml
+Generating a template .ml that loads the file...: /tmp/tmp.g5B90f6qRW.ml
+Generating a template .ml that loads the file...: /tmp/tmp.tHUAmxseG6.ml
+Generating a template .ml that loads the file...: /tmp/tmp.uzhJQco09n.ml
+Generating a template .ml that loads the file...: /tmp/tmp.nG1GPE7H31.ml
+Generating a template .ml that loads the file...: /tmp/tmp.xj1VGa3zMw.ml
+Generating a template .ml that loads the file...: /tmp/tmp.TrA8LPId1m.ml
+Generating a template .ml that loads the file...: /tmp/tmp.WBRz46tFd5.ml
+Generating a template .ml that loads the file...: /tmp/tmp.1am4Sb2feG.ml
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+File "/home/ubuntu/hol/hol-light/hol_loader.ml", line 30, characters 41-65:
+30 | let file_loader = ref (fun (s:string) -> failwith "uninitialized"; false);;
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+Warning 21 [nonreturning-statement]: this statement never returns (or has an unsound type.)
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/words.ml" already loaded
+Error while loading "pa_lexer.cmo": file not found in path.
+File "/tmp/tmp.UT3crUclEY.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.UT3crUclEY.ml' > /tmp/ocamlpp6d0037
+
+make: *** [Makefile:482: mlkem/mlkem_tomont.native] Error 2
+make: *** Waiting for unfinished jobs....
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "common/relational_n.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/floor.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Divstep/divstep.ml" already loaded
+Error while loading "pa_lexer.cmo": file not found in path.
+File "/tmp/tmp.L9kCHtP9Ah.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.L9kCHtP9Ah.ml' > /tmp/ocamlpp8ba596
+
+make: *** [Makefile:482: curve25519/edwards25519_encode.native] Error 2
+Error while loading "pa_lexer.cmo": file not found in path.
+File "/tmp/tmp.nPKINK67zG.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.nPKINK67zG.ml' > /tmp/ocamlpp1b78c6
+
+make: *** [Makefile:482: curve25519/bignum_inv_p25519.native] Error 2
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/primitive.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/edwards.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/primitive.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/edwards.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/montgomery.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/edwards.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/edwards.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/montgomery.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/edwards.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/edwards.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/edwards.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/montgomery.ml" already loaded
+Warning: 'loads "update_database.ml";;' is omitted
+File "Library/iter.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/bitsize.ml" already loaded
+File "Library/iter.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "Library/words.ml" already loaded
+File "Library/words.ml" already loaded
+File "common/overlap.ml" already loaded
+File "Library/rstc.ml" already loaded
+File "common/components.ml" already loaded
+File "common/components.ml" already loaded
+File "common/overlap.ml" already loaded
+File "common/elf.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/integer.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/prime.ml" already loaded
+File "Library/binomial.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/card.ml" already loaded
+File "Library/pocklington.ml" already loaded
+File "Library/grouptheory.ml" already loaded
+File "Library/ringtheory.ml" already loaded
+File "EC/montgomery.ml" already loaded
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+File "/tmp/tmp.riWlHoX6cg.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.riWlHoX6cg.ml' > /tmp/ocamlpp62cfa5
+
+File "/tmp/tmp.uaQCADDbHH.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.uaQCADDbHH.ml' > /tmp/ocamlppd739ac
+
+File "/tmp/tmp.idcWeDFUQj.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.idcWeDFUQj.ml' > /tmp/ocamlppc05a17
+
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+Error while loading "pa_lexer.cmo": file not found in path.
+File "/tmp/tmp.vDmeSTj745.ml", line 1:
+Error: Error while running external preprocessor
+File "/tmp/tmp.stFJladfxL.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.vDmeSTj745.ml' > /tmp/ocamlpp13c7d1
+
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.stFJladfxL.ml' > /tmp/ocamlpp6d2cee
+
+File "/tmp/tmp.mYnyA82CFk.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.mYnyA82CFk.ml' > /tmp/ocamlpp19afbf
+
+Error while loading "pa_lexer.cmo": file not found in path.
+File "/tmp/tmp.uZfX1QCK7U.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.uZfX1QCK7U.ml' > /tmp/ocamlpp6b824b
+File "/tmp/tmp.uGCAhTv2kp.ml", line 1:
+Error: Error while running external preprocessor
+
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.uGCAhTv2kp.ml' > /tmp/ocamlppb8dab2
+
+File "/tmp/tmp.1iPRiUx68b.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.1iPRiUx68b.ml' > /tmp/ocamlpp3c1290
+
+Error while loading "pa_lexer.cmo": file not found in path.
+File "/tmp/tmp.0gXAwJntUF.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.0gXAwJntUF.ml' > /tmp/ocamlppfdd9c8
+
+Error while loading "pa_lexer.cmo": file not found in path.
+make: *** [Makefile:482: curve25519/edwards25519_decode.native] Error 2
+make: *** [Makefile:482: curve25519/edwards25519_decode_alt.native] Error 2
+File "/tmp/tmp.IYRTaRKnSc.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.IYRTaRKnSc.ml' > /tmp/ocamlpp50b8dd
+make: *** [Makefile:482: curve25519/edwards25519_pdouble.native] Error 2
+
+make: *** [Makefile:482: curve25519/edwards25519_epdouble.native] Error 2
+make: *** [Makefile:482: curve25519/edwards25519_epdouble_alt.native] Error 2
+make: *** [Makefile:482: curve25519/curve25519_ladderstep.native] Error 2
+File "/tmp/tmp.aB18WXLKQ6.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.aB18WXLKQ6.ml' > /tmp/ocamlpp1bd6d2
+
+File "/tmp/tmp.9pHLij3k5j.ml", line 1:
+Error: Error while running external preprocessor
+Command line: camlp5r pa_lexer.cmo pa_extend.cmo q_MLast.cmo -I /home/ubuntu/hol/hol-light pa_j.cmo '/tmp/tmp.9pHLij3k5j.ml' > /tmp/ocamlppad071e
+
+make: *** [Makefile:482: curve25519/curve25519_ladderstep_alt.native] Error 2
+make: *** [Makefile:482: curve25519/edwards25519_pepadd.native] Error 2
+make: *** [Makefile:482: curve25519/edwards25519_pdouble_alt.native] Error 2
+make: *** [Makefile:482: curve25519/edwards25519_epadd.native] Error 2
+make: *** [Makefile:482: curve25519/edwards25519_epadd_alt.native] Error 2
+make: *** [Makefile:482: curve25519/curve25519_pxscalarmul_alt.native] Error 2
+make: *** [Makefile:482: curve25519/curve25519_pxscalarmul.native] Error 2
