@@ -1116,6 +1116,84 @@ uint64_t min(uint64_t x,uint64_t y)
 
 #define swap(x,y) { uint64_t tmp = x; x = y; y = tmp; }
 
+// Reference GHASH multiply: NIST SP 800-38D Algorithm 1 (Section 6.3)
+//
+// This is a direct, faithful implementation of the NIST specification:
+//   X * Y mod P where P = x^128 + x^7 + x^2 + x + 1
+//
+// The algorithm is a simple bit-by-bit shift-and-XOR loop, completely
+// independent of the Karatsuba/Barrett approach used by the assembly.
+// The 128-bit blocks are stored as big-endian byte arrays (NIST convention):
+//   byte 0 = MSB of the block, containing NIST bits x_0..x_7.
+//
+// We convert from/to the uint64_t[2] little-endian word layout used by
+// the s2n-bignum interface at the entry/exit of this function.
+
+// Get NIST bit i from a 16-byte big-endian block
+static int nist_getbit(const uint8_t block[16], int i)
+{ return (block[i / 8] >> (7 - (i % 8))) & 1;
+}
+
+// NIST Algorithm 1: X * Y
+// X, Y are 128-bit blocks in big-endian byte order.
+// Result is written to Z in big-endian byte order.
+static void nist_ghash_mul(uint8_t Z[16], const uint8_t X[16], const uint8_t Y[16])
+{ // R = 11100001 || 0^120 (the reduction polynomial minus x^128)
+  uint8_t R[16] = {0xe1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  uint8_t V[16];
+  int i, j;
+
+  // Z_0 = 0^128, V_0 = Y
+  for (j = 0; j < 16; j++) { Z[j] = 0; V[j] = Y[j]; }
+
+  // For i = 0 to 127
+  for (i = 0; i < 128; i++)
+   { // If x_i = 1 then Z_{i+1} = Z_i XOR V_i, else Z_{i+1} = Z_i
+     if (nist_getbit(X, i))
+       for (j = 0; j < 16; j++) Z[j] ^= V[j];
+
+     // If LSB_1(V_i) = 1 then V_{i+1} = (V_i >> 1) XOR R
+     // else V_{i+1} = V_i >> 1
+     // where LSB_1 = rightmost bit = bit 127 = bit 7 of byte 15
+     int lsb = V[15] & 1;
+
+     // Right-shift V by 1 bit (NIST bit ordering: shift towards byte 15)
+     for (j = 15; j > 0; j--)
+       V[j] = (V[j] >> 1) | ((V[j-1] & 1) << 7);
+     V[0] >>= 1;
+
+     if (lsb)
+       for (j = 0; j < 16; j++) V[j] ^= R[j];
+   }
+}
+
+// Wrapper: reference GHASH multiply matching gcm_gmult_v8 interface.
+// Converts from uint64_t[2] to big-endian bytes, runs Algorithm 1,
+// converts back. Takes raw H (not Htable) since Algorithm 1 doesn't
+// need precomputation.
+static void reference_nist_gmult(uint64_t Xi[2], const uint64_t H[2])
+{ uint8_t X[16], Y[16], Z[16];
+  int i;
+  // Convert Xi to big-endian bytes (Xi[1] is high word in memory layout)
+  for (i = 0; i < 8; i++)
+   { X[i]     = (uint8_t)(Xi[1] >> (56 - 8*i));
+     X[i + 8] = (uint8_t)(Xi[0] >> (56 - 8*i));
+   }
+  // Convert H to big-endian bytes
+  for (i = 0; i < 8; i++)
+   { Y[i]     = (uint8_t)(H[1] >> (56 - 8*i));
+     Y[i + 8] = (uint8_t)(H[0] >> (56 - 8*i));
+   }
+  // Run NIST Algorithm 1
+  nist_ghash_mul(Z, X, Y);
+  // Convert result back to uint64_t[2]
+  Xi[0] = 0; Xi[1] = 0;
+  for (i = 0; i < 8; i++)
+   { Xi[1] |= ((uint64_t)Z[i])     << (56 - 8*i);
+     Xi[0] |= ((uint64_t)Z[i + 8]) << (56 - 8*i);
+   }
+}
+
 uint64_t reference_wordbytereverse(uint64_t n)
 { uint64_t n2 = ((n & UINT64_C(0xFF00FF00FF00FF00)) >> 8) |
                 ((n & UINT64_C(0x00FF00FF00FF00FF)) << 8);
@@ -15601,6 +15679,57 @@ void functionaltest(int enabled,char *name,int (*f)(void))
   if (f()) ++failures; else ++successes;
 }
 
+int test_gcm_gmult_v8(void)
+{ uint64_t i;
+  uint64_t Xi[2], Xi_ref[2], H[2], Htable[6];
+  printf("Testing gcm_init_v8 and gcm_gmult_v8 with %d cases\n",tests);
+
+  // NIST SP 800-38D Test Case 2:
+  //   H  = 66e94bd4ef8a2c3b884cfa59ca342b2e
+  //   Xi = 0388dace60b6a392f328184b41bb6dbf  (first plaintext block after AAD)
+  // Stored as uint64_t[2]: [0] = low 8 bytes, [1] = high 8 bytes
+  { uint64_t nist_H[2] = { UINT64_C(0x884cfa59ca342b2e),
+                            UINT64_C(0x66e94bd4ef8a2c3b) };
+    uint64_t nist_Xi[2] = { UINT64_C(0xf328184b41bb6dbf),
+                             UINT64_C(0x0388dace60b6a392) };
+    uint64_t nist_Xi_ref[2] = { nist_Xi[0], nist_Xi[1] };
+    gcm_init_v8(Htable, nist_H);
+    gcm_gmult_v8(nist_Xi, Htable);
+    reference_nist_gmult(nist_Xi_ref, nist_H);
+    if (nist_Xi[0] != nist_Xi_ref[0] || nist_Xi[1] != nist_Xi_ref[1])
+     { printf("### Disparity on NIST test vector:\n");
+       printf("  assembly: [%016"PRIx64",%016"PRIx64"]\n",nist_Xi[1],nist_Xi[0]);
+       printf("  NIST ref: [%016"PRIx64",%016"PRIx64"]\n",nist_Xi_ref[1],nist_Xi_ref[0]);
+       return 1;
+     }
+    else if (VERBOSE)
+     { printf("OK: NIST SP 800-38D Test Case 2\n");
+     }
+  }
+
+  // Random tests: compare gcm_init_v8 + gcm_gmult_v8 against NIST Algorithm 1
+  for (i = 0; i < tests; ++i)
+   { H[0] = random64(); H[1] = random64();
+     Xi[0] = random64(); Xi[1] = random64();
+     Xi_ref[0] = Xi[0]; Xi_ref[1] = Xi[1];
+     gcm_init_v8(Htable, H);
+     gcm_gmult_v8(Xi, Htable);
+     reference_nist_gmult(Xi_ref, H);
+     if (Xi[0] != Xi_ref[0] || Xi[1] != Xi_ref[1])
+      { printf("### Disparity: gcm_gmult_v8 case %"PRIu64"\n",i);
+        printf("  H:        [%016"PRIx64",%016"PRIx64"]\n",H[1],H[0]);
+        printf("  assembly: [%016"PRIx64",%016"PRIx64"]\n",Xi[1],Xi[0]);
+        printf("  NIST ref: [%016"PRIx64",%016"PRIx64"]\n",Xi_ref[1],Xi_ref[0]);
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: gcm_gmult_v8 case %"PRIu64"\n",i);
+      }
+   }
+  printf("All OK\n");
+  return 0;
+}
+
 // Main function allowing various command-line options:
 //
 // ./test [-number_of_tests] [function]
@@ -16002,6 +16131,7 @@ int main(int argc, char *argv[])
     functionaltest(sha3,"sha3_keccak2_f1600",test_sha3_keccak2_f1600);
     functionaltest(sha3,"sha3_keccak2_f1600_alt",test_sha3_keccak2_f1600_alt);
     functionaltest(sha3,"sha3_keccak4_f1600_alt2",test_sha3_keccak4_f1600_alt2);
+    functionaltest(all,"gcm_gmult_v8",test_gcm_gmult_v8);
 
   }
 

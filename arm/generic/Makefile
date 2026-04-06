@@ -94,7 +94,9 @@ OBJ = bignum_add.o \
       word_min.o \
       word_negmodinv.o \
       word_popcount.o \
-      word_recip.o
+      word_recip.o \
+      gcm_init_v8.o \
+      gcm_gmult_v8.o
 
 %.o : %.S ; $(CC) -E -I../../include $< | $(GAS) -o $@ -
 

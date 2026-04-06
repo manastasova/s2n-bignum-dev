@@ -785,6 +785,9 @@ void call_word_popcount(void) repeat(word_popcount(b0[0]))
 
 void call_word_recip(void) repeat(word_recip(b0[0]))
 
+void call_gcm_init_v8(void) repeat(gcm_init_v8(b0,b1))
+void call_gcm_gmult_v8(void) repeat(gcm_gmult_v8(b0,b1))
+
 void call_bignum_bigendian_4(void) repeat(bignum_bigendian_4(b0,b1))
 void call_bignum_littleendian_4(void) repeat(bignum_littleendian_4(b0,b1))
 void call_bignum_tolebytes_4(void) repeat(bignum_tolebytes_4((unsigned char *)b0,b1))
@@ -1607,6 +1610,8 @@ int main(int argc, char *argv[])
   timingtest(all,"word_negmodinv",call_word_negmodinv);
   timingtest(all,"word_popcount",call_word_popcount);
   timingtest(all,"word_recip",call_word_recip);
+  timingtest(arm,"gcm_init_v8",call_gcm_init_v8);
+  timingtest(arm,"gcm_gmult_v8",call_gcm_gmult_v8);
 
   // Summarize performance in arithmetic and geometric means
 

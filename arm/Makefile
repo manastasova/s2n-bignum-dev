@@ -252,6 +252,8 @@ BIGNUM_OBJ = curve25519/bignum_add_p25519.o \
              generic/word_negmodinv.o \
              generic/word_popcount.o \
              generic/word_recip.o \
+             generic/gcm_init_v8.o \
+             generic/gcm_gmult_v8.o \
              mlkem/mlkem_basemul_k2.o \
              mlkem/mlkem_basemul_k3.o \
              mlkem/mlkem_basemul_k4.o \
