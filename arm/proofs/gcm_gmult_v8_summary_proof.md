@@ -14,7 +14,7 @@ NIST SP 800-38D Algorithm 1             (bit-level shift-and-XOR loop)
         |  Equivalence A  (NIST_GHASH_EQ_GHASH_REDUCE)         [this work]
         v
 Polynomial algebra mod P(x)             (poly_of_word, ghash_reduce, word_pmul)
-        |  Equivalence B  (GHASH_POLYVAL_BRIDGE                 [this work]
+        |  Equivalence B  (GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE)                 [this work]
         |                  + POLYVAL_DOT_CORRECT,                [pre-existing]
         |                    GHASH_TWIST_CORRECT)                [pre-existing]
         v
@@ -39,7 +39,7 @@ gcm_gmult_v8 assembly                   (27 NEON instructions)
 | **Karatsuba decomposition** (`karatsuba_pmul_proof.ml`: PMUL_KARATSUBA) | Pre-existing |
 | **GHASH algebraic spec** (`ghash_spec.ml`: polyval_dot, ghash_polyval_acc, htable, twist) | Pre-existing |
 | **P(x) <-> Q(x) algebraic specifications** (POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT) | Pre-existing |
-| **GHASH-POLYVAL reflection equivalence** (GHASH_POLYVAL_BRIDGE_CORE, GHASH_POLYVAL_BRIDGE) | This work |
+| **GHASH-POLYVAL reflection equivalence** (GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE), GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE)) | This work |
 | **Equivalence C: polyval_dot <-> gcm_gmult_spec** (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) | This work |
 | **Implementation spec** (`gcm_gmult_v8_spec.ml`: gcm_gmult_spec, SIMD lemmas, test vectors) | This work |
 | **Equivalence D: ARM simulation** (`gcm_gmult_v8.ml`: GCM_GMULT_V8_EXEC_CORRECT) | This work |
@@ -156,26 +156,26 @@ core of the equivalence proof.
 ### Top-level theorems
 
 ```
-GHASH_POLYVAL_BRIDGE_CORE:
+GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE):
   forall a b : int128.
     (poly(bitrev(ghash_reduce(pmul a b))) * x^127 ==
      poly(bitrev a) * poly(bitrev b))  (mod Q)
 
-GHASH_POLYVAL_BRIDGE:
+GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE):
   forall a b : int128.
     word_reversefields 1 (ghash_reduce(word_pmul a b)) =
     ghash_twist(polyval_dot (word_reversefields 1 a) (word_reversefields 1 b))
 ```
 
-`GHASH_POLYVAL_BRIDGE_CORE` is the polynomial congruence: bit-reversing a
+`GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE)` is the polynomial congruence: bit-reversing a
 mod-P reduction result gives a mod-Q result (up to the x^127 twist factor).
 
-`GHASH_POLYVAL_BRIDGE` is the word-level consequence: bit-reversing `ghash_reduce`
+`GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE)` is the word-level consequence: bit-reversing `ghash_reduce`
 equals `ghash_twist(polyval_dot)`, connecting the two reduction algorithms.
 
 ### Proof structure
 
-The proof of GHASH_POLYVAL_BRIDGE_CORE required building an extensive algebraic
+The proof of GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE) required building an extensive algebraic
 infrastructure to show that `poly_revn 254` maps ideal{P} into ideal{Q}.
 
 #### Key lemma: POLY_REVN_MUL_GHASH (the ideal mapping)
@@ -225,7 +225,7 @@ QUOTIENT_BIT127:
 The quotient word has degree <= 126 (bit 127 = F), satisfying POLY_REVN_MUL_GHASH's
 hypothesis.
 
-#### Assembly of GHASH_POLYVAL_BRIDGE_CORE
+#### Assembly of GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE)
 
 1. From `REDUCE1_QUOTIENT` applied twice + char-2 cancellation:
    `ring_add(poly T)(poly r2) = ring_mul(poly w)(ghash_poly)` where `w = xor(hi1, hi2)`
@@ -239,7 +239,7 @@ hypothesis.
    - which is in `ideal{polyval_poly}`
 5. So `(poly(bitrev c) * x^127 == poly(bitrev a) * poly(bitrev b)) mod_polyval`
 
-#### Derivation of GHASH_POLYVAL_BRIDGE from GHASH_POLYVAL_BRIDGE_CORE
+#### Derivation of GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE) from GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE)
 
 Both `bitrev(ghash_reduce(pmul a b))` and `ghash_twist(polyval_dot(bitrev a, bitrev b))`
 are 128-bit words satisfying the same polynomial congruence mod Q (multiplied by x^127).
@@ -363,7 +363,7 @@ and random inputs.
 | `WORD_EQ_BITS_ALT` (bit-level) | WORD_ZX_SHL_XOR_OVERFLOW, WORD_JOIN_SUBWORDS_256, WORD_USHR_128_AS_ZX_SUBWORD |
 | Induction on loop counter | NIST_LOOP_AS_POLY_LOOP, POLY_LOOP_HORNER_CONG_MOD_GHASH, WORD_HORNER_BIT, PARTIAL_POLY_AS_WORD_HORNER |
 | `MOD_GHASH_TRANS/ADD/MUL` | POLY_SHL_XOR_CONG_MOD_GHASH, POLY_LOOP_STEP_CONG_MOD_GHASH, POLY_LOOP_EQ_GHASH_REDUCE |
-| `MOD_POLYVAL_TRANS/CANCEL_VARPOW` | GHASH_POLYVAL_BRIDGE from BRIDGE_CORE |
+| `MOD_POLYVAL_TRANS/CANCEL_VARPOW` | GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE) from GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE) |
 | `poly_revn` coefficient analysis | POLY_REVN254_OF_SHL128_EQ_REVN126, POLY_REVN126_EQ_USHR_BITREV, POLY_REVN_MUL_GHASH |
 | `NSUM_DELTA` for convolution | MUL_U128_WORD, POLY_VAR_MUL_REVN126_EQ_BITREV |
 | `GHASH_REDUCE1_HI` cascading | R2_HIGH_ZERO (two-pass degree bound) |
