@@ -3,7 +3,7 @@
 (* (GHASH polynomial multiply: Xi = H * Xi mod P).                          *)
 (* ========================================================================= *)
 
-needs "arm/proofs/utils/gcm_gmult_v8_spec.ml";;
+needs "arm/proofs/utils/gcm_gmult_v8_nist.ml";;
 
 (* Sys.chdir("/home/ubuntu/auto_proofs/s2n-bignum");; *)
 

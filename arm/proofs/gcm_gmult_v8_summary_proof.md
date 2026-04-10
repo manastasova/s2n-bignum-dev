@@ -11,18 +11,25 @@ The chain has five layers connected by four equivalence proofs:
 
 ```
 NIST SP 800-38D Algorithm 1             (bit-level shift-and-XOR loop)
-        |  Equivalence A  (NIST_GHASH_EQ_GHASH_REDUCE)         [this work]
+        |
+        |  NIST Horner loop = schoolbook multiply + reduce mod P(x)
+        |  (NIST_GHASH_EQ_GHASH_REDUCE)                        [this work]
         v
 Polynomial algebra mod P(x)             (poly_of_word, ghash_reduce, word_pmul)
-        |  Equivalence B  (GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE)                 [this work]
-        |                  + POLYVAL_DOT_CORRECT,                [pre-existing]
-        |                    GHASH_TWIST_CORRECT)                [pre-existing]
+        |
+        |  GHASH reduction (mod P) = POLYVAL reduction (mod Q) under bit-reversal
+        |  (GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT                 [this work]
+        |   + POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT)        [pre-existing]
         v
 polyval_dot / polyval_reduce_prop3      (Gueron's Prop 3 reduction mod Q(x))
-        |  Equivalence C  (GCM_GMULT_SPEC_EQ_POLYVAL_DOT)      [this work]
+        |
+        |  Assembly instruction-level spec = POLYVAL algebraic spec
+        |  (GCM_GMULT_SPEC_EQ_POLYVAL_DOT)                     [this work]
         v
 gcm_gmult_spec                          (ARM instruction-level spec)
-        |  Equivalence D  (GCM_GMULT_V8_EXEC_CORRECT)          [this work]
+        |
+        |  27-step ARM simulation: assembly = instruction-level spec
+        |  (GCM_GMULT_V8_EXEC_CORRECT)                         [this work]
         v
 gcm_gmult_v8 assembly                   (27 NEON instructions)
 ```
@@ -40,11 +47,11 @@ gcm_gmult_v8 assembly                   (27 NEON instructions)
 | **GHASH algebraic spec** (`ghash_spec.ml`: polyval_dot, ghash_polyval_acc, htable, twist) | Pre-existing |
 | **P(x) <-> Q(x) algebraic specifications** (POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT) | Pre-existing |
 | **GHASH-POLYVAL reflection equivalence** (GHASH_REDUCE_BITREV_CONG_MOD_POLYVAL (GHASH_POLYVAL_BRIDGE_CORE), GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT (GHASH_POLYVAL_BRIDGE)) | This work |
-| **Equivalence C: polyval_dot <-> gcm_gmult_spec** (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) | This work |
+| **gcm_gmult_spec = polyval_dot** (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) | This work |
 | **Implementation spec** (`gcm_gmult_v8_spec.ml`: gcm_gmult_spec, SIMD lemmas, test vectors) | This work |
-| **Equivalence D: ARM simulation** (`gcm_gmult_v8.ml`: GCM_GMULT_V8_EXEC_CORRECT) | This work |
+| **ARM assembly = gcm_gmult_spec** (`gcm_gmult_v8.ml`: GCM_GMULT_V8_EXEC_CORRECT) | This work |
 | **NIST Algorithm 1 transcription** (`gcm_gmult_v8_nist.ml`: nist_ghash_mul, nist_ghash) | This work |
-| **Equivalence A: NIST <-> polynomial algebra** (NIST_GHASH_EQ_GHASH_REDUCE + all supporting lemmas) | This work |
+| **NIST Algorithm 1 = polynomial algebra** (NIST_GHASH_EQ_GHASH_REDUCE + all supporting lemmas) | This work |
 
 ---
 
@@ -65,12 +72,33 @@ gcm_gmult_v8 assembly                   (27 NEON instructions)
 | File | Role |
 |------|------|
 | `arm/proofs/utils/gcm_gmult_v8_spec.ml` | `gcm_gmult_spec`: implementation-level spec mirroring ARM instructions (Karatsuba + 2-phase Barrett reduction + byte reversal) |
-| `arm/proofs/gcm_gmult_v8.ml` | ARM simulation proof: 27-step `MAP_EVERY` with SIMD simplification |
-| `arm/proofs/utils/gcm_gmult_v8_nist.ml` | NIST Algorithm 1 definitions + Equivalence A (NIST_GHASH_EQ_GHASH_REDUCE) + Equivalence C (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) + GHASH-POLYVAL reflection equivalence lemmas |
+| `arm/proofs/gcm_gmult_v8.ml` | ARM simulation proof: 27-step `MAP_EVERY` with SIMD simplification. Loads `gcm_gmult_v8_nist.ml` to ensure the full chain is verified. |
+| `arm/proofs/utils/gcm_gmult_v8_nist.ml` | NIST Algorithm 1 definitions + all mathematical equivalence proofs (NIST = polynomial algebra, GHASH-POLYVAL reflection, gcm_gmult_spec = polyval_dot) |
+
+### How the proof chain is verified
+
+The proofs are split across two files, each with a clear responsibility:
+
+```
+gcm_gmult_v8.ml proves:
+    assembly = gcm_gmult_spec                           (ARM simulation)
+
+gcm_gmult_v8_nist.ml proves:
+    gcm_gmult_spec = polyval_dot                        (spec = algebraic spec)
+    polyval_dot ↔ ghash_reduce  (via bit-reversal)      (GHASH-POLYVAL reflection)
+    ghash_reduce(word_pmul) = nist_ghash_mul             (NIST = polynomial algebra)
+```
+
+Running `make generic/gcm_gmult_v8.correct` loads `gcm_gmult_v8.ml`,
+which loads `gcm_gmult_v8_nist.ml` via `needs`. HOL Light checks
+**every proof in both files**, verifying the complete chain from NIST
+Algorithm 1 down to the ARM assembly. No single theorem needs to state
+the entire end-to-end equivalence — each theorem connects adjacent
+layers, and HOL Light verifies every link.
 
 ---
 
-## Equivalence D: ARM Assembly = gcm_gmult_spec
+## ARM Assembly = gcm_gmult_spec (Equivalence D)
 
 ### GCM_GMULT_V8_EXEC_CORRECT
 
@@ -95,7 +123,7 @@ Wraps the execution correctness for the ARM subroutine calling convention
 
 ---
 
-## Equivalence C: gcm_gmult_spec = polyval_dot (GCM_GMULT_SPEC_EQ_POLYVAL_DOT)
+## gcm_gmult_spec = polyval_dot (Equivalence C: GCM_GMULT_SPEC_EQ_POLYVAL_DOT)
 
 ### Statement
 
@@ -137,7 +165,7 @@ orders, and close with BARRETT_REDUCTION_EQ_PROP3_REDUCTION.
 
 ---
 
-## Equivalence B: GHASH-POLYVAL Reflection Equivalence
+## GHASH-POLYVAL Reflection Equivalence (Equivalence B)
 
 This is the deepest mathematical result: it connects the two different
 polynomial representations used in GHASH (mod P) and POLYVAL (mod Q),
@@ -271,7 +299,7 @@ By `MOD_POLYVAL_CANCEL_VARPOW`, congruent words mod Q are equal, giving the word
 
 ---
 
-## Equivalence A: NIST Algorithm 1 = Polynomial algebra (NIST_GHASH_EQ_GHASH_REDUCE)
+## NIST Algorithm 1 = Polynomial algebra (Equivalence A: NIST_GHASH_EQ_GHASH_REDUCE)
 
 ### Top-level theorem
 
@@ -303,7 +331,7 @@ by `ghash_reduce` (= reduction mod P(x) = x^128 + x^7 + x^2 + x + 1).
 | `partial_poly x n` | Horner evaluation of x's bits (= poly_of_word(x) after 128 steps) |
 | `word_horner x n` | Word-level version of partial_poly (used for the Horner identity proof) |
 
-### Equivalence A proof structure
+### Proof structure
 
 The proof decomposes into three stages:
 
