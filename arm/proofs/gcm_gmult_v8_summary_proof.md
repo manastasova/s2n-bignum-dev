@@ -11,45 +11,46 @@ The chain has five layers connected by four equivalence proofs:
 
 ```
 NIST SP 800-38D Algorithm 1             (bit-level shift-and-XOR loop)
-        |  Equivalence A  (manastasova: NIST_GHASH_EQ_GHASH_REDUCE)
+        |  Equivalence A  (NIST_GHASH_EQ_GHASH_REDUCE)         [this work]
         v
 Polynomial algebra mod P(x)             (poly_of_word, ghash_reduce, word_pmul)
-        |  Equivalence B  (manastasova: GHASH_POLYVAL_BRIDGE
-        |                  + nebeid: POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT)
+        |  Equivalence B  (GHASH_POLYVAL_BRIDGE                 [this work]
+        |                  + POLYVAL_DOT_CORRECT,                [pre-existing]
+        |                    GHASH_TWIST_CORRECT)                [pre-existing]
         v
 polyval_dot / polyval_reduce_prop3      (Gueron's Prop 3 reduction mod Q(x))
-        |  Equivalence C  (manastasova: GCM_GMULT_SPEC_EQ_POLYVAL_DOT)
+        |  Equivalence C  (GCM_GMULT_SPEC_EQ_POLYVAL_DOT)      [this work]
         v
 gcm_gmult_spec                          (ARM instruction-level spec)
-        |  Equivalence D  (manastasova: GCM_GMULT_V8_EXEC_CORRECT)
+        |  Equivalence D  (GCM_GMULT_V8_EXEC_CORRECT)          [this work]
         v
 gcm_gmult_v8 assembly                   (27 NEON instructions)
 ```
 
 ---
 
-## Attribution
+## Components
 
-| Component | Author | Status |
-|-----------|--------|--------|
-| **GF(2)[x] foundation** (`ghash.ml`: bool_poly, poly_of_word, P(x), ghash_reduce, irreducibility) | John Harrison (AWS) | Complete |
-| **POLYVAL infrastructure** (`polyval.ml`: Q(x), polyval_reduce_prop3) | nebeid | Complete |
-| **Prop 3 correctness** (`polyval_prop3_proof.ml`: POLYVAL_REDUCE_PROP3_CORRECT) | nebeid | Complete |
-| **Karatsuba decomposition** (`karatsuba_pmul_proof.ml`: PMUL_KARATSUBA) | nebeid | Complete |
-| **GHASH algebraic spec** (`ghash_spec.ml`: polyval_dot, ghash_polyval_acc, htable, twist) | nebeid | Complete |
-| **P(x) <-> Q(x) algebraic specifications** (POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT) | nebeid | Complete |
-| **GHASH-POLYVAL reflection equivalence** (GHASH_POLYVAL_BRIDGE_CORE, GHASH_POLYVAL_BRIDGE) | manastasova | Complete |
-| **Equivalence C: polyval_dot <-> gcm_gmult_spec** (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) | manastasova | Complete |
-| **Implementation spec** (`gcm_gmult_v8_spec.ml`: gcm_gmult_spec, SIMD lemmas, test vectors) | manastasova | Complete |
-| **Equivalence D: ARM simulation** (`gcm_gmult_v8.ml`: GCM_GMULT_V8_EXEC_CORRECT) | manastasova | Complete |
-| **NIST Algorithm 1 transcription** (`gcm_gmult_v8_nist.ml`: nist_ghash_mul, nist_ghash) | manastasova | Complete |
-| **Equivalence A: NIST <-> polynomial algebra** (NIST_GHASH_EQ_GHASH_REDUCE + all supporting lemmas) | manastasova | Complete |
+| Component | Status |
+|-----------|--------|
+| **GF(2)[x] foundation** (`ghash.ml`: bool_poly, poly_of_word, P(x), ghash_reduce, irreducibility) | Pre-existing |
+| **POLYVAL infrastructure** (`polyval.ml`: Q(x), polyval_reduce_prop3) | Pre-existing |
+| **Prop 3 correctness** (`polyval_prop3_proof.ml`: POLYVAL_REDUCE_PROP3_CORRECT) | Pre-existing |
+| **Karatsuba decomposition** (`karatsuba_pmul_proof.ml`: PMUL_KARATSUBA) | Pre-existing |
+| **GHASH algebraic spec** (`ghash_spec.ml`: polyval_dot, ghash_polyval_acc, htable, twist) | Pre-existing |
+| **P(x) <-> Q(x) algebraic specifications** (POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT) | Pre-existing |
+| **GHASH-POLYVAL reflection equivalence** (GHASH_POLYVAL_BRIDGE_CORE, GHASH_POLYVAL_BRIDGE) | This work |
+| **Equivalence C: polyval_dot <-> gcm_gmult_spec** (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) | This work |
+| **Implementation spec** (`gcm_gmult_v8_spec.ml`: gcm_gmult_spec, SIMD lemmas, test vectors) | This work |
+| **Equivalence D: ARM simulation** (`gcm_gmult_v8.ml`: GCM_GMULT_V8_EXEC_CORRECT) | This work |
+| **NIST Algorithm 1 transcription** (`gcm_gmult_v8_nist.ml`: nist_ghash_mul, nist_ghash) | This work |
+| **Equivalence A: NIST <-> polynomial algebra** (NIST_GHASH_EQ_GHASH_REDUCE + all supporting lemmas) | This work |
 
 ---
 
 ## Files and their roles
 
-### Pre-existing (from nebeid's ghash-polyval branch)
+### Pre-existing
 
 | File | Role |
 |------|------|
@@ -59,7 +60,7 @@ gcm_gmult_v8 assembly                   (27 NEON instructions)
 | `common/karatsuba_pmul_proof.ml` | `PMUL_KARATSUBA`: 3-PMULL Karatsuba = word_pmul |
 | `common/ghash_spec.ml` | `polyval_dot`, `ghash_polyval_acc`, batched GHASH, htable predicates, twist, `POLYVAL_DOT_CORRECT`, `GHASH_TWIST_CORRECT` |
 
-### Created in this work
+### This work
 
 | File | Role |
 |------|------|
