@@ -1194,6 +1194,42 @@ static void reference_nist_gmult(uint64_t Xi[2], const uint64_t H[2])
    }
 }
 
+// Reference C implementation of gcm_init_v8 (simplified for gcm_gmult_v8).
+// gcm_gmult_v8 only reads Htable[0..3], so we only compute:
+//   Htable[0..1] = twisted H in lanes-exchanged byte order
+//   Htable[2..3] = Karatsuba helper (H_hi XOR H_lo)
+//
+// The "twist" is Gueron's x-shift: H_bar = x * H (mod Q(x)).
+// This converts GHASH's A*B*x^{-127} into A*(x*B)*x^{-128},
+// which Proposition 3 reduces efficiently.
+static void reference_gcm_init_v8(uint64_t Htable[6], const uint64_t H[2])
+{
+  // Swap halves: the assembly loads H then does ext(H, H, #8)
+  uint64_t h_lo = H[1];
+  uint64_t h_hi = H[0];
+
+  // Twist: left-shift H by 1 bit, reduce mod Q(x) if overflow.
+  // Q(x) = x^128 + x^127 + x^126 + x^121 + 1
+  // Reduction constant: high = 0xc200000000000000, low = 0x01
+  uint64_t carry = (int64_t)h_hi >> 63;
+  h_hi = (h_hi << 1) | (h_lo >> 63);
+  h_lo = h_lo << 1;
+  h_lo ^= carry & UINT64_C(0x0000000000000001);
+  h_hi ^= carry & UINT64_C(0xc200000000000000);
+
+  // Store twisted H (lanes-exchanged: high half first)
+  Htable[0] = h_hi;
+  Htable[1] = h_lo;
+
+  // Karatsuba helper: H_hi XOR H_lo (used for the middle product)
+  Htable[2] = h_hi ^ h_lo;
+  Htable[3] = 0;
+
+  // Unused by gcm_gmult_v8 (only needed for multi-block gcm_ghash_v8)
+  Htable[4] = 0;
+  Htable[5] = 0;
+}
+
 uint64_t reference_wordbytereverse(uint64_t n)
 { uint64_t n2 = ((n & UINT64_C(0xFF00FF00FF00FF00)) >> 8) |
                 ((n & UINT64_C(0x00FF00FF00FF00FF)) << 8);
@@ -15682,7 +15718,7 @@ void functionaltest(int enabled,char *name,int (*f)(void))
 int test_gcm_gmult_v8(void)
 { uint64_t i;
   uint64_t Xi[2], Xi_ref[2], H[2], Htable[6];
-  printf("Testing gcm_init_v8 and gcm_gmult_v8 with %d cases\n",tests);
+  printf("Testing gcm_gmult_v8 (with reference C init) against NIST Algorithm 1, %d cases\n",tests);
 
   // NIST SP 800-38D Test Case 2:
   //   H  = 66e94bd4ef8a2c3b884cfa59ca342b2e
@@ -15693,7 +15729,7 @@ int test_gcm_gmult_v8(void)
     uint64_t nist_Xi[2] = { UINT64_C(0xf328184b41bb6dbf),
                              UINT64_C(0x0388dace60b6a392) };
     uint64_t nist_Xi_ref[2] = { nist_Xi[0], nist_Xi[1] };
-    gcm_init_v8(Htable, nist_H);
+    reference_gcm_init_v8(Htable, nist_H);
     gcm_gmult_v8(nist_Xi, Htable);
     reference_nist_gmult(nist_Xi_ref, nist_H);
     if (nist_Xi[0] != nist_Xi_ref[0] || nist_Xi[1] != nist_Xi_ref[1])
@@ -15707,12 +15743,12 @@ int test_gcm_gmult_v8(void)
      }
   }
 
-  // Random tests: compare gcm_init_v8 + gcm_gmult_v8 against NIST Algorithm 1
+  // Random tests: compare reference_gcm_init_v8 + gcm_gmult_v8 against NIST Algorithm 1
   for (i = 0; i < tests; ++i)
    { H[0] = random64(); H[1] = random64();
      Xi[0] = random64(); Xi[1] = random64();
      Xi_ref[0] = Xi[0]; Xi_ref[1] = Xi[1];
-     gcm_init_v8(Htable, H);
+     reference_gcm_init_v8(Htable, H);
      gcm_gmult_v8(Xi, Htable);
      reference_nist_gmult(Xi_ref, H);
      if (Xi[0] != Xi_ref[0] || Xi[1] != Xi_ref[1])
