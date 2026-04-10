@@ -7,22 +7,23 @@ the NIST SP 800-38D GHASH multiplication specification to the ARM NEON
 `gcm_gmult_v8` assembly implementation. Every layer is connected by a
 formally proved HOL Light theorem, with **zero CHEAT_TAC** remaining.
 
-The chain has five layers connected by four bridges:
+The chain has five layers connected by four equivalence proofs:
 
 ```
-NIST SP 800-38D Algorithm 1            (bit-level shift-and-XOR loop)
-        |  Bridge A  (manastasova: BRIDGE_A)
+NIST SP 800-38D Algorithm 1             (bit-level shift-and-XOR loop)
+        |  Equivalence A  (manastasova: NIST_GHASH_EQ_GHASH_REDUCE)
         v
-Polynomial algebra mod P(x)            (poly_of_word, ghash_reduce, word_pmul)
-        |  Bridge B  (nebeid: POLYVAL_DOT_CORRECT + GHASH_TWIST_CORRECT)
+Polynomial algebra mod P(x)             (poly_of_word, ghash_reduce, word_pmul)
+        |  Equivalence B  (manastasova: GHASH_POLYVAL_BRIDGE
+        |                  + nebeid: POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT)
         v
-polyval_dot / polyval_reduce_prop3     (Gueron's Prop 3 reduction mod Q(x))
-        |  Bridge C  (manastasova: GCM_GMULT_POLYVAL_DOT)
+polyval_dot / polyval_reduce_prop3      (Gueron's Prop 3 reduction mod Q(x))
+        |  Equivalence C  (manastasova: GCM_GMULT_SPEC_EQ_POLYVAL_DOT)
         v
-gcm_gmult_spec                         (ARM instruction-level spec)
-        |  Bridge D  (manastasova: GCM_GMULT_V8_EXEC_CORRECT)
+gcm_gmult_spec                          (ARM instruction-level spec)
+        |  Equivalence D  (manastasova: GCM_GMULT_V8_EXEC_CORRECT)
         v
-gcm_gmult_v8 assembly                  (27 NEON instructions)
+gcm_gmult_v8 assembly                   (27 NEON instructions)
 ```
 
 ---
@@ -36,12 +37,13 @@ gcm_gmult_v8 assembly                  (27 NEON instructions)
 | **Prop 3 correctness** (`polyval_prop3_proof.ml`: POLYVAL_REDUCE_PROP3_CORRECT) | nebeid | Complete |
 | **Karatsuba decomposition** (`karatsuba_pmul_proof.ml`: PMUL_KARATSUBA) | nebeid | Complete |
 | **GHASH algebraic spec** (`ghash_spec.ml`: polyval_dot, ghash_polyval_acc, htable, twist) | nebeid | Complete |
-| **Bridge B: P(x) <-> Q(x)** (POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT) | nebeid | Complete |
-| **Bridge C: polyval_dot <-> gcm_gmult_spec** (GCM_GMULT_POLYVAL_DOT) | manastasova | Complete |
+| **P(x) <-> Q(x) algebraic specifications** (POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT) | nebeid | Complete |
+| **GHASH-POLYVAL reflection equivalence** (GHASH_POLYVAL_BRIDGE_CORE, GHASH_POLYVAL_BRIDGE) | manastasova | Complete |
+| **Equivalence C: polyval_dot <-> gcm_gmult_spec** (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) | manastasova | Complete |
 | **Implementation spec** (`gcm_gmult_v8_spec.ml`: gcm_gmult_spec, SIMD lemmas, test vectors) | manastasova | Complete |
-| **Bridge D: ARM simulation** (`gcm_gmult_v8.ml`: GCM_GMULT_V8_EXEC_CORRECT) | manastasova | Complete |
+| **Equivalence D: ARM simulation** (`gcm_gmult_v8.ml`: GCM_GMULT_V8_EXEC_CORRECT) | manastasova | Complete |
 | **NIST Algorithm 1 transcription** (`gcm_gmult_v8_nist.ml`: nist_ghash_mul, nist_ghash) | manastasova | Complete |
-| **Bridge A: NIST <-> polynomial algebra** (BRIDGE_A + all supporting lemmas) | manastasova | Complete |
+| **Equivalence A: NIST <-> polynomial algebra** (NIST_GHASH_EQ_GHASH_REDUCE + all supporting lemmas) | manastasova | Complete |
 
 ---
 
@@ -63,11 +65,11 @@ gcm_gmult_v8 assembly                  (27 NEON instructions)
 |------|------|
 | `arm/proofs/utils/gcm_gmult_v8_spec.ml` | `gcm_gmult_spec`: implementation-level spec mirroring ARM instructions (Karatsuba + 2-phase Barrett reduction + byte reversal) |
 | `arm/proofs/gcm_gmult_v8.ml` | ARM simulation proof: 27-step `MAP_EVERY` with SIMD simplification |
-| `arm/proofs/utils/gcm_gmult_v8_nist.ml` | NIST Algorithm 1 definitions + Bridge A (full) + Bridge C (`GCM_GMULT_POLYVAL_DOT`) |
+| `arm/proofs/utils/gcm_gmult_v8_nist.ml` | NIST Algorithm 1 definitions + Equivalence A (NIST_GHASH_EQ_GHASH_REDUCE) + Equivalence C (GCM_GMULT_SPEC_EQ_POLYVAL_DOT) + GHASH-POLYVAL reflection equivalence lemmas |
 
 ---
 
-## Bridge D: ARM Assembly -> gcm_gmult_spec
+## Equivalence D: ARM Assembly = gcm_gmult_spec
 
 ### GCM_GMULT_V8_EXEC_CORRECT
 
@@ -92,7 +94,7 @@ Wraps the execution correctness for the ARM subroutine calling convention
 
 ---
 
-## Bridge C: gcm_gmult_spec -> polyval_dot (GCM_GMULT_POLYVAL_DOT)
+## Equivalence C: gcm_gmult_spec = polyval_dot (GCM_GMULT_SPEC_EQ_POLYVAL_DOT)
 
 ### Statement
 
@@ -113,69 +115,167 @@ Direct WORD_BLAST on the full equation was infeasible (carry-less
 multiplication creates exponential BDDs for 256+ Boolean variables).
 The proof was decomposed into modular lemmas:
 
-#### Step 1: KARATSUBA_LIMBS (4 lemmas, by WORD_BLAST)
+#### Step 1: KARATSUBA_LIMB_0_63 / 64_127 / 128_191 / 192_255 (4 lemmas, by WORD_BLAST)
 
-Extract the four 64-bit limbs (A, B, C, D) of the 256-bit Karatsuba product
-`T = word_xor(word_xor(word_zx xl)(word_shl(word_zx mid) 64))(word_shl(word_zx xh) 128)`:
+Extract the four 64-bit limbs of the 256-bit Karatsuba product.
 
-| Lemma | Result |
-|-------|--------|
-| `KARATSUBA_LIMB_A` | `word_subword T (0,64) = word_subword xl (0,64)` |
-| `KARATSUBA_LIMB_B` | `word_subword T (64,64) = word_xor (word_subword xl (64,64)) (word_subword mid (0,64))` |
-| `KARATSUBA_LIMB_C` | `word_subword T (128,64) = word_xor (word_subword xh (0,64)) (word_subword mid (64,64))` |
-| `KARATSUBA_LIMB_D` | `word_subword T (192,64) = word_subword xh (64,64)` |
-
-#### Step 2: SPEC_XM_PRIME_AS_ABCD (by WORD_BLAST)
+#### Step 2: KARATSUBA_RECOMBINE_EQ_PROP3_LIMBS (by WORD_BLAST)
 
 The spec's Karatsuba recombination `xm'` has halves equaling Prop 3's
-limbs B and C. This bridges the two different Karatsuba recombination
-strategies (spec uses EXT/EOR, Prop 3 uses direct XOR).
+limbs B and C.
 
-#### Step 3: REDUCTION_EQUIV (by WORD_BLAST on 4 x 64 = 256 Boolean vars)
+#### Step 3: BARRETT_REDUCTION_EQ_PROP3_REDUCTION (by WORD_BLAST on 4 x 64 = 256 Boolean vars)
 
 The spec's two-phase Barrett reduction and Prop 3's reduction produce
-identical results on the same four 64-bit limbs:
-
-```
-forall a b c d : 64 word.
-  spec_two_phase_reduction(a,b,c,d) = prop3_reduction(a,b,c,d)
-```
-
-Key insight: `phase1_lo = wa_lo XOR b = V` (Prop 3's V), so the
-two reduction phases compute exactly the same intermediate values.
+identical results on the same four 64-bit limbs.
 
 #### Step 4: Composition
 
-1. Expand both sides with `PMUL_KARATSUBA` + `KARATSUBA_LIMBS` + `PMUL_W_64_128`
-2. Abbreviate the 3 Karatsuba pmull results (xl, xh, xm) using `ABBREV_TAC`
-3. Align operand orders with `WORD_PMUL_SYM`
-4. Apply `SPEC_XM_PRIME_AS_ABCD` to rewrite xm' halves
-5. Apply `REDUCTION_EQUIV` to equate the reduction arrangements
-6. Close with beta-reductions
+Expand both sides, abbreviate Karatsuba pmull results, align operand
+orders, and close with BARRETT_REDUCTION_EQ_PROP3_REDUCTION.
 
 ---
 
-## Bridge B: polyval_dot -> Polynomial algebra (nebeid)
+## Equivalence B: GHASH-POLYVAL Reflection Equivalence
 
-### Key theorems (from `ghash_spec.ml`)
+This is the deepest mathematical result: it connects the two different
+polynomial representations used in GHASH (mod P) and POLYVAL (mod Q),
+proving that GHASH reduction and POLYVAL reduction are equivalent
+under bit-reversal.
 
-| Theorem | Statement |
-|---------|-----------|
-| `POLYVAL_DOT_CORRECT` | `poly(polyval_dot a b) * x^128 = poly(a) * poly(b) (mod Q(x))` |
-| `GHASH_TWIST_CORRECT` | GHASH = byte_reverse(POLYVAL(twist(byte_reverse(H)), ...)) |
-| `MOD_POLYVAL_WORD_EQ` | Congruent 128-bit words mod Q(x) are equal |
+### Background
 
-These connect the POLYVAL computation (mod Q(x)) to GHASH (mod P(x))
-via the bit-reflection relationship between the two polynomials.
+GHASH uses P(x) = x^128 + x^7 + x^2 + x + 1 (the NIST polynomial).
+POLYVAL uses Q(x) = x^128 + x^127 + x^126 + x^121 + 1 (the "reflected" polynomial).
+
+These are related by: Q(x) = x^128 * P(1/x), i.e., Q is the bit-reversal of P.
+The bit-reversal map `poly_revn 254` sends ideal{P} to ideal{Q}, which is the
+core of the equivalence proof.
+
+### Top-level theorems
+
+```
+GHASH_POLYVAL_BRIDGE_CORE:
+  forall a b : int128.
+    (poly(bitrev(ghash_reduce(pmul a b))) * x^127 ==
+     poly(bitrev a) * poly(bitrev b))  (mod Q)
+
+GHASH_POLYVAL_BRIDGE:
+  forall a b : int128.
+    word_reversefields 1 (ghash_reduce(word_pmul a b)) =
+    ghash_twist(polyval_dot (word_reversefields 1 a) (word_reversefields 1 b))
+```
+
+`GHASH_POLYVAL_BRIDGE_CORE` is the polynomial congruence: bit-reversing a
+mod-P reduction result gives a mod-Q result (up to the x^127 twist factor).
+
+`GHASH_POLYVAL_BRIDGE` is the word-level consequence: bit-reversing `ghash_reduce`
+equals `ghash_twist(polyval_dot)`, connecting the two reduction algorithms.
+
+### Proof structure
+
+The proof of GHASH_POLYVAL_BRIDGE_CORE required building an extensive algebraic
+infrastructure to show that `poly_revn 254` maps ideal{P} into ideal{Q}.
+
+#### Key lemma: POLY_REVN_MUL_GHASH (the ideal mapping)
+
+```
+POLY_REVN_MUL_GHASH:
+  ~bit 127 w ==>
+  poly_revn 254 (ring_mul bool_poly (poly_of_word w) ghash_poly) =
+  ring_mul bool_poly (poly_revn 126 (poly_of_word w)) polyval_poly
+```
+
+This says: for any quotient polynomial `k = poly(w)` with degree <= 126,
+`poly_revn 254(k * P) = (poly_revn 126 k) * Q`. In other words, reversing the
+coefficients maps elements of ideal{P} to elements of ideal{Q}.
+
+**Proof of POLY_REVN_MUL_GHASH:**
+
+1. Decompose P: `ghash_poly = x^128 + poly(0x87)` (GHASH_POLY_EQ_X128_PLUS_POLY87)
+2. Distribute: `k * P = k * x^128 + k * poly(0x87)` (RING_ADD_LDISTRIB)
+3. Shift reversal: `poly_revn 254(k * x^128) = poly_revn 126(k)` (POLY_REVN254_OF_SHL128_EQ_REVN126 + MUL_U128_WORD)
+4. Product reversal: `poly_revn 254(k * poly(0x87)) = poly(bitrev w) * poly(bitrev 0x87)` (POLY_REVN_254_PMUL)
+5. Factor: `total = poly_revn 126(k) * (1 + x * poly(bitrev 0x87)) = poly_revn 126(k) * Q` (Q_AS_ONE_PLUS_U_REV_LOW + POLY_VAR_MUL_REVN126_EQ_BITREV)
+
+#### Explicit quotient from ghash_reduce
+
+```
+REDUCE1_QUOTIENT:
+  poly(x) + poly(ghash_reduce1(x)) = poly(word_subword x (128,128)) * ghash_poly
+```
+
+This gives the explicit quotient for one pass of Barrett reduction: the upper
+128 bits of the input. Two passes yield the full quotient for `ghash_reduce`.
+
+```
+R2_HIGH_ZERO:
+  word_ushr(ghash_reduce1(ghash_reduce1(pmul a b)))(128) = word 0
+```
+
+After two passes, the result's upper bits are zero. This uses GHASH_REDUCE1_HI
+twice with WORD_BLAST to show the cascading shifts clear all high bits.
+
+```
+QUOTIENT_BIT127:
+  ~bit 127 (word_xor(word_subword T (128,128))(word_subword(ghash_reduce1 T)(128,128)))
+```
+
+The quotient word has degree <= 126 (bit 127 = F), satisfying POLY_REVN_MUL_GHASH's
+hypothesis.
+
+#### Assembly of GHASH_POLYVAL_BRIDGE_CORE
+
+1. From `REDUCE1_QUOTIENT` applied twice + char-2 cancellation:
+   `ring_add(poly T)(poly r2) = ring_mul(poly w)(ghash_poly)` where `w = xor(hi1, hi2)`
+2. From `POLY_GHASH_REDUCE_EQ_R2` + `R2_HIGH_ZERO`:
+   `poly(ghash_reduce T) = poly(r2)` (truncation preserves polynomial since high bits = 0)
+3. Hence: `ring_add(poly(ghash_reduce T))(poly T) = ring_mul(poly w)(ghash_poly)`
+4. Apply `poly_revn 254` to both sides:
+   - LHS: `ring_add(poly_revn 254(poly c))(poly_revn 254(poly T))` (POLY_REVN_ADD)
+   - `= ring_add(poly(bitrev c) * x^127)(poly(bitrev a) * poly(bitrev b))` (POLY_REVN_254_WORD128 + POLY_REVN_254_PMUL)
+   - RHS: `ring_mul(poly_revn 126(poly w))(polyval_poly)` (POLY_REVN_MUL_GHASH + QUOTIENT_BIT127)
+   - which is in `ideal{polyval_poly}`
+5. So `(poly(bitrev c) * x^127 == poly(bitrev a) * poly(bitrev b)) mod_polyval`
+
+#### Derivation of GHASH_POLYVAL_BRIDGE from GHASH_POLYVAL_BRIDGE_CORE
+
+Both `bitrev(ghash_reduce(pmul a b))` and `ghash_twist(polyval_dot(bitrev a, bitrev b))`
+are 128-bit words satisfying the same polynomial congruence mod Q (multiplied by x^127).
+By `MOD_POLYVAL_CANCEL_VARPOW`, congruent words mod Q are equal, giving the word equality.
+
+### Supporting lemmas for the GHASH-POLYVAL reflection equivalence
+
+| Lemma | Statement | Proof technique |
+|-------|-----------|-----------------|
+| `GHASH_POLY_EQ_X128_PLUS_POLY87` | P = x^128 + poly(0x87) | GHASH_POLY_COEFF_AT_0_1_2_7_128 + bit-level case analysis |
+| `GHASH_POLY_COEFF_AT_0_1_2_7_128` | ghash_poly(m) <=> m one in {128,7,2,1,0} | RING_SUM_CLAUSES + BOOL_POLY_POW_COEFF |
+| `POLY_OF_WORD2_EQ_POLY_VAR` | poly(word 2:int128) = poly_var | FUN_EQ + monomial_var + one_INDUCT |
+| `POLY_REVN126_EQ_USHR_BITREV` | poly_revn 126(poly w) = poly(ushr(bitrev w) 1) | FUN_EQ + poly_revn definition + BIT_WORD_USHR/REVERSEFIELDS |
+| `POLY_VAR_MUL_REVN126_EQ_BITREV` | ~bit 127 w ==> x * poly(ushr(bitrev w) 1) = poly(bitrev w) | POLY_OF_WORD_PMUL_2N + NSUM_DELTA + BIT_WORD_USHR |
+| `POLY_REVN254_OF_SHL128_EQ_REVN126` | poly_revn 254(poly(shl(zx w) 128:256)) = poly_revn 126(poly w) | FUN_EQ + BIT_WORD_SHL/ZX |
+| `MUL_U128_WORD` | poly(w) * x^128 = poly(shl(zx w:256) 128) | NSUM_DELTA + BIT_WORD_PMUL_ALT + BIT_TRIVIAL |
+| `POLY_OF_WORD_SURJ_128` | bounded-degree bool_poly element = poly_of_word(w) with ~bit 127 w | word_of_bits + ONE_FUN_EQ |
+| `WORD_USHR_128_AS_ZX_SUBWORD` | word_ushr x 128 = word_zx(word_subword x (128,128)) | WORD_EQ_BITS_ALT + BIT_WORD_USHR/ZX/SUBWORD |
+| `BIT255_PMUL_128` | ~bit 255 (word_pmul a b : 256 word) | BIT_WORD_PMUL_ALT + BIT_TRIVIAL |
+| `BIT255_REDUCE1_PMUL` | ~bit 255 (ghash_reduce1(word_pmul a b)) | BIT_WORD_XOR + BIT_WORD_SUBWORD + degree bound |
+| `QUOTIENT_BIT127` | ~bit 127 (xor hi1 hi2) | BIT255_PMUL_128 + BIT255_REDUCE1_PMUL |
+| `POLY_GHASH_REDUCE_EQ_R2` | poly(ghash_reduce(pmul a b)) = poly(reduce1(reduce1(pmul a b))) | R2_HIGH_ZERO + BIT_WORD_USHR |
+| `R2_HIGH_ZERO` | word_ushr(reduce1(reduce1(pmul a b)))(128) = word 0 | GHASH_REDUCE1_HI x2 + USHR_SMALL lemmas (WORD_BLAST) |
+| `WORD_JOIN_SUBWORDS_256` | x:256 = word_join(subword(128,128))(subword(0,128)) | WORD_EQ_BITS_ALT + BIT_WORD_JOIN |
+| `REDUCE1_QUOTIENT` | poly(x) + poly(reduce1 x) = poly(subword(128,128)) * P | GHASH_POLY_EQ_X128_PLUS_POLY87 + MUL_U128_WORD + POLY_OF_WORD_PMUL_2N + char-2 cancellation |
+| `ONE_FUN_EQ` | f = g <=> f one = g one (for type 1) | one_INDUCT |
+| `BIT_TRIVIAL_128` | 128 <= i ==> ~bit i (w:int128) | BIT_TRIVIAL + DIMINDEX_128 |
+| `BOOL_POLY_ZERO_ALL_COEFFS_FALSE` | ~(ring_0 bool_poly m) | BOOL_POLY_ZERO + poly_0 + COND_ID |
 
 ---
 
-## Bridge A: NIST Algorithm 1 -> Polynomial algebra (BRIDGE_A)
+## Equivalence A: NIST Algorithm 1 = Polynomial algebra (NIST_GHASH_EQ_GHASH_REDUCE)
 
 ### Top-level theorem
 
 ```
-BRIDGE_A:
+NIST_GHASH_EQ_GHASH_REDUCE:
   forall x y : int128.
     bit_reverse_per_byte(nist_ghash_mul x y) =
     ghash_reduce(word_pmul (bit_reverse_per_byte x) (bit_reverse_per_byte y))
@@ -202,242 +302,55 @@ by `ghash_reduce` (= reduction mod P(x) = x^128 + x^7 + x^2 + x + 1).
 | `partial_poly x n` | Horner evaluation of x's bits (= poly_of_word(x) after 128 steps) |
 | `word_horner x n` | Word-level version of partial_poly (used for the Horner identity proof) |
 
-### Bridge A proof structure
+### Equivalence A proof structure
 
 The proof decomposes into three stages:
 
-#### Stage 1: NIST loop -> polynomial-order loop (LOOP_BRP)
+#### Stage 1: NIST loop -> polynomial-order loop (NIST_LOOP_AS_POLY_LOOP)
 
 ```
-LOOP_BRP:
+NIST_LOOP_AS_POLY_LOOP:
   forall n z v x.
     bit_reverse_per_byte(ghash_mul_loop z v x n) =
     poly_mul_loop (brp z) (brp v) (brp x) n
 ```
 
-Proved by induction on `n` using:
-- `NIST_BIT_AS_NATURAL`: NIST bit i of x = natural bit i of brp(x)
-- `NIST_SHR1_AS_SHL`: brp(nist_shr1 v) = word_shl(brp v) 1
-- `V_STEP_BRP`: brp of V-update = if bit 127 then xor(shl,0x87) else shl
-- `Z_STEP_BRP`: brp of Z-update = conditional XOR by natural bit
+Proved by induction on `n` using NIST_BIT_AS_NATURAL, NIST_SHR1_AS_SHL,
+NIST_V_UPDATE_AS_POLY_SHL, NIST_Z_UPDATE_AS_POLY_XOR.
 
-#### Stage 2: Polynomial-order loop -> ghash_reduce(word_pmul) (POLY_MUL_LOOP_CORRECT)
+#### Stage 2: Polynomial-order loop -> ghash_reduce(word_pmul) (POLY_LOOP_EQ_GHASH_REDUCE)
 
 ```
-POLY_MUL_LOOP_CORRECT:
+POLY_LOOP_EQ_GHASH_REDUCE:
   forall x y : int128.
     poly_mul_loop (word 0) y x 128 = ghash_reduce(word_pmul x y)
 ```
 
-Both sides are 128-bit words congruent to `poly(x) * poly(y) (mod P)`:
-- The loop side uses `POLY_MUL_LOOP_CONG` (from `LOOP_INVARIANT`)
-- The ghash_reduce side uses `POLY_EQUIV_GHASH_REDUCE` + `POLY_OF_WORD_PMUL_2N`
-
-Since they're congruent and both are 128-bit words, `MOD_GHASH_WORD_EQ`
+Both sides are 128-bit words congruent to `poly(x) * poly(y) (mod P)`.
+Since they're congruent and both are 128-bit words, `CONG_MOD_GHASH_IMP_WORD_EQ`
 gives the word equality.
 
-#### Stage 3: Composition (BRIDGE_A)
+The key sub-lemmas are POLY_SHL_XOR_CONG_MOD_GHASH (V-step preserves congruence
+mod P), POLY_LOOP_HORNER_CONG_MOD_GHASH (inductive loop congruence), and
+PARTIAL_POLY_128 (Horner evaluation = poly_of_word).
 
-```
-BRIDGE_A = NIST_GHASH_MUL_AS_POLY_LOOP + POLY_MUL_LOOP_CORRECT
-```
+#### Stage 3: Composition (NIST_GHASH_EQ_GHASH_REDUCE)
 
 Trivial rewrite composition of Stages 1 and 2.
-
-### Key lemmas for Stage 2 (the hard part)
-
-#### V_STEP_CONG: V-step preserves congruence mod P(x)
-
-```
-V_STEP_CONG:
-  forall v : int128.
-    (poly_of_word(if bit 127 v then word_xor(word_shl v 1)(word 0x87)
-                  else word_shl v 1) ==
-     ring_mul bool_poly (poly_var bool_ring one) (poly_of_word v))
-    (mod_ghash)
-```
-
-This is the core inductive step: the V-update (shift left by 1, XOR with
-0x87 if overflow) is congruent to multiplication by the polynomial variable
-u modulo P(x).
-
-**Proof approach** (two cases):
-
-- **False case** (`~bit 127 v`): No overflow, so `poly_of_word(word_shl v 1) = u * poly_of_word(v)`
-  exactly. Uses `SHL_1_POLY_FALSE` which goes through `WORD_PMUL_POLY` + `POLY_OF_WORD_OF_POLY`
-  with the degree bound `POLY_DEG_MUL_V_U_BOUND` (degree < 128 when bit 127 is false).
-
-- **True case** (`bit 127 v`): Overflow by one bit. The quotient witness is `ring_1 bool_poly`.
-  The proof uses `WORD_ZX_SHL_XOR_OVERFLOW` at 256 bits to show that the truncated shift
-  and the full shift differ by exactly `x^128` at bit position 128. Then:
-  - `poly(V_step) + u*poly(v) = x^128 + poly(0x87)` (via `POLY_OF_SHL_ZX`, `POLY_OF_WORD_X128`)
-  - `x^128 + poly(0x87) = ghash_poly` (via `GHASH_POLY_AS_SUM`)
-  - So `ghash_poly` divides the difference, giving the congruence with quotient 1.
-
-**Supporting lemmas for V_STEP_CONG:**
-
-| Lemma | Statement | Proof technique |
-|-------|-----------|-----------------|
-| `POLY_VAR_IN_BOOL_POLY` | `poly_var bool_ring one IN ring_carrier bool_poly` | Direct from `POLY_VAR` |
-| `RING_MUL_POLY_VAR` | `u * poly_of_word(v) IN ring_carrier bool_poly` | `RING_MUL` |
-| `WORD_CLZ_GE_1` | `~bit 127 v ==> 1 <= word_clz v` | `WORD_CLZ_EQ_0` |
-| `POLY_DEG_MUL_V_U_BOUND` | `~bit 127 v ==> poly_deg(u * poly(v)) < 128` | `POLY_DEG_MUL_LE` + `POLY_DEG_VAR` + CLZ bound |
-| `WORD_SHL_1_AS_OF_POLY` | `word_shl v 1 = word_of_poly(poly(v) * u)` | `WORD_PMUL_POLY` + `WORD_PMUL_POW2` |
-| `SHL_1_POLY_FALSE` | `~bit 127 v ==> poly(shl v 1) = u * poly(v)` | `POLY_OF_WORD_OF_POLY` + degree bound |
-| `ODD_1_DIV_2EXP` | `ODD(1 DIV 2^n) <=> (n = 0)` | Case split + `DIV_LT` |
-| `WORD_ZX_SHL_XOR_OVERFLOW` | `word_xor(zx(shl v 1):256)(shl(zx v:256) 1) = if bit 127 v then shl(word 1) 128 else word 0` | `WORD_EQ_BITS_ALT` + bit-by-bit case analysis |
-| `POLY_OF_WORD_X128` | `poly(word_shl (word 1:256) 128) = u^128` | `POLY_VAR_POW_OF_WORD` |
-| `POLY_OF_WORD_ZX_128_256` | `poly(word_zx(w:int128):256) = poly(w)` | `POLY_OF_WORD_ZX` |
-| `POLY_OF_WORD_2_256` | `poly(word 2 : 256 word) = u` | `POLY_VAR_POW_OF_WORD` at n=1 |
-| `POLY_OF_SHL_ZX` | `poly(shl(zx v:256) 1) = u * poly(v)` | `WORD_PMUL_POLY` + `POLY_OF_WORD_OF_POLY` at 256 bits |
-| `GHASH_POLY_AS_SUM` | `ghash_poly = u^128 + poly(word 0x87)` | `GHASH_POLY_OF_WORD` + `POLY_OF_WORD_XOR` |
-| `RING_ADD_ACB` | `(A+B)+C = (A+C)+B` in any ring | `RING_ADD_ASSOC` + `RING_ADD_SYM` |
-
-#### LOOP_INVARIANT: Inductive loop congruence
-
-```
-LOOP_INVARIANT:
-  forall n z v x : int128. n <= 128 ==>
-    (poly_of_word(poly_mul_loop z v x n) ==
-     ring_add bool_poly (poly_of_word z)
-       (ring_mul bool_poly (partial_poly x n) (poly_of_word v)))
-    (mod_ghash)
-```
-
-Proved by induction on `n`. The base case is trivial (0 = 0 + 0*v).
-The inductive step uses `LOOP_STEP_CONG` which shows the IH's RHS
-is congruent to the target RHS, then chains via `MOD_GHASH_TRANS`.
-
-**Supporting lemmas for LOOP_INVARIANT:**
-
-| Lemma | Statement | Proof technique |
-|-------|-----------|-----------------|
-| `DISTRIB_LEMMA` | `(1 + u*pp) * pv = pv + (u*pp)*pv` | `RING_ADD_RDISTRIB` + `RING_MUL_LID` |
-| `ASSOC_COMM_LEMMA` | `(u*pp)*pv = pp*(u*pv)` | `RING_MUL_SYM` + `RING_MUL_ASSOC` |
-| `ADD_ASSOC_LEMMA` | `a + (b + c) = (a + b) + c` | `RING_ADD_ASSOC` |
-| `LOOP_STEP_CONG` | IH's RHS == target RHS (mod P) | Case split on bit_i + ring algebra + `V_STEP_CONG` + `MOD_GHASH_ADD/MUL` |
-
-#### PARTIAL_POLY_128: Horner evaluation = poly_of_word
-
-```
-PARTIAL_POLY_128:
-  forall x : int128. partial_poly x 128 = poly_of_word x
-```
-
-The partial polynomial built by Horner evaluation of x's bits (MSB to LSB)
-after 128 steps equals `poly_of_word x`.
-
-**Proof approach:**
-
-1. Define `word_horner x n` (word-level Horner construction):
-   `word_horner x 0 = word 0`,
-   `word_horner x (SUC n) = word_xor (if bit(128-SUC n) x then word 1 else word 0) (word_shl (word_horner x n) 1)`
-
-2. Prove `WORD_HORNER_BIT`: bit-level characterization by induction:
-   `bit k (word_horner x n) <=> k < n /\ bit(128-n+k) x`
-
-3. Prove `WORD_HORNER_128`: `word_horner x 128 = x`
-   (from WORD_HORNER_BIT with n=128: bit k = bit k x for all k < 128)
-
-4. Prove `PARTIAL_POLY_AS_WORD_HORNER`: `partial_poly x n = poly_of_word(word_horner x n)`
-   by induction, using `SHL_1_POLY_FALSE` (no overflow since `WORD_HORNER_BIT127_F`
-   shows bit 127 is always false for n <= 127)
-
-5. Compose: `partial_poly x 128 = poly_of_word(word_horner x 128) = poly_of_word x`
-
-#### Uniqueness mod P(x)
-
-| Lemma | Statement | Proof technique |
-|-------|-----------|-----------------|
-| `GHASH_POLY_NONZERO` | `ghash_poly <> ring_0 bool_poly` | `POLY_DEG_GHASH_POLY` (degree 128 <> degree 0) |
-| `GHASH_DIVIDES_LOW_DEG` | `ghash_poly divides p /\ deg p < 128 ==> p = 0` | Degree argument: `deg(ghash_poly * q) >= 128` |
-| `MOD_GHASH_WORD_EQ` | `(poly(x) == poly(y)) mod_ghash ==> x = y` | `POLY_OF_WORD_INJ` + `GHASH_DIVIDES_LOW_DEG` |
 
 ---
 
 ## Test vectors
 
-Four formally proved test vectors validate `gcm_gmult_spec`:
-- Zero input -> zero output
-- NIST SP 800-38D Test Case 2 derived values
-- Mixed bit patterns
-- All-ones inputs
+Four formally proved test vectors validate `gcm_gmult_spec` in HOL Light:
+- Zero input -> zero output (GCM_GMULT_TEST_ZERO)
+- NIST SP 800-38D Test Case 2 derived values (GCM_GMULT_TEST_1)
+- Mixed bit patterns (GCM_GMULT_TEST_2)
+- All-ones inputs (GCM_GMULT_TEST_3)
 
-The NIST test case was also used to validate `GCM_GMULT_POLYVAL_DOT`
-by concrete evaluation of both sides.
-
----
-
-## Complete theorem inventory
-
-### Bridge A (`gcm_gmult_v8_nist.ml`) -- manastasova
-
-| # | Theorem | Type |
-|---|---------|------|
-| 1 | `NIST_BIT_AS_NATURAL` | NIST-to-natural bit mapping |
-| 2 | `NIST_LSB_AS_NATURAL` | NIST LSB = bit 127 of brp |
-| 3 | `BRP_GHASH_R` | brp(0xE1) = 0x87 |
-| 4 | `NIST_HOL_BIT_BOUND` | Arithmetic helper |
-| 5 | `SUB_8Q_PLUS_7` | Arithmetic helper |
-| 6 | `EIGHT_MUL_SUB` | Arithmetic helper |
-| 7 | `NIST_SHR1_BIT` | nist_shr1 shifts NIST bits right by 1 |
-| 8 | `BRP_XOR` | brp distributes over XOR |
-| 9 | `NIST_SHR1_AS_SHL` | brp(nist_shr1 v) = word_shl(brp v) 1 |
-| 10 | `V_STEP_BRP` | V-update through brp |
-| 11 | `Z_STEP_BRP` | Z-update through brp |
-| 12 | `LOOP_BRP` | NIST loop through brp = poly loop |
-| 13 | `BRP_ZERO` | brp(0) = 0 |
-| 14 | `NIST_GHASH_MUL_AS_POLY_LOOP` | brp(nist_mul) = poly_loop |
-| 15 | `BOOL_POLY_MUL_EQ` | ring_mul bool_poly = poly_mul bool_ring |
-| 16 | `BOOL_POLY_ZERO_EQ` | ring_0 bool_poly = poly_0 bool_ring |
-| 17 | `GHASH_POLY_NONZERO` | ghash_poly <> 0 |
-| 18 | `GHASH_DIVIDES_LOW_DEG` | ghash_poly | p, deg p < 128 => p = 0 |
-| 19 | `MOD_GHASH_WORD_EQ` | Congruent 128-bit words are equal |
-| 20 | `KARATSUBA_LIMB_A/B/C/D` | 256-bit Karatsuba limb extractions |
-| 21 | `SPEC_XM_PRIME_AS_ABCD` | xm' halves = Karatsuba B,C |
-| 22 | `REDUCTION_EQUIV` | Spec reduction = Prop3 reduction |
-| 23 | `GCM_GMULT_POLYVAL_DOT` | **Bridge C** |
-| 24 | `POLY_VAR_IN_BOOL_POLY` | poly_var membership |
-| 25 | `RING_MUL_POLY_VAR` | u*poly(v) membership |
-| 26 | `WORD_CLZ_GE_1` | ~bit 127 => CLZ >= 1 |
-| 27 | `POLY_DEG_MUL_V_U_BOUND` | degree of u*poly(v) < 128 |
-| 28 | `WORD_SHL_1_AS_OF_POLY` | shl v 1 = word_of_poly(poly(v)*u) |
-| 29 | `SHL_1_POLY_FALSE` | ~bit 127 => poly(shl v 1) = u*poly(v) |
-| 30 | `ODD_1_DIV_2EXP` | ODD(1 DIV 2^n) <=> n=0 |
-| 31 | `WORD_ZX_SHL_XOR_OVERFLOW` | 256-bit overflow identity |
-| 32 | `POLY_OF_WORD_X128` | poly(shl (word 1:256) 128) = u^128 |
-| 33 | `POLY_OF_WORD_ZX_128_256` | poly(zx w:256) = poly(w:128) |
-| 34 | `POLY_OF_WORD_2_256` | poly(word 2:256) = u |
-| 35 | `POLY_OF_SHL_ZX` | poly(shl(zx v:256) 1) = u*poly(v) |
-| 36 | `GHASH_POLY_AS_SUM` | ghash_poly = u^128 + poly(0x87) |
-| 37 | `RING_ADD_ACB` | Ring AC: (A+B)+C = (A+C)+B |
-| 38 | `V_STEP_CONG` | **V-step congruence mod P** |
-| 39 | `WORD_HORNER_BIT` | Bit characterization of word_horner |
-| 40 | `WORD_HORNER_128` | word_horner x 128 = x |
-| 41 | `WORD_HORNER_BIT127_F` | bit 127 (word_horner x n) = F for n<=127 |
-| 42 | `PARTIAL_POLY_AS_WORD_HORNER` | partial_poly = poly(word_horner) |
-| 43 | `PARTIAL_POLY_128` | **partial_poly x 128 = poly_of_word x** |
-| 44 | `PARTIAL_POLY_IN_CARRIER` | partial_poly membership |
-| 45 | `DISTRIB_LEMMA` | (1+u*pp)*pv = pv + (u*pp)*pv |
-| 46 | `ASSOC_COMM_LEMMA` | (u*pp)*pv = pp*(u*pv) |
-| 47 | `ADD_ASSOC_LEMMA` | a+(b+c) = (a+b)+c |
-| 48 | `LOOP_STEP_CONG` | IH RHS == target RHS (mod P) |
-| 49 | `LOOP_INVARIANT` | **Loop inductive congruence** |
-| 50 | `POLY_MUL_LOOP_CONG` | poly(loop 0 y x 128) == poly(x)*poly(y) |
-| 51 | `POLY_MUL_LOOP_CORRECT` | **loop = ghash_reduce(word_pmul)** |
-| 52 | `BRIDGE_A` | **brp(nist_mul) = ghash_reduce(pmul(brp,brp))** |
-
-### Bridge C+D (`gcm_gmult_v8_spec.ml` + `gcm_gmult_v8.ml`) -- manastasova
-
-| Theorem | Description |
-|---------|-------------|
-| `GCM_GMULT_POLYVAL_DOT` | Bridge C: gcm_gmult_spec = rev8(polyval_dot) |
-| `GCM_GMULT_V8_EXEC_CORRECT` | Bridge D: ARM assembly = gcm_gmult_spec |
-| `GCM_GMULT_V8_SUBROUTINE_CORRECT` | Bridge D (subroutine wrapper) |
-| `SIMD_SIMPLIFY_RULES` (3) | REV64 simplification for SIMD simulation |
-| `WORD_INSERT_AS_JOIN_1/2` | Word insert bridging lemmas |
-| `KAR_SUBWORD_LEMMA` | Karatsuba middle term subword identity |
-| Test vectors (4) | Concrete validation of gcm_gmult_spec |
+Additional runtime tests in `test.c` validate the assembly against a
+C reference implementation of NIST Algorithm 1 using the NIST test vector
+and random inputs.
 
 ---
 
@@ -445,23 +358,29 @@ by concrete evaluation of both sides.
 
 | Technique | Where used |
 |-----------|-----------|
-| `WORD_BLAST` / BDD | KARATSUBA_LIMBS, SPEC_XM_PRIME_AS_ABCD, REDUCTION_EQUIV, BRP_XOR, NIST_SHR1_AS_SHL |
-| `WORD_EQ_BITS_ALT` (bit-level) | WORD_ZX_SHL_XOR_OVERFLOW, WORD_HORNER_BIT |
-| Induction on loop counter | LOOP_BRP, LOOP_INVARIANT, WORD_HORNER_BIT, PARTIAL_POLY_AS_WORD_HORNER |
-| `MOD_GHASH_TRANS/ADD/MUL` | V_STEP_CONG, LOOP_STEP_CONG, POLY_MUL_LOOP_CORRECT |
-| Quotient witness | V_STEP_CONG (witness = ring_1 for true case) |
-| Degree argument | MOD_GHASH_WORD_EQ, SHL_1_POLY_FALSE |
-| `POLY_OF_WORD_OF_POLY` roundtrip | SHL_1_POLY_FALSE, POLY_OF_SHL_ZX |
-| `POLY_OF_WORD_ZX` (cross-size) | POLY_OF_WORD_ZX_128_256, POLY_OF_SHL_ZX |
-| `MESON_TAC` (ring algebra) | ASSOC_COMM_LEMMA, LOOP_INVARIANT inductive step |
+| `WORD_BLAST` / BDD | Karatsuba limbs, Barrett/Prop3 reduction equivalence, byte-reversal XOR, USHR_SMALL lemmas |
+| `WORD_EQ_BITS_ALT` (bit-level) | WORD_ZX_SHL_XOR_OVERFLOW, WORD_JOIN_SUBWORDS_256, WORD_USHR_128_AS_ZX_SUBWORD |
+| Induction on loop counter | NIST_LOOP_AS_POLY_LOOP, POLY_LOOP_HORNER_CONG_MOD_GHASH, WORD_HORNER_BIT, PARTIAL_POLY_AS_WORD_HORNER |
+| `MOD_GHASH_TRANS/ADD/MUL` | POLY_SHL_XOR_CONG_MOD_GHASH, POLY_LOOP_STEP_CONG_MOD_GHASH, POLY_LOOP_EQ_GHASH_REDUCE |
+| `MOD_POLYVAL_TRANS/CANCEL_VARPOW` | GHASH_POLYVAL_BRIDGE from BRIDGE_CORE |
+| `poly_revn` coefficient analysis | POLY_REVN254_OF_SHL128_EQ_REVN126, POLY_REVN126_EQ_USHR_BITREV, POLY_REVN_MUL_GHASH |
+| `NSUM_DELTA` for convolution | MUL_U128_WORD, POLY_VAR_MUL_REVN126_EQ_BITREV |
+| `GHASH_REDUCE1_HI` cascading | R2_HIGH_ZERO (two-pass degree bound) |
+| Ring algebra (`RING_ADD_LDISTRIB`, etc.) | POLY_REVN_MUL_GHASH, REDUCE_SUM_EQ_QUOTIENT_MUL |
+| `POLY_OF_WORD_ZX` (cross-size) | POLY_GHASH_REDUCE_EQ_R2, POLY_OF_WORD_ZX_128_256 |
+| `MESON_TAC` (ring algebra) | BOOL_POLY_MUL_ASSOC_COMM, BOOL_POLY_ADD_CANCEL |
 | ARM simulation (`MAP_EVERY`) | GCM_GMULT_V8_EXEC_CORRECT |
-| `ABBREV_TAC` (term management) | GCM_GMULT_POLYVAL_DOT |
 
 ---
 
 ## Total proof effort
 
-- **~55 theorems** proved across 3 files
+- **~75 theorems** proved across 3 files (plus ~20 in interactive sessions)
 - **0 CHEAT_TAC** remaining
-- **4 bridges** connecting 5 abstraction layers
+- **0 new_axiom** added
+- **4 equivalence proofs** connecting 5 abstraction layers
 - **End-to-end verification**: NIST SP 800-38D Algorithm 1 = ARM assembly output
+- Key mathematical contribution: the **GHASH-POLYVAL reflection equivalence**
+  via the `poly_revn` ideal mapping from P(x) to Q(x), establishing that
+  bit-reversal of GF(2^128) elements converts between the two standard
+  polynomial bases used in GHASH and POLYVAL
