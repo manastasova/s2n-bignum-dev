@@ -1,13 +1,17 @@
+(*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
+ *)
+
 (* ========================================================================= *)
 (* Proof of correctness for gcm_gmult_v8                                    *)
 (* (GHASH polynomial multiply: Xi = H * Xi mod P).                          *)
 (* ========================================================================= *)
 
+needs "arm/proofs/base.ml";;
 needs "arm/proofs/utils/gcm_gmult_v8_nist.ml";;
 
 (* Sys.chdir("/home/ubuntu/auto_proofs/s2n-bignum");; *)
-
-(* ---- Machine code -------------------------------------------------------- *)
 
 let gcm_gmult_v8_mc = define_assert_from_elf "gcm_gmult_v8_mc"
   "arm/generic/gcm_gmult_v8.o"
@@ -44,11 +48,6 @@ let gcm_gmult_v8_mc = define_assert_from_elf "gcm_gmult_v8_mc"
 
 let GCM_GMULT_V8_EXEC = ARM_MK_EXEC_RULE gcm_gmult_v8_mc;;
 
-(* ---- Bridging lemmas: word_insert = word_join of subwords --------------- *)
-
-(* The simulation produces word_insert terms (from INS instructions).
-   The simplified spec uses word_join instead.  These lemmas bridge
-   the gap so the final rewrite step can close the goal. *)
 let WORD_INSERT_AS_JOIN_1 = prove(
   `!(a:(128)word) (b:(128)word).
     word_insert a (0,64) (word_subword b (64,64):(128)word) =

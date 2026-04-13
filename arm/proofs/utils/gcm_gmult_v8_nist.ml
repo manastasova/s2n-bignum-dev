@@ -1,3 +1,8 @@
+(*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
+ *)
+ 
 (* ========================================================================= *)
 (* NIST SP 800-38D GHASH multiplication — faithful transcription             *)
 (*                                                                           *)
@@ -663,14 +668,15 @@ let WORD_ZX_SHL_XOR_OVERFLOW = prove(
     COND_CASES_TAC THEN
     REWRITE_TAC[BIT_WORD_SHL; BIT_WORD; BIT_WORD_0; DIMINDEX_256; ODD_1_DIV_2EXP] THEN
     ASM_ARITH_TAC;
-    SUBGOAL_THEN `1 <= i /\ i - 1 < 256 /\ ~(i - 1 < 128)` STRIP_ASSUME_TAC THENL
+    SUBGOAL_THEN `1 <= i /\ i - 1 < 256` STRIP_ASSUME_TAC THENL
      [ASM_ARITH_TAC; ALL_TAC] THEN
-    ASM_REWRITE_TAC[] THEN
     ASM_CASES_TAC `i = 128` THENL
      [ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV THEN
       COND_CASES_TAC THEN
       REWRITE_TAC[BIT_WORD_SHL; BIT_WORD; BIT_WORD_0; DIMINDEX_256; ODD_1_DIV_2EXP] THEN
       CONV_TAC NUM_REDUCE_CONV;
+      SUBGOAL_THEN `~(i - 1 < 128)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+      ASM_REWRITE_TAC[] THEN
       SUBGOAL_THEN `128 <= i - 1` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
       ASM_SIMP_TAC[BIT_TRIVIAL; DIMINDEX_128] THEN
       COND_CASES_TAC THEN
@@ -866,13 +872,13 @@ let WORD_HORNER_BIT = prove(
     SUBGOAL_THEN `n <= 128` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     FIRST_X_ASSUM(MP_TAC o check (is_imp o concl)) THEN ASM_REWRITE_TAC[] THEN DISCH_TAC THEN
     REWRITE_TAC[word_horner; BIT_WORD_XOR; BIT_WORD_SHL; DIMINDEX_128] THEN
-    ASM_CASES_TAC `bit (128 - SUC n) (x:int128)` THEN ASM_REWRITE_TAC[BIT_WORD; BIT_WORD_0; ODD_1_DIV_2EXP] THENL
+    ASM_CASES_TAC `bit (128 - SUC n) (x:int128)` THEN ASM_REWRITE_TAC[BIT_WORD; BIT_WORD_0; ODD_1_DIV_2EXP; DIMINDEX_128] THENL
      [ASM_CASES_TAC `k = 0` THENL
-       [ASM_REWRITE_TAC[DIMINDEX_128] THEN CONV_TAC NUM_REDUCE_CONV THEN
+       [ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV THEN
         SUBGOAL_THEN `128 - SUC n + 0 = 128 - SUC n` SUBST1_TAC THENL
-         [ARITH_TAC; ASM_REWRITE_TAC[]];
+         [ARITH_TAC; ASM_REWRITE_TAC[] THEN ARITH_TAC];
         SUBGOAL_THEN `1 <= k /\ k - 1 < 128` STRIP_ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-        ASM_REWRITE_TAC[DIMINDEX_128] THEN
+        ASM_REWRITE_TAC[] THEN
         FIRST_X_ASSUM(MP_TAC o SPEC `k - 1`) THEN ASM_REWRITE_TAC[] THEN
         DISCH_THEN SUBST1_TAC THEN
         SUBGOAL_THEN `128 - n + (k - 1) = 128 - SUC n + k` SUBST1_TAC THENL
@@ -1080,7 +1086,8 @@ let POLY_LOOP_EQ_GHASH_REDUCE = prove(
       poly_of_word(ghash_reduce(word_pmul x y : 256 word))) (mod_ghash)`
     MP_TAC THENL
    [MP_TAC(ISPEC `word_pmul (x:int128) (y:int128) : 256 word` POLY_EQUIV_GHASH_REDUCE) THEN
-    REWRITE_TAC[POLY_OF_WORD_PMUL_2N];
+    REWRITE_TAC[POLY_OF_WORD_PMUL_2N] THEN
+    DISCH_TAC THEN ONCE_REWRITE_TAC[GSYM MOD_GHASH_SYM] THEN ASM_REWRITE_TAC[];
     FIRST_X_ASSUM(fun h0 -> DISCH_THEN(fun h1 ->
       ACCEPT_TAC(MATCH_MP MOD_GHASH_TRANS (CONJ h0 h1))))]);;
 
@@ -1126,6 +1133,37 @@ let BOOL_POLY_ZERO_ALL_COEFFS_FALSE = prove(
   `!m. ~(ring_0 bool_poly m)`,
   GEN_TAC THEN REWRITE_TAC[BOOL_POLY_ZERO; poly_0; poly_const; COND_ID; BOOL_RING_ZERO_IS_FALSE]);;
 
+(* ring_add in bool_poly is pointwise XOR — needed early for coefficient proofs *)
+let BOOL_POLY_ADD_POINTWISE = prove(
+  `!(p:(1->num)->bool) (q:(1->num)->bool) (m:1->num).
+    ring_add bool_poly p q m <=> ~(p m <=> q m)`,
+  REWRITE_TAC[bool_poly; POLY_RING; poly_add] THEN
+  REWRITE_TAC[BOOL_RING]);;
+
+(* Coefficient characterization of ring_pow in bool_poly — needed early *)
+let BOOL_POLY_POW_COEFF = prove(
+  `!(n:num). n < 256 ==>
+    (!(m:1->num). (ring_pow bool_poly (poly_var bool_ring one) n : (1->num)->bool) m <=> m one = n)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `(ring_pow bool_poly (poly_var bool_ring one) n : (1->num)->bool) =
+                poly_of_word(word(2 EXP n) : 256 word)`
+    SUBST1_TAC THENL
+   [MP_TAC(SPEC `n:num` (REWRITE_RULE[DIMINDEX_256] (INST_TYPE [`:256`,`:N`] POLY_VAR_POW_OF_WORD))) THEN
+    ASM_REWRITE_TAC[]; ALL_TAC] THEN
+  REWRITE_TAC[poly_of_word; BIT_WORD; DIMINDEX_256] THEN
+  ASM_CASES_TAC `(m:1->num) one = n` THENL
+   [ASM_REWRITE_TAC[] THEN
+    SIMP_TAC[DIV_REFL; EXP_EQ_0; ARITH] THEN REWRITE_TAC[ODD];
+    ASM_REWRITE_TAC[] THEN
+    ASM_CASES_TAC `(m:1->num) one < 256` THEN ASM_REWRITE_TAC[] THEN
+    ASM_CASES_TAC `(m:1->num) one < n` THENL
+     [SUBGOAL_THEN `(m:1->num) one <= n` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+      ASM_SIMP_TAC[DIV_EXP; ARITH_RULE `~(2 = 0)`] THEN
+      REWRITE_TAC[ODD_EXP] THEN ASM_ARITH_TAC;
+      SUBGOAL_THEN `2 EXP n DIV 2 EXP (m:1->num) one = 0` SUBST1_TAC THENL
+       [MATCH_MP_TAC DIV_LT THEN REWRITE_TAC[LT_EXP] THEN ASM_ARITH_TAC;
+        REWRITE_TAC[ODD]]]]);;
+
 let GHASH_POLY_COEFF_AT_0_1_2_7_128 = prove(
   `!m. ghash_poly m <=> (m:1->num) one IN {128,7,2,1,0}`,
   GEN_TAC THEN REWRITE_TAC[ghash_poly; IN_INSERT; NOT_IN_EMPTY] THEN
@@ -1158,8 +1196,7 @@ let GHASH_POLY_EQ_X128_PLUS_POLY87 = prove(
   MP_TAC(SPEC `128` BOOL_POLY_POW_COEFF) THEN CONV_TAC NUM_REDUCE_CONV THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
   REWRITE_TAC[BIT_WORD; DIMINDEX_128] THEN
-  ASM_CASES_TAC `(x:1->num) one = 128` THEN ASM_REWRITE_TAC[ARITH] THENL
-   [CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+  ASM_CASES_TAC `(x:1->num) one = 128` THEN ASM_REWRITE_TAC[ARITH] THEN
   ASM_CASES_TAC `(x:1->num) one < 128` THENL
    [ASM_REWRITE_TAC[] THEN
     MAP_EVERY (fun k ->
@@ -1204,6 +1241,12 @@ let POLY_OF_WORD2_EQ_POLY_VAR = prove(
 
 (* ---- poly_revn identities for the P<->Q bridge ---- *)
 
+(* poly_revn d p: reverse the coefficients of polynomial p up to degree d.
+   Coefficient n of (poly_revn d p) = coefficient (d-n) of p, for n <= d. *)
+let poly_revn = new_definition
+  `poly_revn (d:num) (p:(1->num)->bool) =
+   (\m. if m one <= d then p (\i. d - m i) else F)`;;
+
 (* poly_revn 126 of a 128-bit word = poly of (ushr(bitrev w) 1) *)
 let POLY_REVN126_EQ_USHR_BITREV = prove(
   `!w:int128. poly_revn 126 (poly_of_word w) =
@@ -1211,7 +1254,7 @@ let POLY_REVN126_EQ_USHR_BITREV = prove(
   GEN_TAC THEN REWRITE_TAC[FUN_EQ_THM] THEN GEN_TAC THEN
   REWRITE_TAC[poly_revn; poly_of_word] THEN
   REWRITE_TAC[BIT_WORD_USHR; BIT_WORD_REVERSEFIELDS; DIMINDEX_128] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN
+  CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[DIV_1; MOD_1; MULT_CLAUSES; ADD_CLAUSES] THEN
   ASM_CASES_TAC `(x:1->num) one <= 126` THEN ASM_REWRITE_TAC[] THENL
    [ASM_CASES_TAC `(x:1->num) one + 1 < 128` THENL
      [ASM_REWRITE_TAC[] THEN AP_THM_TAC THEN AP_TERM_TAC THEN
@@ -1255,7 +1298,7 @@ let POLY_VAR_MUL_REVN126_EQ_BITREV = prove(
       REWRITE_TAC[BIT_TRIVIAL; DIMINDEX_128] THEN ASM_ARITH_TAC;
       ASM_SIMP_TAC[ARITH_RULE `~(1 <= n) ==> n = 0`] THEN
       REWRITE_TAC[ODD; BIT_WORD_REVERSEFIELDS; DIMINDEX_128] THEN
-      CONV_TAC NUM_REDUCE_CONV THEN ASM_MESON_TAC[]];
+      CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[DIV_1; MOD_1; MULT_CLAUSES; ADD_CLAUSES] THEN ASM_MESON_TAC[]];
     MATCH_MP_TAC(MESON[BIT_TRIVIAL] `dimindex(:128) <= n ==> ~bit n (w:int128)`) THEN
     REWRITE_TAC[DIMINDEX_128] THEN ASM_ARITH_TAC]);;
 
@@ -1295,6 +1338,223 @@ let POLY_REVN254_OF_SHL128_EQ_REVN126 = prove(
 (* The key mathematical insight: poly_revn 254 maps ideal{P} to ideal{Q}.  *)
 (* ========================================================================= *)
 
+(* ---- Lemmas for the reflection equivalence                               *)
+
+(* poly_revn distributes over ring_add *)
+let POLY_REVN_ADD = prove(
+  `!d p q. poly_revn d (ring_add bool_poly p q) =
+           ring_add bool_poly (poly_revn d p) (poly_revn d q)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[FUN_EQ_THM; poly_revn; BOOL_POLY_ADD_POINTWISE] THEN
+  GEN_TAC THEN ASM_CASES_TAC `(x:1->num) one <= d` THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[BOOL_POLY_ADD_POINTWISE]);;
+
+(* poly_revn of ring_pow: reverses the monomial exponent *)
+let POLY_REVN_POW = prove(
+  `!d i. i <= d /\ d < 256 ==>
+    poly_revn d (ring_pow bool_poly (poly_var bool_ring one) i) =
+    ring_pow bool_poly (poly_var bool_ring one) (d - i)`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[FUN_EQ_THM; poly_revn] THEN GEN_TAC THEN
+  ASM_CASES_TAC `(x:1->num) one <= d` THEN ASM_REWRITE_TAC[] THENL
+   [SUBGOAL_THEN `i < 256 /\ d - (x:1->num) one < 256 /\ (d - i) < 256` STRIP_ASSUME_TAC THENL
+     [ASM_ARITH_TAC; ALL_TAC] THEN
+    ASM_SIMP_TAC[BOOL_POLY_POW_COEFF] THEN
+    SUBGOAL_THEN `(\i':1. d - x i') one = d - (x:1->num) one`
+      SUBST1_TAC THENL
+     [CONV_TAC(LAND_CONV BETA_CONV) THEN REFL_TAC; ASM_ARITH_TAC];
+    SUBGOAL_THEN `(d - i) < 256` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    ASM_SIMP_TAC[BOOL_POLY_POW_COEFF] THEN ASM_ARITH_TAC]);;
+
+let BIT_TRIVIAL_128 = prove(
+  `!i (w:int128). 128 <= i ==> ~bit i w`,
+  SIMP_TAC[BIT_TRIVIAL; DIMINDEX_128]);;
+
+(* poly_revn 254 of poly_of_word at 128 bits *)
+let POLY_REVN_254_WORD128 = prove(
+  `!w:int128. poly_revn 254 (poly_of_word w) =
+              poly_of_word(word_shl (word_zx (word_reversefields 1 w) : 256 word) 127)`,
+  GEN_TAC THEN REWRITE_TAC[FUN_EQ_THM; poly_revn; poly_of_word] THEN GEN_TAC THEN
+  ASM_CASES_TAC `(x:1->num) one <= 254` THEN ASM_REWRITE_TAC[] THENL
+   [REWRITE_TAC[BIT_WORD_SHL; BIT_WORD_ZX; BIT_WORD_REVERSEFIELDS;
+                DIMINDEX_256; DIMINDEX_128] THEN CONV_TAC NUM_REDUCE_CONV THEN
+    REWRITE_TAC[DIV_1; MOD_1; MULT_CLAUSES; ADD_CLAUSES] THEN
+    SUBGOAL_THEN `(\i':1. 254 - x i') one = 254 - (x:1->num) one` SUBST1_TAC THENL
+     [CONV_TAC(LAND_CONV BETA_CONV) THEN REFL_TAC; ALL_TAC] THEN
+    ASM_CASES_TAC `127 <= (x:1->num) one` THENL
+     [ASM_REWRITE_TAC[] THEN
+      ASM_SIMP_TAC[ARITH_RULE `127 <= n /\ n <= 254 ==> n - 127 < 128 /\ n - 127 < 256`] THEN
+      SUBGOAL_THEN `(x:1->num) one < 256` (fun th -> REWRITE_TAC[th]) THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+      AP_THM_TAC THEN AP_TERM_TAC THEN ASM_ARITH_TAC;
+      ASM_REWRITE_TAC[] THEN
+      SUBGOAL_THEN `128 <= 254 - (x:1->num) one` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+      MP_TAC(SPECL [`254 - (x:1->num) one`; `w:int128`] BIT_TRIVIAL_128) THEN
+      ASM_REWRITE_TAC[]];
+    REWRITE_TAC[BIT_WORD_SHL; BIT_WORD_ZX; BIT_WORD_REVERSEFIELDS; DIMINDEX_256; DIMINDEX_128] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[DIV_1; MOD_1; MULT_CLAUSES; ADD_CLAUSES] THEN
+    REPEAT(COND_CASES_TAC THEN ASM_REWRITE_TAC[]) THEN
+    TRY(MP_TAC(SPECL [`(x:1->num) one - 127`; `word_reversefields 1 (w:int128):int128`] BIT_TRIVIAL_128) THEN
+        ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC) THEN
+    ASM_ARITH_TAC]);;
+
+(* bit i (w:int128) implies i < 128 *)
+let BIT_LT_128 = prove(
+  `!i (w:int128). bit i w ==> i < 128`,
+  MESON_TAC[BIT_GUARD; DIMINDEX_128]);;
+
+(* CARD equality for carry-less product bit reversal via bijection j <-> 127-j *)
+let CARD_PMUL_BITREV = prove(
+  `!(a:int128) (b:int128) k. k <= 254 ==>
+    CARD {i | i <= 254 - k /\ bit i a /\ bit (254 - k - i) b} =
+    CARD {j | j <= k /\ bit j (word_reversefields 1 a) /\ bit (k - j) (word_reversefields 1 b)}`,
+  REPEAT STRIP_TAC THEN MATCH_MP_TAC CARD_IMAGE_INJ_EQ THEN
+  EXISTS_TAC `\j:num. 127 - j` THEN REWRITE_TAC[IN_ELIM_THM] THEN
+  CONJ_TAC THENL
+   [MATCH_MP_TAC FINITE_SUBSET THEN EXISTS_TAC `{j:num | j <= k}` THEN
+    REWRITE_TAC[FINITE_NUMSEG_LE; SUBSET; IN_ELIM_THM] THEN MESON_TAC[]; ALL_TAC] THEN
+  CONJ_TAC THENL
+   [X_GEN_TAC `j:num` THEN STRIP_TAC THEN
+    SUBGOAL_THEN `j < 128` ASSUME_TAC THENL [ASM_MESON_TAC[BIT_LT_128]; ALL_TAC] THEN
+    SUBGOAL_THEN `k - j < 128` ASSUME_TAC THENL [ASM_MESON_TAC[BIT_LT_128]; ALL_TAC] THEN
+    CONJ_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    UNDISCH_TAC `bit j (word_reversefields 1 (a:int128))` THEN
+    UNDISCH_TAC `bit (k - j) (word_reversefields 1 (b:int128))` THEN
+    REWRITE_TAC[BIT_REVERSEFIELDS_1; DIMINDEX_128] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[DIV_1; MOD_1; MULT_CLAUSES; ADD_CLAUSES] THEN
+    ASM_REWRITE_TAC[] THEN REPEAT DISCH_TAC THEN
+    SUBGOAL_THEN `127 - (127 - j) = j` SUBST1_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    SUBGOAL_THEN `254 - k - (127 - j) = 127 - (k - j)` SUBST1_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    ASM_REWRITE_TAC[];
+    X_GEN_TAC `i:num` THEN STRIP_TAC THEN
+    SUBGOAL_THEN `i < 128` ASSUME_TAC THENL [ASM_MESON_TAC[BIT_LT_128]; ALL_TAC] THEN
+    SUBGOAL_THEN `254 - k - i < 128` ASSUME_TAC THENL [ASM_MESON_TAC[BIT_LT_128]; ALL_TAC] THEN
+    SUBGOAL_THEN `k + i < 255` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    REWRITE_TAC[EXISTS_UNIQUE] THEN
+    EXISTS_TAC `127 - i` THEN CONJ_TAC THENL
+     [CONJ_TAC THENL
+       [CONJ_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+        CONJ_TAC THENL
+         [UNDISCH_TAC `bit i (a:int128)` THEN
+          REWRITE_TAC[BIT_REVERSEFIELDS_1; DIMINDEX_128] THEN
+          CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[DIV_1; MOD_1; MULT_CLAUSES; ADD_CLAUSES] THEN
+          ASM_SIMP_TAC[ARITH_RULE `i < 128 ==> 127 - i < 128`] THEN
+          SUBGOAL_THEN `127 - (127 - i) = i` SUBST1_TAC THENL [ASM_ARITH_TAC; SIMP_TAC[]];
+          UNDISCH_TAC `bit (254 - k - i) (b:int128)` THEN
+          REWRITE_TAC[BIT_REVERSEFIELDS_1; DIMINDEX_128] THEN
+          CONV_TAC NUM_REDUCE_CONV THEN REWRITE_TAC[DIV_1; MOD_1; MULT_CLAUSES; ADD_CLAUSES] THEN
+          ASM_SIMP_TAC[ARITH_RULE `k + i < 255 /\ i < 128 ==> k - (127 - i) < 128`] THEN
+          SUBGOAL_THEN `127 - (k - (127 - i)) = 254 - k - i` SUBST1_TAC THENL [ASM_ARITH_TAC; SIMP_TAC[]]];
+        ASM_ARITH_TAC];
+      GEN_TAC THEN STRIP_TAC THEN
+      SUBGOAL_THEN `y < 128` ASSUME_TAC THENL [ASM_MESON_TAC[BIT_LT_128]; ALL_TAC] THEN
+      ASM_ARITH_TAC]]);;
+
+(* poly_revn 254 of carry-less product *)
+let POLY_REVN_254_PMUL = prove(
+  `!(a:int128) (b:int128).
+    poly_revn 254 (poly_of_word(word_pmul a b : 256 word)) =
+    poly_of_word(word_pmul (word_reversefields 1 a) (word_reversefields 1 b) : 256 word)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[FUN_EQ_THM; poly_revn; poly_of_word] THEN
+  GEN_TAC THEN ASM_CASES_TAC `(x:1->num) one <= 254` THEN ASM_REWRITE_TAC[] THENL
+   [REWRITE_TAC[BIT_WORD_PMUL_ALT; DIMINDEX_256] THEN
+    SUBGOAL_THEN `(x:1->num) one < 256 /\ 254 - x one < 256` (fun th -> REWRITE_TAC[th]) THENL
+     [ASM_ARITH_TAC; ALL_TAC] THEN
+    AP_TERM_TAC THEN MATCH_MP_TAC CARD_PMUL_BITREV THEN ASM_REWRITE_TAC[];
+    REWRITE_TAC[BIT_WORD_PMUL_ALT; DIMINDEX_256] THEN
+    ASM_CASES_TAC `(x:1->num) one < 256` THEN ASM_REWRITE_TAC[] THEN
+    MATCH_MP_TAC(MESON[ODD; CARD_CLAUSES] `s = {} ==> ~ODD(CARD s)`) THEN
+    REWRITE_TAC[EXTENSION; IN_ELIM_THM; NOT_IN_EMPTY] THEN GEN_TAC THEN
+    DISCH_THEN(CONJUNCTS_THEN2 ASSUME_TAC (CONJUNCTS_THEN2 ASSUME_TAC ASSUME_TAC)) THEN
+    SUBGOAL_THEN `x' < 128` ASSUME_TAC THENL [ASM_MESON_TAC[BIT_LT_128]; ALL_TAC] THEN
+    SUBGOAL_THEN `(x:1->num) one - x' < 128` ASSUME_TAC THENL [ASM_MESON_TAC[BIT_LT_128]; ALL_TAC] THEN
+    ASM_ARITH_TAC]);;
+
+(* Q(x) = 1 + x * poly(bitrev 0x87) *)
+let Q_AS_ONE_PLUS_U_REV_LOW = prove(
+  `polyval_poly = ring_add bool_poly (ring_1 bool_poly)
+    (ring_mul bool_poly (poly_var bool_ring one)
+      (poly_of_word(word_reversefields 1 (word 135:int128))))`,
+  SUBGOAL_THEN `128 < dimindex(:256)` ASSUME_TAC THENL
+   [REWRITE_TAC[DIMINDEX_256] THEN ARITH_TAC; ALL_TAC] THEN
+  MP_TAC(MATCH_MP POLYVAL_POLY_OF_WORD (ASSUME `128 < dimindex(:256)`)) THEN
+  DISCH_THEN SUBST1_TAC THEN
+  REWRITE_TAC[GSYM(INST_TYPE[`:256`,`:N`] POLY_OF_WORD_1)] THEN
+  REWRITE_TAC[GSYM POLY_OF_WORD2_EQ_POLY_VAR] THEN
+  REWRITE_TAC[GSYM POLY_OF_WORD_PMUL_2N] THEN
+  ONCE_REWRITE_TAC[WORD_PMUL_SYM] THEN REWRITE_TAC[PMUL_2_AS_SHL] THEN
+  REWRITE_TAC[GSYM POLY_OF_WORD_XOR] THEN
+  AP_TERM_TAC THEN CONV_TAC WORD_REDUCE_CONV);;
+
+(* poly_revn 128 of P(x) = Q(x) *)
+let Q_IS_REV_P = prove(
+  `poly_revn 128 ghash_poly = polyval_poly`,
+  REWRITE_TAC[FUN_EQ_THM; poly_revn] THEN GEN_TAC THEN
+  ASM_CASES_TAC `(x:1->num) one <= 128` THEN ASM_REWRITE_TAC[] THENL
+   [REWRITE_TAC[GHASH_POLY_COEFF_AT_0_1_2_7_128] THEN
+    REWRITE_TAC[polyval_poly] THEN
+    SIMP_TAC[RING_SUM_CLAUSES; FINITE_INSERT; FINITE_EMPTY; IN_INSERT; NOT_IN_EMPTY] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN
+    REWRITE_TAC[POLY_VARPOW_BOOL_POLY; BOOL_POLY_ADD_POINTWISE] THEN
+    SIMP_TAC[RING_ADD_RZERO; POLY_VARPOW_BOOL_POLY] THEN
+    REWRITE_TAC[MESON[BOOL_POLY_ZERO_ALL_COEFFS_FALSE] `ring_0 bool_poly x <=> F`] THEN
+    SUBGOAL_THEN `!n. n < 256 ==>
+      (ring_pow bool_poly (poly_var bool_ring one) n x <=> (x:1->num) one = n)`
+      (fun th ->
+        REWRITE_TAC[MATCH_MP th (ARITH_RULE `128 < 256`);
+                    MATCH_MP th (ARITH_RULE `127 < 256`);
+                    MATCH_MP th (ARITH_RULE `126 < 256`);
+                    MATCH_MP th (ARITH_RULE `121 < 256`);
+                    MATCH_MP th (ARITH_RULE `0 < 256`)]) THENL
+     [GEN_TAC THEN DISCH_TAC THEN
+      MP_TAC(SPEC `n:num` BOOL_POLY_POW_COEFF) THEN ASM_REWRITE_TAC[] THEN
+      DISCH_THEN(fun th -> REWRITE_TAC[th]); ALL_TAC] THEN
+    SUBGOAL_THEN `(\i':1. 128 - x i') one = 128 - (x:1->num) one` SUBST1_TAC THENL
+     [CONV_TAC(LAND_CONV BETA_CONV) THEN REFL_TAC; ALL_TAC] THEN
+    MAP_EVERY ASM_CASES_TAC [`(x:1->num) one = 128`; `(x:1->num) one = 127`;
+      `(x:1->num) one = 126`; `(x:1->num) one = 121`; `(x:1->num) one = 0`] THEN
+    ASM_REWRITE_TAC[] THEN TRY(CONV_TAC NUM_REDUCE_CONV THEN NO_TAC) THEN
+    ASM_ARITH_TAC;
+    REWRITE_TAC[polyval_poly] THEN
+    SIMP_TAC[RING_SUM_CLAUSES; FINITE_INSERT; FINITE_EMPTY; IN_INSERT; NOT_IN_EMPTY] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN
+    REWRITE_TAC[POLY_VARPOW_BOOL_POLY; BOOL_POLY_ADD_POINTWISE] THEN
+    SIMP_TAC[RING_ADD_RZERO; POLY_VARPOW_BOOL_POLY] THEN
+    REWRITE_TAC[MESON[BOOL_POLY_ZERO_ALL_COEFFS_FALSE] `ring_0 bool_poly x <=> F`] THEN
+    SUBGOAL_THEN `!n. n < 256 ==>
+      (ring_pow bool_poly (poly_var bool_ring one) n x <=> (x:1->num) one = n)`
+      (fun th ->
+        REWRITE_TAC[MATCH_MP th (ARITH_RULE `128 < 256`);
+                    MATCH_MP th (ARITH_RULE `127 < 256`);
+                    MATCH_MP th (ARITH_RULE `126 < 256`);
+                    MATCH_MP th (ARITH_RULE `121 < 256`);
+                    MATCH_MP th (ARITH_RULE `0 < 256`)]) THENL
+     [GEN_TAC THEN DISCH_TAC THEN
+      MP_TAC(SPEC `n:num` BOOL_POLY_POW_COEFF) THEN ASM_REWRITE_TAC[] THEN
+      DISCH_THEN(fun th -> REWRITE_TAC[th]); ALL_TAC] THEN
+    SUBGOAL_THEN `~((x:1->num) one = 128) /\ ~(x one = 127) /\ ~(x one = 126) /\ ~(x one = 121) /\ ~(x one = 0)`
+      (fun th -> REWRITE_TAC[th]) THEN ASM_ARITH_TAC]);;
+
+(* GHASH_REDUCE1_HI: formula for the high bits after one reduction pass *)
+let GHASH_REDUCE1_HI = prove(
+  `!(hi:int128) (lo:int128).
+    word_ushr (ghash_reduce1 (word_join hi lo : 256 word)) 128 =
+    word_zx(word_xor (word_ushr hi 121)
+      (word_xor (word_ushr hi 126) (word_ushr hi 127))) : 256 word`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[ghash_reduce1] THEN
+  SUBGOAL_THEN `word_ushr (word_join (hi:int128) (lo:int128) : 256 word) 128 = word_zx hi : 256 word`
+    SUBST1_TAC THENL [CONV_TAC WORD_BLAST; ALL_TAC] THEN
+  SUBGOAL_THEN `word_subword (word_join (hi:int128) (lo:int128) : 256 word) (0,128) = word_zx lo : 256 word`
+    SUBST1_TAC THENL [CONV_TAC WORD_BLAST; ALL_TAC] THEN
+  SUBGOAL_THEN `word_ushr (word_xor (word_zx (lo:int128) : 256 word) (word_pmul (word_zx hi : 256 word) (word 135 : 256 word))) 128 = word_ushr (word_pmul (word_zx (hi:int128) : 256 word) (word 135 : 256 word)) 128`
+    SUBST1_TAC THENL [CONV_TAC WORD_BLAST; ALL_TAC] THEN
+  SUBGOAL_THEN `word_pmul (word_zx (hi:int128) : 256 word) (word 135 : 256 word) =
+    word_xor (word_xor (word_shl (word_zx hi : 256 word) 7) (word_shl (word_zx hi : 256 word) 2))
+             (word_xor (word_shl (word_zx hi : 256 word) 1) (word_zx hi : 256 word))`
+    SUBST1_TAC THENL
+   [SUBGOAL_THEN `word 135 : 256 word = word_xor (word_xor (word(2 EXP 7)) (word(2 EXP 2))) (word_xor (word(2 EXP 1)) (word(2 EXP 0))) : 256 word`
+      SUBST1_TAC THENL [CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_REDUCE_CONV; ALL_TAC] THEN
+    REWRITE_TAC[WORD_PMUL_XOR; CONJUNCT2 WORD_PMUL_POW2] THEN
+    SIMP_TAC[WORD_SHL_ZERO]; ALL_TAC] THEN
+  CONV_TAC WORD_BLAST);;
+
 (* ---- Helper lemmas for type 1 and bit-level word operations ------------- *)
 
 let ONE_FUN_EQ = prove(
@@ -1304,9 +1564,6 @@ let ONE_FUN_EQ = prove(
     DISCH_TAC THEN REWRITE_TAC[FUN_EQ_THM] THEN
     MATCH_MP_TAC one_INDUCT THEN ASM_REWRITE_TAC[]]);;
 
-let BIT_TRIVIAL_128 = prove(
-  `!i (w:int128). 128 <= i ==> ~bit i w`,
-  SIMP_TAC[BIT_TRIVIAL; DIMINDEX_128]);;
 
 let BRP_INVOLUTION = prove(
   `!x:int128. bit_reverse_per_byte(bit_reverse_per_byte x) = x`,
@@ -1322,11 +1579,7 @@ let WORD_PMUL_LZERO = prove(
 
 let WORD_USHR_128_AS_ZX_SUBWORD = prove(
   `!x:256 word. word_ushr x 128 = word_zx(word_subword x (128,128) : int128) : 256 word`,
-  GEN_TAC THEN SIMP_TAC[WORD_EQ_BITS_ALT; DIMINDEX_256; BIT_WORD_USHR; BIT_WORD_ZX;
-    BIT_WORD_SUBWORD; DIMINDEX_128] THEN CONV_TAC NUM_REDUCE_CONV THEN
-  X_GEN_TAC `i:num` THEN DISCH_TAC THEN
-  ASM_CASES_TAC `i < 128` THEN ASM_REWRITE_TAC[ADD_SYM] THEN
-  SUBGOAL_THEN `~(i + 128 < 256)` (fun th -> REWRITE_TAC[th]) THEN ASM_ARITH_TAC);;
+  GEN_TAC THEN CONV_TAC WORD_BLAST);;
 
 let WORD_JOIN_SUBWORDS_256 = prove(
   `!x:256 word. x = word_join(word_subword x (128,128):int128)(word_subword x (0,128):int128)`,
@@ -1361,82 +1614,6 @@ let POLY_OF_WORD2_EQ_POLY_VAR_128 = prove(
         REWRITE_TAC[EVEN]];
       ASM_REWRITE_TAC[]]]);;
 
-(* ---- Coefficient reversal lemmas ---------------------------------------- *)
-
-let POLY_REVN126_EQ_USHR_BITREV = prove(
-  `!w:int128. poly_revn 126 (poly_of_word w) =
-              poly_of_word(word_ushr (word_reversefields 1 w) 1 : int128)`,
-  GEN_TAC THEN REWRITE_TAC[FUN_EQ_THM] THEN GEN_TAC THEN
-  REWRITE_TAC[poly_revn; poly_of_word] THEN
-  REWRITE_TAC[BIT_WORD_USHR; BIT_WORD_REVERSEFIELDS; DIMINDEX_128] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN
-  ASM_CASES_TAC `(x:1->num) one <= 126` THEN ASM_REWRITE_TAC[] THENL
-   [ASM_CASES_TAC `(x:1->num) one + 1 < 128` THENL
-     [ASM_REWRITE_TAC[] THEN AP_THM_TAC THEN AP_TERM_TAC THEN
-      SPEC_TAC(`(x:1->num) one`, `n:num`) THEN ARITH_TAC;
-      ASM_ARITH_TAC];
-    ASM_CASES_TAC `(x:1->num) one + 1 < 128` THEN ASM_REWRITE_TAC[] THEN
-    ASM_ARITH_TAC]);;
-
-let POLY_VAR_MUL_REVN126_EQ_BITREV = prove(
-  `!w:int128. ~bit 127 w ==>
-    ring_mul bool_poly (poly_var bool_ring one)
-      (poly_of_word(word_ushr (word_reversefields 1 w) 1 : int128)) =
-    poly_of_word(word_reversefields 1 w : int128)`,
-  GEN_TAC THEN DISCH_TAC THEN
-  REWRITE_TAC[GSYM POLY_OF_WORD2_EQ_POLY_VAR_128; GSYM POLY_OF_WORD_PMUL_2N] THEN
-  REWRITE_TAC[FUN_EQ_THM; poly_of_word] THEN GEN_TAC THEN
-  ABBREV_TAC `n = (x:1->num) one` THEN
-  REWRITE_TAC[BIT_WORD_PMUL; DIMINDEX_256; DIMINDEX_128] THEN
-  ASM_CASES_TAC `n < 256` THEN ASM_REWRITE_TAC[] THENL
-   [SUBGOAL_THEN `!i. bit i (word 2:int128) <=> (i = 1)` (fun th -> REWRITE_TAC[th]) THENL
-     [GEN_TAC THEN REWRITE_TAC[BIT_WORD; DIMINDEX_128] THEN
-      ASM_CASES_TAC `i = 1` THENL [ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
-      ASM_CASES_TAC `i = 0` THENL [ASM_REWRITE_TAC[ARITH] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
-      ASM_CASES_TAC `i < 128` THENL
-       [ASM_REWRITE_TAC[] THEN REWRITE_TAC[NOT_ODD] THEN
-        SUBGOAL_THEN `2 DIV 2 EXP i = 0` (fun th -> REWRITE_TAC[th; EVEN]) THEN
-        MATCH_MP_TAC DIV_LT THEN TRANS_TAC LTE_TRANS `2 EXP 2` THEN
-        CONJ_TAC THENL [ARITH_TAC; REWRITE_TAC[LE_EXP] THEN ASM_ARITH_TAC];
-        ASM_REWRITE_TAC[]]; ALL_TAC] THEN
-    SUBGOAL_THEN `!i. bitval(i = 1) * bitval(bit (n - i) (word_ushr(word_reversefields 1 (w:int128)) 1:int128)) =
-                      if i = 1 then bitval(bit (n - 1) (word_ushr(word_reversefields 1 w) 1:int128)) else 0`
-      (fun th -> REWRITE_TAC[th]) THENL
-     [GEN_TAC THEN COND_CASES_TAC THEN ASM_REWRITE_TAC[BITVAL_CLAUSES] THEN ARITH_TAC; ALL_TAC] THEN
-    REWRITE_TAC[NSUM_DELTA; IN_NUMSEG] THEN
-    ASM_CASES_TAC `1 <= n` THENL
-     [ASM_REWRITE_TAC[ARITH_RULE `0 <= 1`; ODD_BITVAL] THEN
-      REWRITE_TAC[BIT_WORD_USHR; DIMINDEX_128] THEN
-      ASM_SIMP_TAC[ARITH_RULE `1 <= n ==> n - 1 + 1 = n`] THEN
-      ASM_CASES_TAC `n < 128` THEN ASM_REWRITE_TAC[] THEN
-      REWRITE_TAC[BIT_TRIVIAL; DIMINDEX_128] THEN ASM_ARITH_TAC;
-      ASM_SIMP_TAC[ARITH_RULE `~(1 <= n) ==> n = 0`] THEN
-      REWRITE_TAC[ODD; BIT_WORD_REVERSEFIELDS; DIMINDEX_128] THEN
-      CONV_TAC NUM_REDUCE_CONV THEN ASM_MESON_TAC[]];
-    MATCH_MP_TAC(MESON[BIT_TRIVIAL] `dimindex(:128) <= n ==> ~bit n (w:int128)`) THEN
-    REWRITE_TAC[DIMINDEX_128] THEN ASM_ARITH_TAC]);;
-
-(* ---- poly_revn 254 of shifted polynomials ------------------------------- *)
-
-let POLY_REVN254_OF_SHL128_EQ_REVN126 = prove(
-  `!w:int128. poly_revn 254 (poly_of_word(word_shl (word_zx w : 256 word) 128)) =
-              poly_revn 126 (poly_of_word w)`,
-  GEN_TAC THEN REWRITE_TAC[FUN_EQ_THM] THEN X_GEN_TAC `m:1->num` THEN
-  REWRITE_TAC[poly_revn; poly_of_word] THEN
-  ASM_CASES_TAC `(m:1->num) one <= 126` THEN ASM_REWRITE_TAC[] THENL
-   [SUBGOAL_THEN `(m:1->num) one <= 254` (fun th -> REWRITE_TAC[th]) THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-    REWRITE_TAC[BIT_WORD_SHL; BIT_WORD_ZX; DIMINDEX_256; DIMINDEX_128] THEN
-    ASM_SIMP_TAC[ARITH_RULE `n <= 126 ==> 128 <= 254 - n`] THEN
-    ASM_SIMP_TAC[ARITH_RULE `n <= 126 ==> 254 - n - 128 < 128`] THEN
-    ASM_SIMP_TAC[ARITH_RULE `n <= 126 ==> 254 - n - 128 = 126 - n`] THEN
-    SUBGOAL_THEN `254 - (m:1->num) one < 256 /\ 126 - m one < 256` (fun th -> REWRITE_TAC[th]) THEN ASM_ARITH_TAC;
-    ASM_CASES_TAC `(m:1->num) one <= 254` THEN ASM_REWRITE_TAC[] THEN
-    REWRITE_TAC[BIT_WORD_SHL; DIMINDEX_256] THEN
-    ASM_CASES_TAC `128 <= 254 - (m:1->num) one` THENL
-     [REWRITE_TAC[BIT_WORD_ZX; DIMINDEX_256; DIMINDEX_128] THEN
-      SUBGOAL_THEN `~(254 - (m:1->num) one - 128 < 128)` (fun th -> REWRITE_TAC[th]) THEN ASM_ARITH_TAC;
-      ASM_REWRITE_TAC[]]]);;
-
 (* ---- poly(w) * x^128 = poly(shl(zx w) 128) ----------------------------- *)
 
 let dimindex_le_128_256 = prove(`dimindex(:128) <= dimindex(:256)`,
@@ -1448,72 +1625,75 @@ let MUL_U128_WORD = prove(
               poly_of_word(word_shl (word_zx w : 256 word) 128)`,
   GEN_TAC THEN REWRITE_TAC[GSYM POLY_OF_WORD_ZX_128_256] THEN
   SUBGOAL_THEN `ring_pow bool_poly (poly_var bool_ring one) 128 =
-                poly_of_word(word_shl (word 1 : 256 word) 128)` SUBST1_TAC THENL
-   [REWRITE_TAC[FUN_EQ_THM; poly_of_word; poly_var; monomial_var; BOOL_RING] THEN
-    X_GEN_TAC `m:1->num` THEN MP_TAC(SPEC `128` BOOL_POLY_POW_COEFF) THEN
-    CONV_TAC NUM_REDUCE_CONV THEN DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
-    SUBGOAL_THEN `(!(x:1). m x = (if x = one then 128 else 0)) <=> (m one = 128)` SUBST1_TAC THENL
-     [EQ_TAC THENL [DISCH_THEN(MP_TAC o SPEC `one:1`) THEN REWRITE_TAC[];
-       DISCH_TAC THEN MATCH_MP_TAC one_INDUCT THEN ASM_REWRITE_TAC[]]; ALL_TAC] THEN
-    REWRITE_TAC[BIT_WORD_SHL; BIT_WORD; DIMINDEX_256] THEN EQ_TAC THENL
-     [DISCH_THEN SUBST1_TAC THEN CONV_TAC NUM_REDUCE_CONV;
-      STRIP_TAC THEN UNDISCH_TAC `ODD(1 DIV 2 EXP (m one - 128))` THEN
-      ASM_CASES_TAC `m one - 128 = 0` THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-      SUBGOAL_THEN `1 DIV 2 EXP (m one - 128) = 0` SUBST1_TAC THENL
-       [MATCH_MP_TAC DIV_LT THEN TRANS_TAC LTE_TRANS `2 EXP 1` THEN
-        CONJ_TAC THENL [ARITH_TAC; REWRITE_TAC[LE_EXP] THEN ASM_ARITH_TAC];
-        REWRITE_TAC[ODD]]]; ALL_TAC] THEN
-  SUBGOAL_THEN `word_shl (word 1 : 256 word) 128 = word(2 EXP 128) : 256 word`
-    (fun th -> REWRITE_TAC[th]) THENL [CONV_TAC WORD_REDUCE_CONV; ALL_TAC] THEN
-  REWRITE_TAC[GSYM POLY_OF_WORD_PMUL_2N; FUN_EQ_THM; poly_of_word] THEN GEN_TAC THEN
-  ABBREV_TAC `n = (x:1->num) one` THEN
-  REWRITE_TAC[BIT_WORD_PMUL_ALT; BIT_WORD_SHL; BIT_WORD_ZX; DIMINDEX_512; DIMINDEX_256; DIMINDEX_128] THEN
-  SUBGOAL_THEN `!k. bit k (word 1 : 256 word) <=> (k = 0)` (fun th -> REWRITE_TAC[th]) THENL
+                poly_of_word(word(2 EXP 128) : 256 word)` SUBST1_TAC THENL
+   [MP_TAC(SPEC `128` (INST_TYPE [`:256`, `:N`] POLY_VAR_POW_OF_WORD)) THEN
+    REWRITE_TAC[DIMINDEX_256] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+  REWRITE_TAC[GSYM POLY_OF_WORD_PMUL_2N] THEN
+  REWRITE_TAC[FUN_EQ_THM; poly_of_word] THEN X_GEN_TAC `m:1->num` THEN
+  REWRITE_TAC[BIT_WORD_PMUL_ALT; BIT_WORD_SHL; BIT_WORD_ZX;
+              DIMINDEX_512; DIMINDEX_256; DIMINDEX_128] THEN
+  SUBGOAL_THEN `!k. bit k (word(2 EXP 128) : 256 word) <=> (k = 128)`
+    (fun th -> REWRITE_TAC[th]) THENL
    [GEN_TAC THEN REWRITE_TAC[BIT_WORD; DIMINDEX_256] THEN
-    ASM_CASES_TAC `k = 0` THEN ASM_REWRITE_TAC[ARITH] THEN CONV_TAC NUM_REDUCE_CONV THEN
-    ASM_CASES_TAC `k < 256` THEN ASM_REWRITE_TAC[] THEN
-    SUBGOAL_THEN `1 DIV 2 EXP k = 0` (fun th -> REWRITE_TAC[th; ODD]) THEN
-    MATCH_MP_TAC DIV_LT THEN TRANS_TAC LTE_TRANS `2 EXP 1` THEN
-    CONJ_TAC THENL [ARITH_TAC; REWRITE_TAC[LE_EXP] THEN ASM_ARITH_TAC]; ALL_TAC] THEN
-  ASM_CASES_TAC `n - 128 < 128` THEN ASM_CASES_TAC `128 <= n` THEN ASM_REWRITE_TAC[] THENL
-   [ASM_CASES_TAC `n < 384` THEN ASM_REWRITE_TAC[] THENL [ALL_TAC; ASM_ARITH_TAC] THEN
-    ASM_CASES_TAC `bit (n - 128) (w:int128)` THEN ASM_REWRITE_TAC[CARD_SING; CARD_CLAUSES; ODD] THEN
-    (ASM_CASES_TAC `n < 512` THENL [ASM_REWRITE_TAC[]; ASM_ARITH_TAC]) THEN
-    (ASM_CASES_TAC `n < 256` THEN ASM_REWRITE_TAC[] THENL [ALL_TAC; ASM_ARITH_TAC]) THEN
-    SUBGOAL_THEN `n - 128 < 256` (fun th -> REWRITE_TAC[th]) THEN ASM_ARITH_TAC;
-    REWRITE_TAC[CARD_CLAUSES; ODD] THEN
-    ASM_CASES_TAC `n < 256` THEN ASM_REWRITE_TAC[] THEN
-    ASM_CASES_TAC `n < 512` THEN ASM_REWRITE_TAC[];
-    SUBGOAL_THEN `~bit (n - 128) (w:int128)` (fun th -> REWRITE_TAC[th]) THENL
-     [MATCH_MP_TAC BIT_TRIVIAL_128 THEN ASM_ARITH_TAC; ALL_TAC] THEN
-    REWRITE_TAC[CARD_CLAUSES; ODD] THEN
-    ASM_CASES_TAC `n < 384` THEN ASM_REWRITE_TAC[] THEN
-    ASM_CASES_TAC `n < 512` THEN ASM_REWRITE_TAC[] THEN
-    ASM_CASES_TAC `n < 256` THEN ASM_REWRITE_TAC[] THEN
-    SUBGOAL_THEN `n - 128 < 256` (fun th -> REWRITE_TAC[th]) THEN ASM_ARITH_TAC;
-    ASM_ARITH_TAC])
-  where SET_EQ_LEMMA = prove(
-    `!n w:int128.
-      {i | i <= n /\ (i < 256 /\ bit i w) /\ 128 <= n - i /\ n - i < 256 /\ n - i - 128 = 0} =
-      if 128 <= n /\ n < 384 /\ bit (n - 128) w then {n - 128} else {}`,
-    REPEAT GEN_TAC THEN REWRITE_TAC[EXTENSION; IN_ELIM_THM] THEN GEN_TAC THEN
-    COND_CASES_TAC THENL
-     [REWRITE_TAC[IN_SING] THEN
-      FIRST_X_ASSUM(CONJUNCTS_THEN2 ASSUME_TAC (CONJUNCTS_THEN2 ASSUME_TAC ASSUME_TAC)) THEN
-      EQ_TAC THENL
-       [STRIP_TAC THEN UNDISCH_TAC `n - x - 128 = 0` THEN
-        UNDISCH_TAC `128 <= n - x` THEN UNDISCH_TAC `x <= n` THEN ARITH_TAC;
-        DISCH_THEN SUBST1_TAC THEN ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC];
-      REWRITE_TAC[NOT_IN_EMPTY] THEN
-      DISCH_THEN(CONJUNCTS_THEN2 ASSUME_TAC
-        (CONJUNCTS_THEN2 (CONJUNCTS_THEN2 ASSUME_TAC ASSUME_TAC)
-          (CONJUNCTS_THEN2 ASSUME_TAC (CONJUNCTS_THEN2 ASSUME_TAC ASSUME_TAC)))) THEN
-      SUBGOAL_THEN `x:num = n - 128` SUBST_ALL_TAC THENL
-       [UNDISCH_TAC `n - x - 128 = 0` THEN UNDISCH_TAC `128 <= n - x` THEN ARITH_TAC; ALL_TAC] THEN
-      UNDISCH_TAC `~(128 <= n /\ n < 384 /\ bit (n - 128) (w:int128))` THEN
-      ASM_REWRITE_TAC[] THEN
-      UNDISCH_TAC `n - 128 < 256` THEN UNDISCH_TAC `128 <= n - (n - 128)` THEN
-      UNDISCH_TAC `n - 128 <= n` THEN ARITH_TAC]);;
+    EQ_TAC THEN STRIP_TAC THENL
+     [UNDISCH_TAC `ODD(2 EXP 128 DIV 2 EXP k)` THEN
+      ASM_CASES_TAC `k = 128` THEN ASM_REWRITE_TAC[] THEN
+      ASM_CASES_TAC `k < 128` THENL
+       [ASM_SIMP_TAC[DIV_EXP; ARITH_RULE `~(2=0)`; ARITH_RULE `k<128 ==> k<=128`] THEN
+        REWRITE_TAC[ODD_EXP] THEN ASM_ARITH_TAC;
+        SUBGOAL_THEN `2 EXP 128 DIV 2 EXP k = 0` (fun th -> REWRITE_TAC[th; ODD]) THEN
+        MATCH_MP_TAC DIV_LT THEN REWRITE_TAC[LT_EXP] THEN ASM_ARITH_TAC];
+      ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV]; ALL_TAC] THEN
+  ABBREV_TAC `n = (m:1->num) one` THEN
+  SUBGOAL_THEN `!j. 128 <= j ==> ~bit j (w:int128)` ASSUME_TAC THENL
+   [SIMP_TAC[BIT_TRIVIAL; DIMINDEX_128]; ALL_TAC] THEN
+  ASM_CASES_TAC `128 <= n` THENL
+   [ASM_CASES_TAC `n < 256` THENL
+     [ASM_CASES_TAC `bit (n - 128) (w:int128)` THENL
+       [SUBGOAL_THEN `{i | i <= n /\ (i < 256 /\ bit i (w:int128)) /\ n - i = 128} = {n - 128}`
+          SUBST1_TAC THENL
+         [REWRITE_TAC[EXTENSION; IN_ELIM_THM; IN_SING] THEN GEN_TAC THEN
+          EQ_TAC THENL [ASM_ARITH_TAC; DISCH_THEN SUBST1_TAC THEN ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC];
+          REWRITE_TAC[CARD_SING] THEN CONV_TAC NUM_REDUCE_CONV THEN ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC];
+        SUBGOAL_THEN `{i | i <= n /\ (i < 256 /\ bit i (w:int128)) /\ n - i = 128} = {}`
+          SUBST1_TAC THENL
+         [REWRITE_TAC[EXTENSION; IN_ELIM_THM; NOT_IN_EMPTY] THEN GEN_TAC THEN
+          STRIP_TAC THEN SUBGOAL_THEN `x = n - 128` SUBST_ALL_TAC THENL [ASM_ARITH_TAC; ASM_MESON_TAC[]];
+          REWRITE_TAC[CARD_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC]];
+      SUBGOAL_THEN `~bit (n - 128) (w:int128)` ASSUME_TAC THENL
+       [FIRST_X_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
+      SUBGOAL_THEN `{i | i <= n /\ (i < 256 /\ bit i (w:int128)) /\ n - i = 128} = {}`
+        SUBST1_TAC THENL
+       [REWRITE_TAC[EXTENSION; IN_ELIM_THM; NOT_IN_EMPTY] THEN GEN_TAC THEN
+        STRIP_TAC THEN SUBGOAL_THEN `x = n - 128` SUBST_ALL_TAC THENL [ASM_ARITH_TAC; ASM_MESON_TAC[]];
+        REWRITE_TAC[CARD_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC]];
+    SUBGOAL_THEN `{i | i <= n /\ (i < 256 /\ bit i (w:int128)) /\ n - i = 128} = {}`
+      SUBST1_TAC THENL
+     [REWRITE_TAC[EXTENSION; IN_ELIM_THM; NOT_IN_EMPTY] THEN GEN_TAC THEN STRIP_TAC THEN ASM_ARITH_TAC;
+      REWRITE_TAC[CARD_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN ASM_ARITH_TAC]]);;
+
+let SET_EQ_LEMMA = prove(
+  `!n w:int128.
+    {i | i <= n /\ (i < 256 /\ bit i w) /\ 128 <= n - i /\ n - i < 256 /\ n - i - 128 = 0} =
+    if 128 <= n /\ n < 384 /\ bit (n - 128) w then {n - 128} else {}`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[EXTENSION; IN_ELIM_THM] THEN GEN_TAC THEN
+  COND_CASES_TAC THENL
+   [REWRITE_TAC[IN_SING] THEN
+    FIRST_X_ASSUM(CONJUNCTS_THEN2 ASSUME_TAC (CONJUNCTS_THEN2 ASSUME_TAC ASSUME_TAC)) THEN
+    EQ_TAC THENL
+     [STRIP_TAC THEN UNDISCH_TAC `n - x - 128 = 0` THEN
+      UNDISCH_TAC `128 <= n - x` THEN UNDISCH_TAC `x <= n` THEN ARITH_TAC;
+      DISCH_THEN SUBST1_TAC THEN ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC];
+    REWRITE_TAC[NOT_IN_EMPTY] THEN
+    DISCH_THEN(CONJUNCTS_THEN2 ASSUME_TAC
+      (CONJUNCTS_THEN2 (CONJUNCTS_THEN2 ASSUME_TAC ASSUME_TAC)
+        (CONJUNCTS_THEN2 ASSUME_TAC (CONJUNCTS_THEN2 ASSUME_TAC ASSUME_TAC)))) THEN
+    SUBGOAL_THEN `x:num = n - 128` SUBST_ALL_TAC THENL
+     [UNDISCH_TAC `n - x - 128 = 0` THEN UNDISCH_TAC `128 <= n - x` THEN ARITH_TAC; ALL_TAC] THEN
+    UNDISCH_TAC `~(128 <= n /\ n < 384 /\ bit (n - 128) (w:int128))` THEN
+    ASM_REWRITE_TAC[] THEN
+    UNDISCH_TAC `n - 128 < 256` THEN UNDISCH_TAC `128 <= n - (n - 128)` THEN
+    UNDISCH_TAC `n - 128 <= n` THEN ARITH_TAC]);;
 
 (* ---- Surjectivity: bounded-degree polynomials are poly_of_word ---------- *)
 
@@ -1635,7 +1815,7 @@ let R2_HIGH_ZERO = prove(
   SUBGOAL_THEN `word_ushr (r1:256 word) 128 = word_zx(word_xor(word_ushr (hi1:int128) 121)(word_xor(word_ushr hi1 126)(word_ushr hi1 127))) : 256 word`
     ASSUME_TAC THENL
    [MAP_EVERY EXPAND_TAC ["r1"; "hi1"] THEN
-    GEN_REWRITE_TAC (LAND_CONV o RAND_CONV o RAND_CONV) [WORD_JOIN_SUBWORDS_256] THEN
+    GEN_REWRITE_TAC (LAND_CONV o RATOR_CONV o RAND_CONV o RAND_CONV) [WORD_JOIN_SUBWORDS_256] THEN
     REWRITE_TAC[GHASH_REDUCE1_HI]; ALL_TAC] THEN
   SUBGOAL_THEN `r1:256 word = word_join(word_subword r1 (128,128):int128)(word_subword r1 (0,128):int128)` (LABEL_TAC "r1_join") THENL
    [REWRITE_TAC[WORD_JOIN_SUBWORDS_256]; ALL_TAC] THEN
@@ -1657,22 +1837,35 @@ let R2_HIGH_ZERO = prove(
 let POLY_GHASH_REDUCE_EQ_R2 = prove(
   `!(a:int128) (b:int128).
     poly_of_word (ghash_reduce (word_pmul a b)) =
-    poly_of_word (ghash_reduce1 (ghash_reduce1 (word_pmul a b)))`,
-  REPEAT GEN_TAC THEN REWRITE_TAC[ghash_reduce; GSYM POLY_OF_WORD_ZX_128_256] THEN
-  AP_TERM_TAC THEN
-  REWRITE_TAC[WORD_EQ_BITS_ALT; BIT_WORD_ZX; DIMINDEX_256; DIMINDEX_128] THEN
-  GEN_TAC THEN DISCH_TAC THEN
-  ASM_CASES_TAC `i < 128` THEN ASM_REWRITE_TAC[] THEN
-  SUBGOAL_THEN `bit i (ghash_reduce1(ghash_reduce1(word_pmul (a:int128) (b:int128):256 word)):256 word) <=> F`
-    (fun th -> REWRITE_TAC[th]) THEN
-  SUBGOAL_THEN `bit i (ghash_reduce1(ghash_reduce1(word_pmul (a:int128) (b:int128):256 word)):256 word) <=>
-                bit (i-128) (word_ushr(ghash_reduce1(ghash_reduce1(word_pmul a b:256 word)):256 word) 128 : 256 word)`
+    poly_of_word (ghash_reduce1 (ghash_reduce1 (word_pmul a b : 256 word)) : 256 word)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[ghash_reduce] THEN
+  REWRITE_TAC[FUN_EQ_THM; poly_of_word; BIT_WORD_ZX; DIMINDEX_128; DIMINDEX_256] THEN
+  GEN_TAC THEN ASM_CASES_TAC `(x:1->num) one < 128` THEN ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN `bit ((x:1->num) one) (ghash_reduce1(ghash_reduce1(word_pmul (a:int128) (b:int128):256 word)):256 word) <=>
+                bit (x one - 128) (word_ushr(ghash_reduce1(ghash_reduce1(word_pmul a b:256 word)):256 word) 128 : 256 word)`
     SUBST1_TAC THENL
    [REWRITE_TAC[BIT_WORD_USHR; DIMINDEX_256] THEN
-    ASM_SIMP_TAC[ARITH_RULE `~(i < 128) /\ i < 256 ==> i - 128 + 128 = i /\ i - 128 + 128 < 256`];
+    ASM_SIMP_TAC[ARITH_RULE `~(i < 128) ==> i - 128 + 128 = i`] THEN
+    ASM_CASES_TAC `(x:1->num) one < 256` THEN ASM_REWRITE_TAC[] THEN
+    SIMP_TAC[BIT_TRIVIAL; DIMINDEX_256] THEN ASM_ARITH_TAC;
     REWRITE_TAC[R2_HIGH_ZERO; BIT_WORD_0]]);;
 
 (* ---- Reduce1 explicit quotient + two-pass combination ------------------- *)
+
+(* Helper: word_pmul bit access is the same regardless of word 135 type (128 vs 256) *)
+let PMUL_135_BIT_NORMALIZE = prove(
+  `!x:256 word. !k. bit k (word_pmul (word_subword x (128,128) : int128) (word 135 : 256 word) : 256 word) <=>
+                    bit k (word_pmul (word_subword x (128,128) : int128) (word 135 : int128) : 256 word)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[BIT_WORD_PMUL_ALT; DIMINDEX_256; DIMINDEX_128] THEN
+  ASM_CASES_TAC `k < 256` THEN ASM_REWRITE_TAC[] THEN
+  AP_TERM_TAC THEN AP_TERM_TAC THEN
+  REWRITE_TAC[EXTENSION; IN_ELIM_THM; BIT_WORD; DIMINDEX_256; DIMINDEX_128] THEN
+  GEN_TAC THEN ASM_CASES_TAC `(k - x'):num < 128` THENL
+   [ASM_SIMP_TAC[ARITH_RULE `n < 128 ==> n < 256`];
+    ASM_REWRITE_TAC[] THEN ASM_CASES_TAC `(k - x'):num < 256` THEN ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN `135 DIV 2 EXP (k - x') = 0` (fun th -> REWRITE_TAC[th; ODD]) THEN
+    MATCH_MP_TAC DIV_LT THEN TRANS_TAC LTE_TRANS `2 EXP 8` THEN
+    CONJ_TAC THENL [ARITH_TAC; REWRITE_TAC[LE_EXP] THEN ASM_ARITH_TAC]]);;
 
 let REDUCE1_QUOTIENT = prove(
   `!x:256 word.
@@ -1686,38 +1879,30 @@ let REDUCE1_QUOTIENT = prove(
   REWRITE_TAC[WORD_PMUL_ZX] THEN
   REWRITE_TAC[FUN_EQ_THM; BOOL_POLY_ADD_POINTWISE; poly_of_word; BIT_WORD_SUBWORD;
               BIT_WORD_SHL; BIT_WORD_ZX; DIMINDEX_256; DIMINDEX_128; ADD_CLAUSES] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN GEN_TAC THEN ABBREV_TAC `n = (x':1->num) one` THEN
-  SPEC_TAC(`bit n (word_pmul(word_subword (x:256 word) (128,128):int128)(word 135:int128):256 word)`, `p:bool`) THEN
-  GEN_TAC THEN
-  ASM_CASES_TAC `n < 128` THENL
-   [ASM_SIMP_TAC[ARITH_RULE `n < 128 ==> ~(128 <= n)`] THEN
-    BOOL_CASES_TAC `bit n (x:256 word)` THEN REWRITE_TAC[];
-    ASM_CASES_TAC `128 <= n` THENL [ALL_TAC; ASM_ARITH_TAC] THEN
-    ASM_CASES_TAC `n - 128 < 128` THENL
-     [ASM_SIMP_TAC[ARITH_RULE `128<=n /\ n-128<128 ==> n-128<256 /\ 128+(n-128)=n /\ n<256`] THEN
-      BOOL_CASES_TAC `bit n (x:256 word)` THEN
-      BOOL_CASES_TAC `bit (n-128) (word_subword (x:256 word) (128,128):int128)` THEN REWRITE_TAC[];
-      SUBGOAL_THEN `~bit n (x:256 word)` (fun th -> REWRITE_TAC[th]) THENL
-       [MP_TAC(ISPECL [`x:256 word`; `n:num`] BIT_TRIVIAL) THEN
+  CONV_TAC NUM_REDUCE_CONV THEN GEN_TAC THEN
+  ONCE_REWRITE_TAC[ARITH_RULE `128 + n = n + 128`] THEN REWRITE_TAC[ADD_SUB] THEN
+  ASM_CASES_TAC `128 <= (x':1->num) one` THENL
+   [ASM_SIMP_TAC[ARITH_RULE `128 <= n ==> ~(n < 128) /\ n - 128 + 128 = n`] THEN
+    ASM_CASES_TAC `(x':1->num) one < 256` THENL
+     [SUBGOAL_THEN `(x':1->num) one - 128 < 128 /\ (x':1->num) one - 128 < 256`
+        STRIP_ASSUME_TAC THENL [ASM_ARITH_TAC; ASM_REWRITE_TAC[PMUL_135_BIT_NORMALIZE]];
+      SUBGOAL_THEN `~bit ((x':1->num) one) (x:256 word)` (fun th -> REWRITE_TAC[th]) THENL
+       [MP_TAC(ISPECL [`x:256 word`; `(x':1->num) one`] BIT_TRIVIAL) THEN
         REWRITE_TAC[DIMINDEX_256] THEN DISCH_THEN MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
-      ASM_CASES_TAC `n < 256` THEN ASM_REWRITE_TAC[] THENL
-       [SUBGOAL_THEN `n - 128 < 256` (fun th -> ASM_REWRITE_TAC[th]) THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-        SUBGOAL_THEN `~bit (n-128) (word_subword (x:256 word) (128,128):int128)` (fun th -> REWRITE_TAC[th]) THENL
-         [MP_TAC(ISPECL [`word_subword (x:256 word) (128,128):int128`; `n-128`] BIT_TRIVIAL) THEN
-          REWRITE_TAC[DIMINDEX_128] THEN DISCH_THEN MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
-        BOOL_CASES_TAC `p:bool` THEN REWRITE_TAC[];
-        BOOL_CASES_TAC `p:bool` THEN REWRITE_TAC[]]]]);;
+      ASM_REWRITE_TAC[PMUL_135_BIT_NORMALIZE]];
+    SUBGOAL_THEN `(x':1->num) one < 128` (fun th -> REWRITE_TAC[th]) THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    ASM_REWRITE_TAC[TAUT `!a p. ~(a <=> ~(a <=> p)) <=> p`; PMUL_135_BIT_NORMALIZE]]);;
 
 (* Two-pass quotient: poly(T) + poly(ghash_reduce T) = poly(w) * P *)
 let REDUCE_SUM_EQ_QUOTIENT_MUL = prove(
-  `!a b:int128.
+  `!(a:int128) (b:int128).
     ring_add bool_poly (poly_of_word(word_pmul a b : 256 word))
                        (poly_of_word(ghash_reduce(word_pmul a b) : int128)) =
     ring_mul bool_poly
       (poly_of_word(word_xor (word_subword(word_pmul a b : 256 word)(128,128) : int128)
                               (word_subword(ghash_reduce1(word_pmul a b : 256 word) : 256 word)(128,128) : int128)))
       ghash_poly`,
-  REPEAT GEN_TAC THEN REWRITE_TAC[POLY_GHASH_REDUCE_EQ_R2] THEN
+  REPEAT GEN_TAC THEN REWRITE_TAC[INST_TYPE [`:128`,`:M`; `:128`,`:N`] POLY_GHASH_REDUCE_EQ_R2] THEN
   ABBREV_TAC `T2 = word_pmul (a:int128) (b:int128) : 256 word` THEN
   ABBREV_TAC `r1 = ghash_reduce1(T2:256 word) : 256 word` THEN
   MP_TAC(SPEC `T2:256 word` REDUCE1_QUOTIENT) THEN
@@ -1739,32 +1924,66 @@ let REDUCE_SUM_EQ_QUOTIENT_MUL = prove(
       ASM_REWRITE_TAC[]]; ALL_TAC] THEN
   REWRITE_TAC[GSYM POLY_OF_WORD_XOR; GSYM RING_ADD_RDISTRIB; GHASH_BOOL_POLY;
               BOOL_POLY_OF_WORD] THEN
-  EXPAND_TAC "r1" THEN REWRITE_TAC[]);;
+  EXPAND_TAC "r1" THEN REWRITE_TAC[] THENL
+   [AP_THM_TAC THEN AP_TERM_TAC THEN ASM_REWRITE_TAC[POLY_OF_WORD_XOR];
+    DISCH_THEN SUBST1_TAC THEN
+    REWRITE_TAC[POLY_OF_WORD_XOR; GSYM RING_ADD_RDISTRIB; GHASH_BOOL_POLY; BOOL_POLY_OF_WORD] THEN
+    SIMP_TAC[RING_ADD_RDISTRIB; GHASH_BOOL_POLY; BOOL_POLY_OF_WORD]]);;
 
 (* ---- poly_revn 254 maps ideal{P} to ideal{Q} for our specific d -------- *)
+
+(* Helper for word_pmul type normalization at 2^127 *)
+let PMUL_2EXP127_BIT_NORMALIZE = prove(
+  `!w:int128. !k. bit k (word_pmul (word_zx w : 256 word) (word(2 EXP 127) : 256 word) : 512 word) <=>
+                  bit k (word_shl (word_zx w : 256 word) 127 : 256 word)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[BIT_WORD_PMUL_ALT; BIT_WORD_SHL; BIT_WORD_ZX;
+              DIMINDEX_512; DIMINDEX_256; DIMINDEX_128] THEN
+  SUBGOAL_THEN `!j. bit j (word(2 EXP 127) : 256 word) <=> (j = 127)` (fun th -> REWRITE_TAC[th]) THENL
+   [GEN_TAC THEN REWRITE_TAC[BIT_WORD; DIMINDEX_256] THEN EQ_TAC THEN STRIP_TAC THENL
+     [UNDISCH_TAC `ODD(2 EXP 127 DIV 2 EXP j)` THEN ASM_CASES_TAC `j = 127` THEN ASM_REWRITE_TAC[] THEN
+      ASM_CASES_TAC `j < 127` THENL
+       [ASM_SIMP_TAC[DIV_EXP; ARITH_RULE `~(2=0)`; ARITH_RULE `j<127 ==> j<=127`] THEN REWRITE_TAC[ODD_EXP] THEN ASM_ARITH_TAC;
+        SUBGOAL_THEN `2 EXP 127 DIV 2 EXP j = 0` (fun th -> REWRITE_TAC[th; ODD]) THEN MATCH_MP_TAC DIV_LT THEN REWRITE_TAC[LT_EXP] THEN ASM_ARITH_TAC];
+      ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV]; ALL_TAC] THEN
+  ASM_CASES_TAC `k < 512` THEN ASM_REWRITE_TAC[] THENL
+   [ASM_CASES_TAC `127 <= k` THENL
+     [ASM_CASES_TAC `k < 256` THENL
+       [SUBGOAL_THEN `k - 127 < 256` (fun th -> REWRITE_TAC[th]) THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+        ASM_REWRITE_TAC[] THEN
+        SUBGOAL_THEN `{i | i <= k /\ (i < 256 /\ bit i (w:int128)) /\ k - i = 127} =
+                      if bit (k - 127) w then {k - 127} else {}`
+          (fun th -> REWRITE_TAC[th]) THENL
+         [REWRITE_TAC[EXTENSION; IN_ELIM_THM; IN_SING; NOT_IN_EMPTY] THEN GEN_TAC THEN
+          COND_CASES_TAC THENL
+           [REWRITE_TAC[IN_SING] THEN EQ_TAC THENL
+             [STRIP_TAC THEN ASM_ARITH_TAC;
+              DISCH_THEN SUBST1_TAC THEN ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC];
+            REWRITE_TAC[NOT_IN_EMPTY] THEN STRIP_TAC THEN
+            SUBGOAL_THEN `x = k - 127` SUBST_ALL_TAC THENL [ASM_ARITH_TAC; ASM_MESON_TAC[]]]; ALL_TAC] THEN
+        COND_CASES_TAC THEN REWRITE_TAC[CARD_SING; CARD_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV THEN ASM_REWRITE_TAC[];
+        ASM_REWRITE_TAC[] THEN
+        SUBGOAL_THEN `{i | i <= k /\ (i < 256 /\ bit i (w:int128)) /\ k - i = 127} = {}`
+          (fun th -> REWRITE_TAC[th; CARD_CLAUSES; ODD]) THEN
+        REWRITE_TAC[EXTENSION; IN_ELIM_THM; NOT_IN_EMPTY] THEN GEN_TAC THEN STRIP_TAC THEN
+        SUBGOAL_THEN `128 <= x` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+        MP_TAC(SPECL [`x:num`; `w:int128`] BIT_TRIVIAL_128) THEN
+        ASM_REWRITE_TAC[]];
+      ASM_REWRITE_TAC[] THEN
+      SUBGOAL_THEN `{i | i <= k /\ (i < 256 /\ bit i (w:int128)) /\ k - i = 127} = {}`
+        (fun th -> REWRITE_TAC[th; CARD_CLAUSES; ODD]) THEN
+      REWRITE_TAC[EXTENSION; IN_ELIM_THM; NOT_IN_EMPTY] THEN GEN_TAC THEN STRIP_TAC THEN ASM_ARITH_TAC];
+    ASM_ARITH_TAC]);;
 
 let POLY_OF_WORD_SHL_ZX_127 = prove(
   `!w:int128. poly_of_word(word_shl(word_zx w : 256 word) 127) =
               ring_mul bool_poly (poly_of_word w) (ring_pow bool_poly (poly_var bool_ring one) 127)`,
   GEN_TAC THEN REWRITE_TAC[GSYM POLY_OF_WORD_ZX_128_256] THEN
-  ONCE_REWRITE_TAC[GSYM(CONJUNCT1 WORD_PMUL_ZX)] THEN
-  ONCE_REWRITE_TAC[GSYM(CONJUNCT2 WORD_PMUL_ZX)] THEN
-  REWRITE_TAC[GSYM POLY_OF_WORD_PMUL_2N] THEN
   SUBGOAL_THEN `ring_pow bool_poly (poly_var bool_ring one) 127 =
                 poly_of_word(word(2 EXP 127) : 256 word)` SUBST1_TAC THENL
-   [MP_TAC(MATCH_MP POLY_VAR_POW_OF_WORD (ARITH_RULE `127 < dimindex(:256)`)) THEN
-    REWRITE_TAC[DIMINDEX_256]; ALL_TAC] THEN
-  REWRITE_TAC[POLY_OF_WORD_PMUL_2N] THEN AP_TERM_TAC THEN
-  CONV_TAC WORD_REDUCE_CONV THEN
-  SUBGOAL_THEN `word(2 EXP 127) : 256 word = word(2 EXP 127)` (fun _ -> ALL_TAC) THENL
-   [REFL_TAC; ALL_TAC] THEN
-  ONCE_REWRITE_TAC[GSYM(CONJUNCT1 WORD_PMUL_ZX)] THEN
-  ONCE_REWRITE_TAC[GSYM(CONJUNCT2 WORD_PMUL_ZX)] THEN
-  CONV_TAC WORD_REDUCE_CONV THEN
-  SUBGOAL_THEN `word(2 EXP 127) : 256 word = word(2 EXP 127)` (fun th -> GEN_REWRITE_TAC (LAND_CONV o RAND_CONV) [th]) THENL
-   [REFL_TAC; REWRITE_TAC[CONJUNCT2 WORD_PMUL_POW2]] THEN
-  REWRITE_TAC[MATCH_MP WORD_ZX_WORD_SIMPLE (ARITH_RULE `dimindex(:128) <= dimindex(:256)`)] THEN
-  REWRITE_TAC[WORD_SHL_AS_IWORD] THEN CONV_TAC WORD_REDUCE_CONV);;
+   [MP_TAC(SPEC `127` (INST_TYPE [`:256`, `:N`] POLY_VAR_POW_OF_WORD)) THEN
+    REWRITE_TAC[DIMINDEX_256] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+  REWRITE_TAC[GSYM POLY_OF_WORD_PMUL_2N] THEN
+  REWRITE_TAC[FUN_EQ_THM; poly_of_word; PMUL_2EXP127_BIT_NORMALIZE]);;
 
 let POLY_REVN_254_AS_MUL = prove(
   `!w:int128. poly_revn 254 (poly_of_word w) =
@@ -1778,37 +1997,115 @@ let POLY_REVN_254_AS_MUL = prove(
    bit-reversing a GHASH reduction result, multiplied by x^127, is
    congruent to the product of bit-reversed inputs modulo Q(x). *)
 let GHASH_POLYVAL_BRIDGE_CORE = prove(
-  `!a b:int128.
+  `!(a:int128) (b:int128).
     (ring_mul bool_poly
        (poly_of_word(word_reversefields 1 (ghash_reduce(word_pmul a b : 256 word)) : int128))
        (ring_pow bool_poly (poly_var bool_ring one) 127) ==
       ring_mul bool_poly (poly_of_word(word_reversefields 1 a : int128))
                          (poly_of_word(word_reversefields 1 b : int128))) (mod_polyval)`,
-  REPEAT GEN_TAC THEN REWRITE_TAC[mod_polyval; BOOL_POLY_SUB] THEN
-  CONJ_TAC THENL [REWRITE_TAC[RING_MUL; POLY_VARPOW_BOOL_POLY; BOOL_POLY_OF_WORD]; ALL_TAC] THEN
-  CONJ_TAC THENL [REWRITE_TAC[RING_MUL; BOOL_POLY_OF_WORD]; ALL_TAC] THEN
-  REWRITE_TAC[GSYM POLY_REVN_254_AS_MUL; GSYM POLY_REVN_254_PMUL;
-              GSYM POLY_OF_WORD_PMUL_2N; GSYM POLY_REVN_ADD] THEN
-  REWRITE_TAC[REDUCE_SUM_EQ_QUOTIENT_MUL] THEN
-  MP_TAC(SPECL [`a:int128`; `b:int128`] QUOTIENT_BIT127) THEN
-  DISCH_THEN(fun th -> MP_TAC(MATCH_MP POLY_REVN_MUL_GHASH th)) THEN
-  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
-  REWRITE_TAC[IN_IDEAL_GENERATED_SING_ALT; GHASH_BOOL_POLY] THEN
-  SIMP_TAC[IN_IDEAL_GENERATED_SING_EQ; POLYVAL_BOOL_POLY; ring_divides] THEN
-  CONJ_TAC THENL [REWRITE_TAC[POLYVAL_BOOL_POLY]; ALL_TAC] THEN
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[GSYM POLY_REVN_254_AS_MUL; GSYM POLY_REVN_254_PMUL] THEN
+  SUBGOAL_THEN
+    `ring_add bool_poly
+       (poly_revn 254 (poly_of_word(ghash_reduce(word_pmul (a:int128) (b:int128) : 256 word) : int128)))
+       (poly_revn 254 (poly_of_word(word_pmul a b : 256 word))) =
+     ring_mul bool_poly
+       (poly_revn 126 (poly_of_word(word_xor
+          (word_subword(word_pmul a b : 256 word)(128,128) : int128)
+          (word_subword(ghash_reduce1(word_pmul a b : 256 word) : 256 word)(128,128) : int128))))
+       polyval_poly`
+    MP_TAC THENL
+   [REWRITE_TAC[GSYM POLY_REVN_ADD; GSYM POLY_OF_WORD_XOR] THEN
+    SUBGOAL_THEN `ring_add bool_poly (poly_of_word(ghash_reduce(word_pmul (a:int128) (b:int128) : 256 word) : int128)) (poly_of_word(word_pmul a b : 256 word)) = ring_add bool_poly (poly_of_word(word_pmul a b : 256 word)) (poly_of_word(ghash_reduce(word_pmul a b : 256 word) : int128))` SUBST1_TAC THENL
+     [SIMP_TAC[RING_ADD_SYM; BOOL_POLY_OF_WORD]; ALL_TAC] THEN
+    REWRITE_TAC[REDUCE_SUM_EQ_QUOTIENT_MUL] THEN
+    MP_TAC(SPECL [`a:int128`; `b:int128`] QUOTIENT_BIT127) THEN
+    DISCH_THEN(fun th -> REWRITE_TAC[MATCH_MP POLY_REVN_MUL_GHASH th]); ALL_TAC] THEN
+  DISCH_TAC THEN
+  REWRITE_TAC[cong] THEN REWRITE_TAC[mod_polyval] THEN
   CONJ_TAC THENL
-   [REWRITE_TAC[RING_MUL; BOOL_POLY_OF_WORD; POLYVAL_BOOL_POLY] THEN
-    REWRITE_TAC[POLY_REVN126_EQ_USHR_BITREV; BOOL_POLY_OF_WORD]; ALL_TAC] THEN
-  EXISTS_TAC `poly_revn 126 (poly_of_word(word_xor (word_subword(word_pmul (a:int128) (b:int128) : 256 word)(128,128) : int128) (word_subword(ghash_reduce1(word_pmul a b : 256 word) : 256 word)(128,128) : int128)))` THEN
+   [REWRITE_TAC[POLY_REVN_254_AS_MUL] THEN MATCH_MP_TAC RING_MUL THEN
+    REWRITE_TAC[POLY_VARPOW_BOOL_POLY; BOOL_POLY_OF_WORD]; ALL_TAC] THEN
+  CONJ_TAC THENL [MATCH_MP_TAC RING_MUL THEN REWRITE_TAC[BOOL_POLY_OF_WORD]; ALL_TAC] THEN
+  REWRITE_TAC[BOOL_POLY_SUB; POLY_REVN_254_AS_MUL] THEN
+  SUBGOAL_THEN `poly_revn 254 (poly_of_word(word_pmul (a:int128) (b:int128) : 256 word)) = ring_mul bool_poly (poly_of_word(word_reversefields 1 a)) (poly_of_word(word_reversefields 1 b))` ASSUME_TAC THENL
+   [REWRITE_TAC[POLY_REVN_254_PMUL; POLY_OF_WORD_PMUL_2N]; ALL_TAC] THEN
+  SUBGOAL_THEN `ring_add bool_poly
+    (ring_mul bool_poly (poly_of_word(word_reversefields 1 (ghash_reduce(word_pmul (a:int128) (b:int128) : 256 word)))) (ring_pow bool_poly (poly_var bool_ring one) 127))
+    (ring_mul bool_poly (poly_of_word(word_reversefields 1 a)) (poly_of_word(word_reversefields 1 b))) =
+   ring_mul bool_poly (poly_revn 126 (poly_of_word(word_xor (word_subword(word_pmul a b : 256 word)(128,128) : int128) (word_subword(ghash_reduce1(word_pmul a b : 256 word) : 256 word)(128,128) : int128)))) polyval_poly`
+    SUBST1_TAC THENL
+   [FIRST_X_ASSUM(fun th -> REWRITE_TAC[GSYM th; GSYM POLY_REVN_254_AS_MUL]) THEN
+    FIRST_X_ASSUM ACCEPT_TAC; ALL_TAC] THEN
+  SIMP_TAC[IN_IDEAL_GENERATED_SING_EQ; POLYVAL_BOOL_POLY; ring_divides] THEN
+  CONJ_TAC THENL
+   [MATCH_MP_TAC RING_MUL THEN REWRITE_TAC[POLY_REVN126_EQ_USHR_BITREV; BOOL_POLY_OF_WORD; POLYVAL_BOOL_POLY]; ALL_TAC] THEN
+  EXISTS_TAC `poly_revn 126
+    (poly_of_word(word_xor
+       (word_subword(word_pmul (a:int128) (b:int128) : 256 word)(128,128) : int128)
+       (word_subword(ghash_reduce1(word_pmul a b : 256 word) : 256 word)(128,128) : int128)))` THEN
   CONJ_TAC THENL
    [REWRITE_TAC[POLY_REVN126_EQ_USHR_BITREV; BOOL_POLY_OF_WORD]; ALL_TAC] THEN
-  ONCE_REWRITE_TAC[RING_MUL_SYM] THEN REWRITE_TAC[]);;
+  SIMP_TAC[RING_MUL_SYM; POLYVAL_BOOL_POLY; POLY_REVN126_EQ_USHR_BITREV; BOOL_POLY_OF_WORD]);;
+
+(* GHASH_POLYVAL_BRIDGE_RHS:
+   twist(dot)*x^127 ≡ bitrev(a)*bitrev(b) (mod Q).
+   Uses GHASH_TWIST_CORRECT and POLYVAL_DOT_CORRECT. *)
+let GHASH_POLYVAL_BRIDGE_RHS = prove(
+  `!(a:int128) (b:int128).
+    (ring_mul bool_poly (poly_of_word(word_reversefields 1 a))
+                        (poly_of_word(word_reversefields 1 b)) ==
+     ring_mul bool_poly
+       (poly_of_word(ghash_twist(polyval_dot (word_reversefields 1 a) (word_reversefields 1 b))))
+       (ring_pow bool_poly (poly_var bool_ring one) 127)) (mod_polyval)`,
+  REPEAT GEN_TAC THEN ONCE_REWRITE_TAC[MOD_POLYVAL_SYM] THEN
+  SUBGOAL_THEN
+    `(ring_mul bool_poly
+      (poly_of_word(ghash_twist(polyval_dot (word_reversefields 1 (a:int128)) (word_reversefields 1 b))))
+      (ring_pow bool_poly (poly_var bool_ring one) 127) ==
+     ring_mul bool_poly
+      (poly_of_word(polyval_dot (word_reversefields 1 a) (word_reversefields 1 b)))
+      (ring_pow bool_poly (poly_var bool_ring one) 128)) (mod_polyval)`
+    MP_TAC THENL
+   [MP_TAC(SPEC `polyval_dot (word_reversefields 1 (a:int128)) (word_reversefields 1 b)` GHASH_TWIST_CORRECT) THEN
+    DISCH_TAC THEN
+    SUBGOAL_THEN
+      `(ring_mul bool_poly (poly_of_word(ghash_twist(polyval_dot (word_reversefields 1 (a:int128)) (word_reversefields 1 b))))
+        (ring_pow bool_poly (poly_var bool_ring one) 127) ==
+       ring_mul bool_poly (ring_mul bool_poly (poly_var bool_ring one)
+         (poly_of_word(polyval_dot (word_reversefields 1 a) (word_reversefields 1 b))))
+        (ring_pow bool_poly (poly_var bool_ring one) 127)) (mod_polyval)`
+      MP_TAC THENL
+     [MATCH_MP_TAC MOD_POLYVAL_MUL THEN
+      REWRITE_TAC[MOD_POLYVAL_REFL; POLY_VARPOW_BOOL_POLY] THEN
+      FIRST_X_ASSUM ACCEPT_TAC; ALL_TAC] THEN
+    SUBGOAL_THEN
+      `ring_mul bool_poly (ring_mul bool_poly (poly_var bool_ring one)
+        (poly_of_word(polyval_dot (word_reversefields 1 (a:int128)) (word_reversefields 1 b))))
+        (ring_pow bool_poly (poly_var bool_ring one) 127) =
+       ring_mul bool_poly (poly_of_word(polyval_dot (word_reversefields 1 a) (word_reversefields 1 b)))
+        (ring_pow bool_poly (poly_var bool_ring one) 128)`
+      SUBST1_TAC THENL
+     [SUBGOAL_THEN `ring_pow bool_poly (poly_var bool_ring one) 128 =
+        ring_mul bool_poly (poly_var bool_ring one) (ring_pow bool_poly (poly_var bool_ring one) 127)`
+        SUBST1_TAC THENL
+       [REWRITE_TAC[GSYM(CONJUNCT2 ring_pow)] THEN CONV_TAC NUM_REDUCE_CONV;
+        MESON_TAC[RING_MUL_ASSOC; RING_MUL_SYM; BOOL_POLY_OF_WORD;
+                  POLY_VAR_IN_BOOL_POLY; POLY_VARPOW_BOOL_POLY]]; ALL_TAC] THEN
+    DISCH_TAC THEN FIRST_X_ASSUM ACCEPT_TAC;
+    DISCH_TAC THEN MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
+    EXISTS_TAC `ring_mul bool_poly
+      (poly_of_word(polyval_dot (word_reversefields 1 (a:int128)) (word_reversefields 1 b)))
+      (ring_pow bool_poly (poly_var bool_ring one) 128)` THEN
+    CONJ_TAC THENL
+     [FIRST_X_ASSUM ACCEPT_TAC;
+      REWRITE_TAC[POLYVAL_DOT_CORRECT]]]);;
 
 (* GHASH_POLYVAL_BRIDGE (GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT):
    bit-reversing ghash_reduce equals ghash_twist(polyval_dot) —
    the word-level equality connecting GHASH to POLYVAL. *)
 let GHASH_POLYVAL_BRIDGE = prove(
-  `!a b:int128.
+  `!(a:int128) (b:int128).
     word_reversefields 1 (ghash_reduce(word_pmul a b : 256 word)) =
     ghash_twist(polyval_dot (word_reversefields 1 a) (word_reversefields 1 b))`,
   REPEAT GEN_TAC THEN MATCH_MP_TAC(SPEC `127` MOD_POLYVAL_CANCEL_VARPOW) THEN

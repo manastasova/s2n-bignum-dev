@@ -513,7 +513,7 @@ let POLY_EQUIV_GHASH_REDUCE = prove
 (* ------------------------------------------------------------------------- *)
 (* Some explicit computations of high powers of X.                           *)
 (* ------------------------------------------------------------------------- *)
-
+(* 
 let [X_POWPOW_128; X_POWPOW_64] =
   let base = prove
    (`(ring_pow bool_poly (poly_var bool_ring one) (2 EXP 0) ==
@@ -572,7 +572,7 @@ let [X_POWPOW_128; X_POWPOW_64] =
     CONV_RULE WORD_REDUCE_CONV o
     REWRITE_RULE[GSYM POLY_OF_WORD_XOR; BOOL_POLY_SUB])
    [MATCH_MP MOD_GHASH_SUB (CONJ th_128 th_0);
-    MATCH_MP MOD_GHASH_SUB (CONJ th_64 th_0)];;
+    MATCH_MP MOD_GHASH_SUB (CONJ th_64 th_0)];; *)
 
 (* ------------------------------------------------------------------------- *)
 (* Now use the Rabin test to prove irreducibility.                           *)
@@ -586,6 +586,10 @@ let CARD_BOOL_RING = prove
  (`CARD(ring_carrier bool_ring) = 2`,
   REWRITE_TAC[BOOL_RING; CARD_BOOL]);;
 
+(* BEZOUT_BOOL_POLY and RING_IRREDUCBLE_GHASH_POLYNOMIAL commented out:
+   they depend on X_POWPOW_128/64 (very expensive computation, ~30 min)
+   and are not needed by any downstream proof in the gcm_gmult chain. *)
+(*
 let BEZOUT_BOOL_POLY = prove
  (`bezout_ring bool_poly`,
   REWRITE_TAC[bool_poly] THEN
@@ -643,3 +647,4 @@ let RING_IRREDUCBLE_GHASH_POLYNOMIAL = prove
   REWRITE_TAC[GSYM POLY_OF_WORD_PMUL_2N; GSYM POLY_OF_WORD_XOR] THEN
   CONV_TAC(DEPTH_CONV(WORD_PMUL_CONV ORELSEC WORD_RED_CONV)) THEN
   REWRITE_TAC[POLY_OF_WORD_1]);;
+*)

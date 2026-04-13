@@ -14,7 +14,7 @@
 (* - BOOL_POLY_ADD_SELF: char 2 property (a+a=0)                            *)
 (* ========================================================================= *)
 
-needs "common/polyval.ml";;
+loadt "common/polyval.ml";;
 
 (* ------------------------------------------------------------------------- *)
 (* The quotient witness for ideal membership.                                *)

@@ -3,7 +3,7 @@
 (* Shows: word_pmul a b = Karatsuba decomposition using 3 half-size pmuls.   *)
 (* ========================================================================= *)
 
-needs "common/polyval_prop3_proof.ml";;
+loadt "common/polyval_prop3_proof.ml";;
 
 (* ------------------------------------------------------------------------- *)
 (* Helper lemmas for polynomial-level conversion.                            *)
