@@ -243,7 +243,7 @@ Hence R = 0xE1 || 0^120 = `word 225`.
 
 After per-byte bit reversal, R becomes 0x87 = 135 = `10000111` in binary.
 This is `x^7 + x^2 + x + 1` in natural polynomial order — exactly the
-low-order terms of P(x). The proof confirms this as `BRP_GHASH_R`.
+low-order terms of P(x). The proof confirms this as `BYTE_BITREV_GHASH_R`.
 
 ### 1.7 The schoolbook specification: `ghash_reduce(word_pmul a b)`
 
@@ -339,7 +339,7 @@ We did not write these definitions — we proved they equal the NIST spec.
 
 2. **Separation of spec and proof**: The NIST definitions (lines 1-99) are
    pure specification with no proof content. The proof that this matches
-   polynomial algebra is in the separate BRIDGE_A theorem and its lemmas.
+   polynomial algebra is in the separate NIST_GHASH_EQ_GHASH_REDUCE theorem and its lemmas.
 
 3. **HOL Light idioms**: I used `new_definition` for non-recursive
    functions and `define` for recursive ones, following standard HOL Light
@@ -354,7 +354,7 @@ We did not write these definitions — we proved they equal the NIST spec.
 The goal is:
 
 ```
-BRIDGE_A:
+NIST_GHASH_EQ_GHASH_REDUCE:
   forall x y : int128.
     bit_reverse_per_byte(nist_ghash_mul x y) =
     ghash_reduce(word_pmul (bit_reverse_per_byte x) (bit_reverse_per_byte y))
@@ -375,14 +375,14 @@ The proof decomposes into three stages:
 
 ```
 brp(nist_ghash_mul x y)
-  = poly_mul_loop 0 (brp y) (brp x) 128           [Stage 1: LOOP_BRP]
-  = ghash_reduce(word_pmul (brp x) (brp y))        [Stage 2: POLY_MUL_LOOP_CORRECT]
+  = poly_mul_loop 0 (brp y) (brp x) 128           [Stage 1: NIST_LOOP_AS_POLY_LOOP]
+  = ghash_reduce(word_pmul (brp x) (brp y))        [Stage 2: POLY_LOOP_EQ_GHASH_REDUCE]
 ```
 
-#### Stage 1: Pull brp through the NIST loop (LOOP_BRP)
+#### Stage 1: Pull brp through the NIST loop (NIST_LOOP_AS_POLY_LOOP)
 
 ```
-LOOP_BRP:
+NIST_LOOP_AS_POLY_LOOP:
   brp(ghash_mul_loop z v x n) = poly_mul_loop (brp z) (brp v) (brp x) n
 ```
 
@@ -411,8 +411,8 @@ we show brp commutes with every operation using four key lemmas:
 |-------|-----------|-------|
 | `NIST_BIT_AS_NATURAL` | `nist_bit x i = bit i (brp x)` | Arithmetic on the bit-index formula |
 | `NIST_SHR1_AS_SHL` | `brp(nist_shr1 v) = word_shl(brp v) 1` | `WORD_BLAST` (128-bit BDD) |
-| `BRP_XOR` | `brp(word_xor a b) = word_xor(brp a)(brp b)` | `WORD_BLAST` |
-| `BRP_GHASH_R` | `brp(word 0xE1) = word 0x87` | `WORD_REDUCE_CONV` (concrete computation) |
+| `BYTE_BITREV_XOR` | `brp(word_xor a b) = word_xor(brp a)(brp b)` | `WORD_BLAST` |
+| `BYTE_BITREV_GHASH_R` | `brp(word 0xE1) = word 0x87` | `WORD_REDUCE_CONV` (concrete computation) |
 
 The most important is `NIST_BIT_AS_NATURAL`: NIST bit i of x equals
 natural bit i of brp(x). This is the fundamental property of per-byte
@@ -435,14 +435,14 @@ and brp(v') into the natural-loop updates of (brp z) and (brp v).
 **Result of Stage 1:**
 
 ```
-NIST_GHASH_MUL_AS_POLY_LOOP:
+NIST_GHASH_MUL_BYTREV_EQ_POLY_LOOP:
   brp(nist_ghash_mul x y) = poly_mul_loop (word 0) (brp y) (brp x) 128
 ```
 
-#### Stage 2: Natural-order loop = ghash_reduce(word_pmul) (POLY_MUL_LOOP_CORRECT)
+#### Stage 2: Natural-order loop = ghash_reduce(word_pmul) (POLY_LOOP_EQ_GHASH_REDUCE)
 
 ```
-POLY_MUL_LOOP_CORRECT:
+POLY_LOOP_EQ_GHASH_REDUCE:
   poly_mul_loop (word 0) y x 128 = ghash_reduce(word_pmul x y)
 ```
 
@@ -456,7 +456,7 @@ values (impossible since the algorithms work so differently), we show:
 1. The loop output is congruent to `poly(x) * poly(y)` modulo P(x)
 2. `ghash_reduce(word_pmul x y)` is congruent to `poly(x) * poly(y)` modulo P(x)
 3. Both are 128-bit words
-4. By `MOD_GHASH_WORD_EQ`: two 128-bit words congruent mod P(x) are equal
+4. By `CONG_MOD_GHASH_IMP_WORD_EQ`: two 128-bit words congruent mod P(x) are equal
 
 Step 2 follows directly from Harrison's library (`POLY_EQUIV_GHASH_REDUCE`
 + `POLY_OF_WORD_PMUL_2N`).
@@ -468,10 +468,10 @@ the same class, they must be identical.
 
 Step 1 is the hard part, requiring three sub-lemmas:
 
-##### V_STEP_CONG: the shift-and-reduce step preserves congruence
+##### POLY_SHL_XOR_CONG_MOD_GHASH: the shift-and-reduce step preserves congruence
 
 ```
-V_STEP_CONG:
+POLY_SHL_XOR_CONG_MOD_GHASH:
   poly(V_update(v)) ≡ x * poly(v)  (mod P)
 ```
 
@@ -503,10 +503,10 @@ x * poly(v) - x^128 + (x^7 + x^2 + x + 1)
 The formal proof provides the quotient witness `ring_1 bool_poly` (we
 subtracted exactly one copy of P).
 
-##### LOOP_INVARIANT: inductive congruence for the whole loop
+##### POLY_LOOP_HORNER_CONG_MOD_GHASH: inductive congruence for the whole loop
 
 ```
-LOOP_INVARIANT:
+POLY_LOOP_HORNER_CONG_MOD_GHASH:
   poly(poly_mul_loop z v x n) ≡ poly(z) + partial_poly(x,n) * poly(v)  (mod P)
 ```
 
@@ -531,7 +531,7 @@ poly(result) ≡ poly(z') + partial_poly(x,n) * poly(v')  (mod P)
 
 We need to show this equals `poly(z) + partial_poly(x,n+1) * poly(v)`.
 
-Using V_STEP_CONG: `poly(v') ≡ x * poly(v) (mod P)`.
+Using POLY_SHL_XOR_CONG_MOD_GHASH: `poly(v') ≡ x * poly(v) (mod P)`.
 
 Using the Horner recurrence: `partial_poly(x,n+1) = partial_poly(x,n) * x + bit_n(x)`.
 
@@ -561,14 +561,14 @@ polynomial represented by the 128-bit word x.
 
 4. Prove `PARTIAL_POLY_AS_WORD_HORNER`:
    `partial_poly x n = poly_of_word(word_horner x n)` by induction,
-   using `SHL_1_POLY_FALSE` (no overflow since the Horner intermediate
+   using `WORD_HORNER_BIT127_F` (no overflow since the Horner intermediate
    always has bit 127 = F for n ≤ 127)
 
 5. Compose: `partial_poly x 128 = poly_of_word(word_horner x 128) = poly_of_word x`
 
 ##### Putting Stage 2 together
 
-1. From LOOP_INVARIANT with n=128, z=0, and PARTIAL_POLY_128:
+1. From POLY_LOOP_HORNER_CONG_MOD_GHASH with n=128, z=0, and PARTIAL_POLY_128:
    `poly(poly_mul_loop 0 y x 128) ≡ poly(x) * poly(y) (mod P)`
 
 2. From POLY_EQUIV_GHASH_REDUCE + POLY_OF_WORD_PMUL_2N:
@@ -576,9 +576,9 @@ polynomial represented by the 128-bit word x.
 
 3. Both are congruent to the same thing, both are 128-bit words.
 
-4. By MOD_GHASH_WORD_EQ: `poly_mul_loop 0 y x 128 = ghash_reduce(word_pmul x y)`.
+4. By CONG_MOD_GHASH_IMP_WORD_EQ: `poly_mul_loop 0 y x 128 = ghash_reduce(word_pmul x y)`.
 
-#### Stage 3: Composition (BRIDGE_A)
+#### Stage 3: Composition (NIST_GHASH_EQ_GHASH_REDUCE)
 
 ```
 brp(nist_ghash_mul x y)
@@ -600,7 +600,7 @@ The proof separates two concerns:
 2. **Algorithm equivalence** (Stage 2): Horner evaluation with online
    reduction computes the same result as schoolbook multiplication with
    final reduction. This is proved at the polynomial algebra level using
-   modular congruence + uniqueness (`MOD_GHASH_WORD_EQ`).
+   modular congruence + uniqueness (`CONG_MOD_GHASH_IMP_WORD_EQ`).
 
 ---
 
@@ -663,8 +663,8 @@ This identity follows from the decomposition P = x^128 + poly(0x87):
 This was the hardest part of the entire verification. The main lemma is
 `POLY_REVN_MUL_GHASH`, and building up to it required ~20 supporting lemmas:
 
-- **GHASH_POLY_DECOMP**: Decompose P(x) = x^128 + poly(word 0x87).
-  Proved by coefficient-level analysis using GHASH_POLY_COEFF.
+- **GHASH_POLY_EQ_X128_PLUS_POLY87**: Decompose P(x) = x^128 + poly(word 0x87).
+  Proved by coefficient-level analysis using GHASH_POLY_COEFF_AT_0_1_2_7_128.
 
 - **MUL_U128_WORD**: `poly(w) * x^128 = poly(shl(zx w : 256) 128)`.
   Connects polynomial multiplication by x^128 to a 256-bit word shift.
@@ -781,7 +781,7 @@ exactly what the 27 ARM NEON instructions compute. It implements:
 
 It satisfies: `poly(polyval_dot a b) * x^128 ≡ poly(a) * poly(b) (mod Q)`
 
-### 4.3 The proof (GCM_GMULT_POLYVAL_DOT)
+### 4.3 The proof (GCM_GMULT_SPEC_EQ_POLYVAL_DOT)
 
 We need to show:
 
@@ -803,10 +803,10 @@ using different code paths:
    limbs of the 256-bit Karatsuba product. Each is a 64-bit WORD_BLAST
    (128 BDD variables).
 
-2. **SPEC_XM_PRIME_AS_ABCD** (WORD_BLAST): Show the spec's Karatsuba
+2. **KARATSUBA_RECOMBINE_EQ_PROP3_LIMBS** (WORD_BLAST): Show the spec's Karatsuba
    recombination produces the same limbs B, C as Prop 3.
 
-3. **REDUCTION_EQUIV** (WORD_BLAST on 4 × 64 = 256 vars): Show the
+3. **BARRETT_REDUCTION_EQ_PROP3_REDUCTION** (WORD_BLAST on 4 × 64 = 256 vars): Show the
    spec's two-phase Barrett reduction equals Prop 3's reduction on
    the same four limbs. This was the largest single WORD_BLAST, barely
    fitting in the BDD capacity.
@@ -857,13 +857,13 @@ for the ARM subroutine calling convention (X30 return address, etc.).
 NIST Algorithm 1 (gcm_gmult_v8_nist.ml, lines 1-99)
    |
    | bit_reverse_per_byte commutes with all NIST operations
-   | (LOOP_BRP, V_STEP_BRP, Z_STEP_BRP — by induction + WORD_BLAST)
+   | (NIST_LOOP_AS_POLY_LOOP, NIST_V_UPDATE_AS_POLY_SHL, NIST_Z_UPDATE_AS_POLY_XOR — by induction + WORD_BLAST)
    |
    | shift-and-XOR loop = ghash_reduce(word_pmul)
-   | (POLY_MUL_LOOP_CORRECT — by MOD_GHASH_WORD_EQ uniqueness)
+   | (POLY_LOOP_EQ_GHASH_REDUCE — by CONG_MOD_GHASH_IMP_WORD_EQ uniqueness)
    |
    v
-ghash_reduce(word_pmul(brp x, brp y))                    [BRIDGE_A]
+ghash_reduce(word_pmul(brp x, brp y))                    [NIST_GHASH_EQ_GHASH_REDUCE]
    |
    | poly_revn 254 maps ideal{P} → ideal{Q}
    | (POLY_REVN_MUL_GHASH — the ideal mapping lemma)
@@ -875,10 +875,10 @@ ghash_reduce(word_pmul(brp x, brp y))                    [BRIDGE_A]
 ghash_twist(polyval_dot(bitrev a, bitrev b))              [GHASH_POLYVAL_BRIDGE]
    |
    | Karatsuba limb extraction (KARATSUBA_LIMBS — WORD_BLAST)
-   | Reduction equivalence (REDUCTION_EQUIV — WORD_BLAST 256 vars)
+   | Reduction equivalence (BARRETT_REDUCTION_EQ_PROP3_REDUCTION — WORD_BLAST 256 vars)
    |
    v
-gcm_gmult_spec                                            [GCM_GMULT_POLYVAL_DOT]
+gcm_gmult_spec                                            [GCM_GMULT_SPEC_EQ_POLYVAL_DOT]
    |
    | 27-step ARM simulation (MAP_EVERY + GCM_SIMD_SIMPLIFY_TAC)
    |
@@ -906,10 +906,10 @@ His `ghash.ml` library provides:
 | `word_pmul` | Carry-less (polynomial) multiplication on machine words |
 | `mod_ghash` | Congruence relation modulo P(x) |
 | `POLY_EQUIV_GHASH_REDUCE` | `ghash_reduce` output is congruent to its input mod P(x) |
-| `MOD_GHASH_WORD_EQ` | Two 128-bit words congruent mod P(x) are equal |
+| `CONG_MOD_GHASH_IMP_WORD_EQ` | Two 128-bit words congruent mod P(x) are equal |
 | `POLY_OF_WORD_PMUL_2N` | `poly(word_pmul a b) = poly(a) * poly(b)` |
 | `POLY_OF_WORD_XOR` | `poly(xor a b) = poly(a) + poly(b)` |
-| Irreducibility of P(x) | Used in `MOD_GHASH_WORD_EQ` uniqueness argument |
+| Irreducibility of P(x) | Used in `CONG_MOD_GHASH_IMP_WORD_EQ` uniqueness argument |
 
 We used these as a **black box** — we never modified `ghash.ml`, only
 imported and applied its theorems.
@@ -930,7 +930,7 @@ connects GHASH to POLYVAL:
 | `GHASH_TWIST_CORRECT` | `poly(ghash_twist h) ≡ x * poly(h) (mod Q)` |
 | `POLYVAL_REDUCE_PROP3_CORRECT` | Prop 3 reduction is correct mod Q(x) |
 | `PMUL_KARATSUBA` | 3-multiply Karatsuba decomposition of `word_pmul` |
-| `MOD_POLYVAL_WORD_EQ` | Two 128-bit words congruent mod Q(x) are equal |
+| `MOD_POLYVAL_CANCEL_VARPOW` | Two 128-bit words congruent mod Q(x) are equal |
 | `MOD_POLYVAL_CANCEL_VARPOW` | Can cancel x^n from both sides of a mod Q congruence |
 | `GHASH_REDUCE1_HI` | Formula for high bits after one reduction pass |
 | `ghash_polyval_acc`, `h_power`, `htable` | Batched GHASH specification |
@@ -951,12 +951,12 @@ algebraic specifications, and from those specifications to the ARM assembly:
 | `nist_bit`, `nist_lsb`, `nist_shr1`, `ghash_R` | NIST bit-level operations |
 | `ghash_mul_loop`, `nist_ghash_mul`, `nist_ghash` | NIST Algorithms 1 and 2 |
 | `poly_mul_loop`, `partial_poly`, `word_horner` | Natural-order loop + Horner evaluation |
-| `LOOP_BRP` | Per-byte bit reversal commutes with the NIST loop |
-| `V_STEP_CONG` | Shift-and-reduce step preserves congruence mod P(x) |
-| `LOOP_INVARIANT` | Inductive loop congruence |
+| `NIST_LOOP_AS_POLY_LOOP` | Per-byte bit reversal commutes with the NIST loop |
+| `POLY_SHL_XOR_CONG_MOD_GHASH` | Shift-and-reduce step preserves congruence mod P(x) |
+| `POLY_LOOP_HORNER_CONG_MOD_GHASH` | Inductive loop congruence |
 | `PARTIAL_POLY_128` | Horner evaluation = poly_of_word |
-| `POLY_MUL_LOOP_CORRECT` | Horner loop = ghash_reduce(word_pmul) |
-| **`BRIDGE_A`** | **NIST Algorithm 1 = ghash_reduce(word_pmul(brp x, brp y))** |
+| `POLY_LOOP_EQ_GHASH_REDUCE` | Horner loop = ghash_reduce(word_pmul) |
+| **`NIST_GHASH_EQ_GHASH_REDUCE`** | **NIST Algorithm 1 = ghash_reduce(word_pmul(brp x, brp y))** |
 
 **Equivalence B: P(x) ↔ Q(x) ideal mapping** (~30 theorems)
 
@@ -984,10 +984,10 @@ algebraic specifications, and from those specifications to the ARM assembly:
 | What | Description |
 |------|-------------|
 | `gcm_gmult_spec` | Instruction-level specification of the ARM code |
-| `KARATSUBA_LIMB_A/B/C/D` | 64-bit limb extraction from Karatsuba product |
-| `SPEC_XM_PRIME_AS_ABCD` | Spec's Karatsuba recombination = Prop 3's limbs |
-| `REDUCTION_EQUIV` | Spec's Barrett reduction = Prop 3's reduction |
-| **`GCM_GMULT_POLYVAL_DOT`** | **gcm_gmult_spec = rev8(polyval_dot(rev8 xi, H))** |
+| `KARATSUBA_LIMB_0_63/64_127/128_191/192_255` | 64-bit limb extraction from Karatsuba product |
+| `KARATSUBA_RECOMBINE_EQ_PROP3_LIMBS` | Spec's Karatsuba recombination = Prop 3's limbs |
+| `BARRETT_REDUCTION_EQ_PROP3_REDUCTION` | Spec's Barrett reduction = Prop 3's reduction |
+| **`GCM_GMULT_SPEC_EQ_POLYVAL_DOT`** | **gcm_gmult_spec = rev8(polyval_dot(rev8 xi, H))** |
 
 **Equivalence D: gcm_gmult_spec ↔ ARM assembly** (~5 theorems)
 

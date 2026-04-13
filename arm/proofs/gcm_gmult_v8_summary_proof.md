@@ -18,7 +18,7 @@ NIST SP 800-38D Algorithm 1             (bit-level shift-and-XOR loop)
 Polynomial algebra mod P(x)             (poly_of_word, ghash_reduce, word_pmul)
         |
         |  GHASH reduction (mod P) = POLYVAL reduction (mod Q) under bit-reversal
-        |  (GHASH_REDUCE_BITREV_EQ_POLYVAL_DOT                 [this work]
+        |  (GHASH_POLYVAL_BRIDGE)                              [this work]
         |   + POLYVAL_DOT_CORRECT, GHASH_TWIST_CORRECT)        [pre-existing]
         v
 polyval_dot / polyval_reduce_prop3      (Gueron's Prop 3 reduction mod Q(x))
