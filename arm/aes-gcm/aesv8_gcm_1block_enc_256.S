@@ -113,7 +113,7 @@ S2N_BN_SYMBOL(aesv8_gcm_1block_enc_256):
 
 // Load Xi, prepare GHASH input
 // (matches 8-block: ld1 acc_l; ext; rev64; then rev64 ct; ext acc_l; eor)
-        ld1     {v19.16b}, [x3]          // acc_l = Xi (v19)
+        ldr     q19, [x3]                // acc_l = Xi (v19)
         ext     v19.16b, v19.16b, v19.16b, #8
         rev64   v19.16b, v19.16b
 
@@ -161,10 +161,11 @@ S2N_BN_SYMBOL(aesv8_gcm_1block_enc_256):
 // Convert back and store Xi (matches lines 1300-1302)
         ext     v19.16b, v19.16b, v19.16b, #8
         rev64   v19.16b, v19.16b
-        st1     {v19.16b}, [x3]
 
-// Return bytes processed
+// Return bytes processed (before STR so STR is last before RET)
         lsr     x0, x1, #3
+
+        str     q19, [x3]
         CFI_RET
 
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_1block_enc_256)

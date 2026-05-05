@@ -1,0 +1,138 @@
+CI Local Test Instructions
+==========================
+
+All commands assume you are in the s2n-bignum repo root.
+All commands are for the ARM architecture.
+
+HOL Light commit used by CI: af5d20e033025a9f30a490d9c39edace632405a3
+
+
+==========================================================================
+1. s2n-bignum-tests (ARM)
+==========================================================================
+
+# Prerequisites
+sudo apt update && sudo apt install valgrind
+
+# Build
+cd arm && make && cd ..
+
+# Tests with gcc
+cd tests
+CC=gcc make complete
+make ctCheck
+
+# Tests with valgrind
+make clean
+CC=gcc VALGRIND="valgrind --" make complete
+
+# Tests with clang (build only)
+make clean
+CC=clang make
+cd ..
+
+# Benchmarks (build only)
+cd benchmarks
+CC=gcc make
+make clean
+CC=clang make
+cd ..
+
+
+==========================================================================
+2. s2n-bignum-aws-lc-integration (ARM)
+==========================================================================
+
+# Prerequisites
+sudo apt update && sudo apt install valgrind cmake golang ninja-build
+sudo ln -s /usr/bin/ninja /usr/bin/ninja-build
+ln -s /usr/local/bin/cmake /usr/local/bin/cmake3
+
+# Clone aws-lc and import your branch
+git clone https://github.com/aws/aws-lc.git --depth=1
+cd aws-lc/third_party/s2n-bignum
+rm -rf ./s2n-bignum-imported
+# Point these at your fork/branch:
+GITHUB_REPOSITORY=<your-fork>.git GITHUB_TARGET=<your-branch> ./import.sh
+cd ../../../
+
+# Build and test (3 configurations)
+mkdir aws-lc-build && cd aws-lc-build
+
+cmake3 -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIPS=On ../aws-lc
+ninja-build run_tests
+
+cmake3 -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIPS=Off -DBUILD_SHARED_LIBS=1 ../aws-lc
+ninja-build run_tests
+
+cmake3 -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIPS=Off ../aws-lc
+ninja-build run_tests
+
+
+==========================================================================
+3. s2n-bignum-sematest (ARM)
+==========================================================================
+
+# Prerequisites
+sudo apt update
+sudo apt install libpcre2-dev ocaml libstring-shellquote-perl libgmp-dev xdot
+wget https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh
+chmod +x install.sh
+echo "/usr/local/bin" | sh ./install.sh
+opam init --disable-sandboxing
+
+# Install HOL Light (shared with jobs 5 and 6)
+git clone https://github.com/jrh13/hol-light.git
+cd hol-light
+git checkout af5d20e033025a9f30a490d9c39edace632405a3
+make switch-5
+eval $(opam env)
+HOLLIGHT_USE_MODULE=1 make
+cd ..
+
+# Run sematest
+export HOLDIR=$(pwd)/hol-light
+cd arm
+make sematest
+
+
+==========================================================================
+4. s2n-bignum-tutorial (ARM)
+==========================================================================
+
+# Same prerequisites and HOL Light install as job 3.
+
+export HOLDIR=$(pwd)/hol-light
+cd arm
+make tutorial -j2
+
+
+==========================================================================
+5. s2n-bignum-proofs (ARM)
+==========================================================================
+
+# Prerequisites (needs cross-compilation binutils in addition to job 3 deps)
+sudo apt update
+sudo apt -y install libpcre2-dev ocaml binutils-aarch64-linux-gnu \
+  binutils-x86-64-linux-gnu libstring-shellquote-perl libgmp-dev xdot
+# + same opam / HOL Light install as job 3
+
+export HOLDIR=$(pwd)/hol-light
+export BUILD_CORE_COUNT=15
+export CORE_COUNT=64    # adjust to your machine
+
+cd arm
+make -j ${BUILD_CORE_COUNT} build_proofs build_tutorial
+make -j ${CORE_COUNT} proofs tutorial
+../tools/collect-times.sh arm
+
+
+==========================================================================
+Notes
+==========================================================================
+
+- Jobs 3, 4, and 5 share the same HOL Light installation. You only need
+  to build it once.
+- Adjust CORE_COUNT and BUILD_CORE_COUNT to match your machine.
+- The tutorial job also has a macOS ARM variant in CI that uses
+  "brew install opam" instead of the apt-based setup.

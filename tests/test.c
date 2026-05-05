@@ -1146,6 +1146,88 @@ static void reference_gcm_init(uint64_t Htable[4], const uint64_t H[2])
   Htable[3] = 0;
 }
 
+// Forward declaration of gcm_polyval_nohw so we can use it here.
+static void gcm_polyval_nohw(uint64_t Xi[2], const uint64_t H[2]);
+
+// Full C reference of AWS-LC's gcm_init_v8 (the ARMv8 PMULL version).
+//
+// Populates all 12 significant u128 slots (Htable[0..11], 24 u64s = 192B) with
+// the twisted H powers and packed Karatsuba mid values, exactly matching the
+// layout produced by aws-lc's  gcm_init_v8  in
+// generated-src/linux-aarch64/crypto/fipsmodule/ghashv8-armx.S:16-196.
+//
+// Layout (each line is one 16-byte u128 slot; .hi is the first u64 stored):
+//   Htable[ 0] = twisted H          (h_hi,      h_lo)
+//   Htable[ 1] = packed mids        (h2k,       h1k)
+//   Htable[ 2] = twisted H^2        (h2_hi,     h2_lo)
+//   Htable[ 3] = packed mids        (h4k,       h3k)
+//   Htable[ 4] = twisted H^3        (h3_hi,     h3_lo)
+//   Htable[ 5] = twisted H^4        (h4_hi,     h4_lo)
+//   Htable[ 6] = packed mids        (h6k,       h5k)
+//   Htable[ 7] = twisted H^5        (h5_hi,     h5_lo)
+//   Htable[ 8] = twisted H^6        (h6_hi,     h6_lo)
+//   Htable[ 9] = packed mids        (h8k,       h7k)
+//   Htable[10] = twisted H^7        (h7_hi,     h7_lo)
+//   Htable[11] = twisted H^8        (h8_hi,     h8_lo)
+//   Htable[12..15] = unused (remain whatever caller set; typically 0)
+//
+// This is suitable for any kernel that expects up-to-8-block Karatsuba/PMULL
+// dispatch (our 2-block kernel uses only Htable[0..2]; a hypothetical 8-block
+// kernel would use all 12).
+static void reference_gcm_init_v8(u128 Htable[16], const uint64_t H[2])
+{
+  // --- Compute twisted H (same as reference_gcm_init).
+  uint64_t h_lo = H[1];
+  uint64_t h_hi = H[0];
+  uint64_t carry = (int64_t)h_hi >> 63;
+  h_hi = (h_hi << 1) | (h_lo >> 63);
+  h_lo = h_lo << 1;
+  h_lo ^= carry & UINT64_C(0x0000000000000001);
+  h_hi ^= carry & UINT64_C(0xc200000000000000);
+
+  // --- Compute H^2 .. H^8 via iterated polyval_nohw against H.
+  // gcm_polyval_nohw(Xi, H) computes Xi := polyval_dot(Xi, H) in the
+  // {.lo, .hi} storage convention.
+  uint64_t Hpoly[2] = { h_lo, h_hi };
+
+  uint64_t h2[2]  = { h_lo, h_hi };  gcm_polyval_nohw(h2,  Hpoly);   // H^2
+  uint64_t h3[2]  = { h2[0], h2[1] }; gcm_polyval_nohw(h3,  Hpoly);   // H^3
+  uint64_t h4[2]  = { h3[0], h3[1] }; gcm_polyval_nohw(h4,  Hpoly);   // H^4
+  uint64_t h5[2]  = { h4[0], h4[1] }; gcm_polyval_nohw(h5,  Hpoly);   // H^5
+  uint64_t h6[2]  = { h5[0], h5[1] }; gcm_polyval_nohw(h6,  Hpoly);   // H^6
+  uint64_t h7[2]  = { h6[0], h6[1] }; gcm_polyval_nohw(h7,  Hpoly);   // H^7
+  uint64_t h8[2]  = { h7[0], h7[1] }; gcm_polyval_nohw(h8,  Hpoly);   // H^8
+
+  // Extract .hi/.lo for each H^k and compute Karatsuba mid = .hi ^ .lo.
+  #define HK(h)  ((h)[0] ^ (h)[1])
+  uint64_t h2_lo = h2[0], h2_hi = h2[1], h2k = HK(h2);
+  uint64_t h3_lo = h3[0], h3_hi = h3[1], h3k = HK(h3);
+  uint64_t h4_lo = h4[0], h4_hi = h4[1], h4k = HK(h4);
+  uint64_t h5_lo = h5[0], h5_hi = h5[1], h5k = HK(h5);
+  uint64_t h6_lo = h6[0], h6_hi = h6[1], h6k = HK(h6);
+  uint64_t h7_lo = h7[0], h7_hi = h7[1], h7k = HK(h7);
+  uint64_t h8_lo = h8[0], h8_hi = h8[1], h8k = HK(h8);
+  uint64_t h1k = h_hi ^ h_lo;
+  #undef HK
+
+  // Store each u128 as {.hi (bytes 0-7), .lo (bytes 8-15)}.
+  // For packed Karatsuba-mid slots: aws-lc packs them so the LOWER power's
+  // mid lives at the LOWER address, i.e. .hi = lower-power, .lo = higher-power.
+  Htable[ 0].hi = h_hi;  Htable[ 0].lo = h_lo;    // twisted H
+  Htable[ 1].hi = h1k;   Htable[ 1].lo = h2k;     // packed mids: H, H^2
+  Htable[ 2].hi = h2_hi; Htable[ 2].lo = h2_lo;   // twisted H^2
+  Htable[ 3].hi = h3_hi; Htable[ 3].lo = h3_lo;   // twisted H^3
+  Htable[ 4].hi = h3k;   Htable[ 4].lo = h4k;     // packed mids: H^3, H^4
+  Htable[ 5].hi = h4_hi; Htable[ 5].lo = h4_lo;   // twisted H^4
+  Htable[ 6].hi = h5_hi; Htable[ 6].lo = h5_lo;   // twisted H^5
+  Htable[ 7].hi = h5k;   Htable[ 7].lo = h6k;     // packed mids: H^5, H^6
+  Htable[ 8].hi = h6_hi; Htable[ 8].lo = h6_lo;   // twisted H^6
+  Htable[ 9].hi = h7_hi; Htable[ 9].lo = h7_lo;   // twisted H^7
+  Htable[10].hi = h7k;   Htable[10].lo = h8k;     // packed mids: H^7, H^8
+  Htable[11].hi = h8_hi; Htable[11].lo = h8_lo;   // twisted H^8
+  // Htable[12..15]: unused; caller's memset(0) suffices.
+}
+
 // 64x64 carry-less multiply, from AWS-LC's gcm_nohw.c.
 static void gcm_mul64_nohw(uint64_t *out_lo, uint64_t *out_hi,
                             uint64_t a, uint64_t b)
@@ -16043,6 +16125,353 @@ int test_aesv8_gcm_1block_enc_256(void)
 #endif
 }
 
+// ---------------------------------------------------------------------------
+// two_blocks_aes256_gcm_preloop_tail test
+// Processes 2 full AES-256-GCM blocks (32 bytes):
+//   ct1 = pt1 XOR AES(key, ivec)
+//   ct2 = pt2 XOR AES(key, ivec+1)
+//   new_Xi = ghash_polyval_acc h 0 [ct1; ct2] (with byte/field reversals)
+// We compare against a C reference that runs aesv8_gcm_1block_enc_256 twice.
+// ---------------------------------------------------------------------------
+int test_two_blocks_aes256_gcm_preloop_tail(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  uint64_t i;
+  printf("Testing two_blocks_aes256_gcm_preloop_tail with %d cases\n", tests);
+
+  // ---- Known fixed vector: verify 2-block == 2 x 1-block (explicit inputs) ----
+  {
+    uint8_t key[32] = {0};
+    uint8_t nonce[12] = {0};
+    uint8_t pt[32] = {0};  // 32 bytes zero plaintext
+    uint8_t rk[240];
+    reference_aes256_key_expand(rk, key);
+    uint8_t H_bytes[16] = {0};
+    reference_aes256_encrypt(H_bytes, H_bytes, rk);
+    // 2-block Htable needs h and h^2 entries; build it.
+    u128 Htable[16];
+    memset(Htable, 0, sizeof(Htable));
+    { uint64_t H_be[2] = {reference_wordbytereverse(((uint64_t*)H_bytes)[0]),
+                          reference_wordbytereverse(((uint64_t*)H_bytes)[1])};
+      reference_gcm_init_v8(Htable, H_be);
+    }
+    // Assembly: 2-block call
+    uint8_t ivec_asm[16] = {0};
+    memcpy(ivec_asm, nonce, 12); ivec_asm[15] = 2;
+    uint8_t Xi_asm[16] = {0};
+    uint8_t ct_asm[32];
+    size_t ret = two_blocks_aes256_gcm_preloop_tail(
+                   pt, 256, ct_asm, Xi_asm, ivec_asm, rk, Htable);
+    if (ret != 32)
+     { printf("### 2-block zero vector: wrong return value %zu (expected 32)\n", ret);
+       return 1;
+     }
+    // Reference: 1-block twice (uses only Htable[0]+[1] which our init populates
+    // identically to reference_gcm_init in those slots).
+    uint8_t ivec_ref[16] = {0};
+    memcpy(ivec_ref, nonce, 12); ivec_ref[15] = 2;
+    uint8_t Xi_ref[16] = {0};
+    uint8_t ct_ref[32];
+    aesv8_gcm_1block_enc_256(pt,       128, ct_ref,      Xi_ref, ivec_ref, rk, Htable);
+    aesv8_gcm_1block_enc_256(pt + 16,  128, ct_ref + 16, Xi_ref, ivec_ref, rk, Htable);
+    if (memcmp(ct_asm, ct_ref, 32) != 0)
+     { printf("### 2-block zero vector: ciphertext mismatch\n");
+       printf("  got: "); for(int j=0;j<32;j++) printf("%02x",ct_asm[j]); printf("\n");
+       printf("  ref: "); for(int j=0;j<32;j++) printf("%02x",ct_ref[j]); printf("\n");
+       return 1;
+     }
+    if (memcmp(Xi_asm, Xi_ref, 16) != 0)
+     { printf("### 2-block zero vector: Xi mismatch\n");
+       printf("  got: "); for(int j=0;j<16;j++) printf("%02x",Xi_asm[j]); printf("\n");
+       printf("  ref: "); for(int j=0;j<16;j++) printf("%02x",Xi_ref[j]); printf("\n");
+       return 1;
+     }
+    if (memcmp(ivec_asm, ivec_ref, 16) != 0)
+     { printf("### 2-block zero vector: ivec mismatch\n");
+       printf("  asm: "); for(int j=0;j<16;j++) printf("%02x",ivec_asm[j]); printf("\n");
+       printf("  ref: "); for(int j=0;j<16;j++) printf("%02x",ivec_ref[j]); printf("\n");
+       return 1;
+     }
+    if (VERBOSE) printf("OK: 2-block zero vector (ct+Xi+ivec match 1-block twice)\n");
+  }
+
+  // ---- Random tests: compare 2-block assembly vs sequential 1-block reference ----
+  for (i = 0; i < tests; ++i)
+   { uint8_t key[32], rk[240];
+     for (int j = 0; j < 32; j++) key[j] = (uint8_t)(random64() & 0xff);
+     reference_aes256_key_expand(rk, key);
+     uint8_t H_bytes[16] = {0};
+     reference_aes256_encrypt(H_bytes, H_bytes, rk);
+     u128 Htable[16];
+     memset(Htable, 0, sizeof(Htable));
+     { uint64_t H_be[2] = {reference_wordbytereverse(((uint64_t*)H_bytes)[0]),
+                           reference_wordbytereverse(((uint64_t*)H_bytes)[1])};
+       reference_gcm_init_v8(Htable, H_be);
+     }
+     uint8_t nonce[12], pt[32];
+     for (int j = 0; j < 12; j++) nonce[j] = (uint8_t)(random64() & 0xff);
+     for (int j = 0; j < 32; j++) pt[j] = (uint8_t)(random64() & 0xff);
+
+     // Assembly: run 2-block function in one call
+     uint8_t ivec_asm[16] = {0};
+     memcpy(ivec_asm, nonce, 12); ivec_asm[15] = 2;
+     uint8_t Xi_asm[16] = {0};
+     uint8_t ct_asm[32];
+     two_blocks_aes256_gcm_preloop_tail(pt, 256, ct_asm, Xi_asm, ivec_asm, rk, Htable);
+
+     // Reference: run 1-block twice
+     uint8_t ivec_ref[16] = {0};
+     memcpy(ivec_ref, nonce, 12); ivec_ref[15] = 2;
+     uint8_t Xi_ref[16] = {0};
+     uint8_t ct_ref[32];
+     aesv8_gcm_1block_enc_256(pt,       128, ct_ref,      Xi_ref, ivec_ref, rk, Htable);
+     aesv8_gcm_1block_enc_256(pt + 16,  128, ct_ref + 16, Xi_ref, ivec_ref, rk, Htable);
+
+     if (memcmp(ct_asm, ct_ref, 32) != 0 ||
+         memcmp(Xi_asm, Xi_ref, 16) != 0 ||
+         memcmp(ivec_asm, ivec_ref, 16) != 0)
+      { printf("### Disparity: two_blocks enc case %"PRIu64"\n", i);
+        printf("  ct_asm: "); for(int j=0;j<32;j++) printf("%02x",ct_asm[j]); printf("\n");
+        printf("  ct_ref: "); for(int j=0;j<32;j++) printf("%02x",ct_ref[j]); printf("\n");
+        printf("  Xi_asm: "); for(int j=0;j<16;j++) printf("%02x",Xi_asm[j]); printf("\n");
+        printf("  Xi_ref: "); for(int j=0;j<16;j++) printf("%02x",Xi_ref[j]); printf("\n");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: two_blocks_aes256_gcm_preloop_tail case %"PRIu64"\n", i);
+      }
+   }
+
+  // ---- 1-block compatibility tests: the upgraded 2-block code must also  ---
+  //      correctly process exactly 1 block (bit_len = 128). Compare against
+  //      the original aesv8_gcm_1block_enc_256 on ct, Xi, and ivec.
+  printf("Testing two_blocks_aes256_gcm_preloop_tail on 1-block inputs with %d cases\n", tests);
+  for (i = 0; i < tests; ++i)
+   { uint8_t key[32], rk[240];
+     for (int j = 0; j < 32; j++) key[j] = (uint8_t)(random64() & 0xff);
+     reference_aes256_key_expand(rk, key);
+     uint8_t H_bytes[16] = {0};
+     reference_aes256_encrypt(H_bytes, H_bytes, rk);
+     u128 Htable[16];
+     memset(Htable, 0, sizeof(Htable));
+     { uint64_t H_be[2] = {reference_wordbytereverse(((uint64_t*)H_bytes)[0]),
+                           reference_wordbytereverse(((uint64_t*)H_bytes)[1])};
+       reference_gcm_init_v8(Htable, H_be);
+     }
+     uint8_t nonce[12], pt[16];
+     for (int j = 0; j < 12; j++) nonce[j] = (uint8_t)(random64() & 0xff);
+     for (int j = 0; j < 16; j++) pt[j] = (uint8_t)(random64() & 0xff);
+
+     // Assembly: 2-block function with bit_len = 128 (1 block)
+     uint8_t ivec_asm[16] = {0};
+     memcpy(ivec_asm, nonce, 12); ivec_asm[15] = 2;
+     uint8_t Xi_asm[16] = {0};
+     uint8_t ct_asm[16];
+     size_t ret = two_blocks_aes256_gcm_preloop_tail(
+                    pt, 128, ct_asm, Xi_asm, ivec_asm, rk, Htable);
+
+     // Reference: aesv8_gcm_1block_enc_256 with the same inputs
+     uint8_t ivec_ref[16] = {0};
+     memcpy(ivec_ref, nonce, 12); ivec_ref[15] = 2;
+     uint8_t Xi_ref[16] = {0};
+     uint8_t ct_ref[16];
+     aesv8_gcm_1block_enc_256(pt, 128, ct_ref, Xi_ref, ivec_ref, rk, Htable);
+
+     if (ret != 16 ||
+         memcmp(ct_asm, ct_ref, 16) != 0 ||
+         memcmp(Xi_asm, Xi_ref, 16) != 0 ||
+         memcmp(ivec_asm, ivec_ref, 16) != 0)
+      { printf("### Disparity: two_blocks->1-block case %"PRIu64"\n", i);
+        printf("  ret: %zu (expected 16)\n", ret);
+        printf("  ct_asm: "); for(int j=0;j<16;j++) printf("%02x",ct_asm[j]); printf("\n");
+        printf("  ct_ref: "); for(int j=0;j<16;j++) printf("%02x",ct_ref[j]); printf("\n");
+        printf("  Xi_asm: "); for(int j=0;j<16;j++) printf("%02x",Xi_asm[j]); printf("\n");
+        printf("  Xi_ref: "); for(int j=0;j<16;j++) printf("%02x",Xi_ref[j]); printf("\n");
+        printf("  ivec_asm: "); for(int j=0;j<16;j++) printf("%02x",ivec_asm[j]); printf("\n");
+        printf("  ivec_ref: "); for(int j=0;j<16;j++) printf("%02x",ivec_ref[j]); printf("\n");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: two_blocks (1-block mode) case %"PRIu64"\n", i);
+      }
+   }
+
+  // ---- 1-block backward-compatibility: use the ORIGINAL 1-block Htable   ---
+  //      init (populates only Htable[0] + Htable[1].lo = h1k, leaving h2k  ---
+  //      and h^2 slots zero). The upgraded function must still behave      ---
+  //      exactly like aesv8_gcm_1block_enc_256 when bit_len = 128.         ---
+  printf("Testing two_blocks_aes256_gcm_preloop_tail 1-block backward compat with %d cases\n", tests);
+  for (i = 0; i < tests; ++i)
+   { uint8_t key[32], rk[240];
+     for (int j = 0; j < 32; j++) key[j] = (uint8_t)(random64() & 0xff);
+     reference_aes256_key_expand(rk, key);
+     uint8_t H_bytes[16] = {0};
+     reference_aes256_encrypt(H_bytes, H_bytes, rk);
+     u128 Htable[16];
+     memset(Htable, 0, sizeof(Htable));
+     { uint64_t H_be[2] = {reference_wordbytereverse(((uint64_t*)H_bytes)[0]),
+                           reference_wordbytereverse(((uint64_t*)H_bytes)[1])};
+       // Original 1-block layout: only Htable[0] and Htable[1].lo populated
+       reference_gcm_init((uint64_t *)Htable, H_be);
+     }
+     uint8_t nonce[12], pt[16];
+     for (int j = 0; j < 12; j++) nonce[j] = (uint8_t)(random64() & 0xff);
+     for (int j = 0; j < 16; j++) pt[j] = (uint8_t)(random64() & 0xff);
+
+     uint8_t ivec_asm[16] = {0};
+     memcpy(ivec_asm, nonce, 12); ivec_asm[15] = 2;
+     uint8_t Xi_asm[16] = {0};
+     uint8_t ct_asm[16];
+     two_blocks_aes256_gcm_preloop_tail(pt, 128, ct_asm, Xi_asm, ivec_asm, rk, Htable);
+
+     uint8_t ivec_ref[16] = {0};
+     memcpy(ivec_ref, nonce, 12); ivec_ref[15] = 2;
+     uint8_t Xi_ref[16] = {0};
+     uint8_t ct_ref[16];
+     aesv8_gcm_1block_enc_256(pt, 128, ct_ref, Xi_ref, ivec_ref, rk, Htable);
+
+     if (memcmp(ct_asm, ct_ref, 16) != 0 ||
+         memcmp(Xi_asm, Xi_ref, 16) != 0 ||
+         memcmp(ivec_asm, ivec_ref, 16) != 0)
+      { printf("### Disparity: two_blocks 1-block backward-compat case %"PRIu64"\n", i);
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: two_blocks 1-block back-compat case %"PRIu64"\n", i);
+      }
+   }
+
+  printf("All OK\n");
+  return 0;
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// three_blocks_aes256_gcm_preloop_tail test
+// Processes 3 full AES-256-GCM blocks (48 bytes):
+//   ct_i = pt_i XOR AES(key, ivec + i - 1)  for i = 1,2,3
+//   new_Xi = ghash_polyval_acc h 0 [ct1; ct2; ct3] (with byte/field reversals)
+// We compare against a C reference that runs aesv8_gcm_1block_enc_256 three times.
+// ---------------------------------------------------------------------------
+int test_three_blocks_aes256_gcm_preloop_tail(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  uint64_t i;
+  printf("Testing three_blocks_aes256_gcm_preloop_tail with %d cases\n", tests);
+
+  // ---- Known fixed vector: verify 3-block == 3 x 1-block (explicit inputs) ----
+  {
+    uint8_t key[32] = {0};
+    uint8_t nonce[12] = {0};
+    uint8_t pt[48] = {0};  // 48 bytes zero plaintext
+    uint8_t rk[240];
+    reference_aes256_key_expand(rk, key);
+    uint8_t H_bytes[16] = {0};
+    reference_aes256_encrypt(H_bytes, H_bytes, rk);
+    // 3-block Htable needs h, h^2, and h^3 entries; build it.
+    u128 Htable[16];
+    memset(Htable, 0, sizeof(Htable));
+    { uint64_t H_be[2] = {reference_wordbytereverse(((uint64_t*)H_bytes)[0]),
+                          reference_wordbytereverse(((uint64_t*)H_bytes)[1])};
+      reference_gcm_init_v8(Htable, H_be);
+    }
+    // Assembly: 3-block call
+    uint8_t ivec_asm[16] = {0};
+    memcpy(ivec_asm, nonce, 12); ivec_asm[15] = 2;
+    uint8_t Xi_asm[16] = {0};
+    uint8_t ct_asm[48];
+    size_t ret = three_blocks_aes256_gcm_preloop_tail(
+                   pt, 384, ct_asm, Xi_asm, ivec_asm, rk, Htable);
+    if (ret != 48)
+     { printf("### 3-block zero vector: wrong return value %zu (expected 48)\n", ret);
+       return 1;
+     }
+    // Reference: 1-block three times
+    uint8_t ivec_ref[16] = {0};
+    memcpy(ivec_ref, nonce, 12); ivec_ref[15] = 2;
+    uint8_t Xi_ref[16] = {0};
+    uint8_t ct_ref[48];
+    aesv8_gcm_1block_enc_256(pt,       128, ct_ref,      Xi_ref, ivec_ref, rk, Htable);
+    aesv8_gcm_1block_enc_256(pt + 16,  128, ct_ref + 16, Xi_ref, ivec_ref, rk, Htable);
+    aesv8_gcm_1block_enc_256(pt + 32,  128, ct_ref + 32, Xi_ref, ivec_ref, rk, Htable);
+    if (memcmp(ct_asm, ct_ref, 48) != 0)
+     { printf("### 3-block zero vector: ciphertext mismatch\n");
+       printf("  got: "); for(int j=0;j<48;j++) printf("%02x",ct_asm[j]); printf("\n");
+       printf("  ref: "); for(int j=0;j<48;j++) printf("%02x",ct_ref[j]); printf("\n");
+       return 1;
+     }
+    if (memcmp(Xi_asm, Xi_ref, 16) != 0)
+     { printf("### 3-block zero vector: Xi mismatch\n");
+       printf("  got: "); for(int j=0;j<16;j++) printf("%02x",Xi_asm[j]); printf("\n");
+       printf("  ref: "); for(int j=0;j<16;j++) printf("%02x",Xi_ref[j]); printf("\n");
+       return 1;
+     }
+    if (memcmp(ivec_asm, ivec_ref, 16) != 0)
+     { printf("### 3-block zero vector: ivec mismatch\n");
+       printf("  asm: "); for(int j=0;j<16;j++) printf("%02x",ivec_asm[j]); printf("\n");
+       printf("  ref: "); for(int j=0;j<16;j++) printf("%02x",ivec_ref[j]); printf("\n");
+       return 1;
+     }
+    if (VERBOSE) printf("OK: 3-block zero vector (ct+Xi+ivec match 1-block three times)\n");
+  }
+
+  // ---- Random tests: compare 3-block assembly vs sequential 1-block reference ----
+  for (i = 0; i < tests; ++i)
+   { uint8_t key[32], rk[240];
+     for (int j = 0; j < 32; j++) key[j] = (uint8_t)(random64() & 0xff);
+     reference_aes256_key_expand(rk, key);
+     uint8_t H_bytes[16] = {0};
+     reference_aes256_encrypt(H_bytes, H_bytes, rk);
+     u128 Htable[16];
+     memset(Htable, 0, sizeof(Htable));
+     { uint64_t H_be[2] = {reference_wordbytereverse(((uint64_t*)H_bytes)[0]),
+                           reference_wordbytereverse(((uint64_t*)H_bytes)[1])};
+       reference_gcm_init_v8(Htable, H_be);
+     }
+     uint8_t nonce[12], pt[48];
+     for (int j = 0; j < 12; j++) nonce[j] = (uint8_t)(random64() & 0xff);
+     for (int j = 0; j < 48; j++) pt[j] = (uint8_t)(random64() & 0xff);
+
+     // Assembly: run 3-block function in one call
+     uint8_t ivec_asm[16] = {0};
+     memcpy(ivec_asm, nonce, 12); ivec_asm[15] = 2;
+     uint8_t Xi_asm[16] = {0};
+     uint8_t ct_asm[48];
+     three_blocks_aes256_gcm_preloop_tail(pt, 384, ct_asm, Xi_asm, ivec_asm, rk, Htable);
+
+     // Reference: run 1-block three times
+     uint8_t ivec_ref[16] = {0};
+     memcpy(ivec_ref, nonce, 12); ivec_ref[15] = 2;
+     uint8_t Xi_ref[16] = {0};
+     uint8_t ct_ref[48];
+     aesv8_gcm_1block_enc_256(pt,       128, ct_ref,      Xi_ref, ivec_ref, rk, Htable);
+     aesv8_gcm_1block_enc_256(pt + 16,  128, ct_ref + 16, Xi_ref, ivec_ref, rk, Htable);
+     aesv8_gcm_1block_enc_256(pt + 32,  128, ct_ref + 32, Xi_ref, ivec_ref, rk, Htable);
+
+     if (memcmp(ct_asm, ct_ref, 48) != 0 ||
+         memcmp(Xi_asm, Xi_ref, 16) != 0 ||
+         memcmp(ivec_asm, ivec_ref, 16) != 0)
+      { printf("### Disparity: three_blocks enc case %"PRIu64"\n", i);
+        printf("  ct_asm: "); for(int j=0;j<48;j++) printf("%02x",ct_asm[j]); printf("\n");
+        printf("  ct_ref: "); for(int j=0;j<48;j++) printf("%02x",ct_ref[j]); printf("\n");
+        printf("  Xi_asm: "); for(int j=0;j<16;j++) printf("%02x",Xi_asm[j]); printf("\n");
+        printf("  Xi_ref: "); for(int j=0;j<16;j++) printf("%02x",Xi_ref[j]); printf("\n");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: three_blocks_aes256_gcm_preloop_tail case %"PRIu64"\n", i);
+      }
+   }
+
+  printf("All OK\n");
+  return 0;
+#endif
+}
+
 int test_aesv8_gcm_1block_dec_256(void)
 {
 #ifdef __x86_64__
@@ -16565,6 +16994,8 @@ int main(int argc, char *argv[])
     functionaltest(all,"gcm_gmult_v8",test_gcm_gmult_v8);
     functionaltest(all,"aesv8_gcm_1block_enc_256",test_aesv8_gcm_1block_enc_256);
     functionaltest(all,"aesv8_gcm_1block_dec_256",test_aesv8_gcm_1block_dec_256);
+    functionaltest(all,"two_blocks_aes256_gcm_preloop_tail",test_two_blocks_aes256_gcm_preloop_tail);
+    functionaltest(all,"three_blocks_aes256_gcm_preloop_tail",test_three_blocks_aes256_gcm_preloop_tail);
 
   }
 

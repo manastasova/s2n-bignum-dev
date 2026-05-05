@@ -1239,4 +1239,12 @@ extern size_t aesv8_gcm_1block_enc_256
 extern size_t aesv8_gcm_1block_dec_256
   (const uint8_t *in, size_t bit_len, uint8_t *out,
    uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
+// AES-256-GCM two-block (32 byte) encrypt + GHASH accumulation
+extern size_t two_blocks_aes256_gcm_preloop_tail
+  (const uint8_t *in, size_t bit_len, uint8_t *out,
+   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
+// AES-256-GCM three-block (48 byte) encrypt + GHASH accumulation
+extern size_t three_blocks_aes256_gcm_preloop_tail
+  (const uint8_t *in, size_t bit_len, uint8_t *out,
+   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
 #endif

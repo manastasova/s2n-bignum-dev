@@ -1,0 +1,549 @@
+(* ========================================================================= *)
+(* Correctness proof for two_blocks_aes256_gcm_preloop_tail (DIRECT version). *)
+(*                                                                           *)
+(* Proves the 2-block variant of the AES-256-GCM preloop tail:               *)
+(*   1. AES-256 encrypt TWO counter blocks (ct0 using ivec, ct1 using        *)
+(*      gcm_ctr_inc ivec)                                                    *)
+(*   2. Compute GHASH of the two ciphertext blocks via Horner iteration      *)
+(*      ghash_polyval_acc h xi [ct0; ct1].                                   *)
+(*                                                                           *)
+(* The assembly uses an extended Htable layout with both h and h^2 entries   *)
+(* and implements batched 2-block GHASH via Karatsuba multiplication plus    *)
+(* a two-phase Barrett-like reduction. The extended Htable layout:           *)
+(*   - Htable[0]         (byteswap128 h)                                     *)
+(*   - Htable[1] lo lane (karatsuba_mid h)                                   *)
+(*   - Htable[1] hi lane (karatsuba_mid (polyval_dot h h))                   *)
+(*   - Htable[2]         (byteswap128 (polyval_dot h h))                     *)
+(*                                                                           *)
+(* This proof reuses all helper lemmas from the 1-block direct proof.        *)
+(*                                                                           *)
+(* The key additional ingredient is GHASH_POLYVAL_ACC_2 from                 *)
+(* common/ghash_spec.ml, which collapses ghash_polyval_acc h a [b; c] into   *)
+(* a single polyval_reduce_prop3 of  pmul(a^b, h^2) xor pmul(c, h).          *)
+(* ========================================================================= *)
+
+Sys.chdir "/home/ubuntu/auto_proofs/s2n-bignum";;
+
+needs "arm/proofs/base.ml";;
+needs "common/aes.ml";;
+needs "arm/proofs/aes.ml";;
+needs "arm/proofs/utils/new_instructions.ml";;
+needs "arm/proofs/utils/one_block_preloop_tail_spec.ml";;
+needs "common/ghash_spec.ml";;
+needs "arm/proofs/utils/gcm_gmult_v8_nist.ml";;
+
+(* ---- Counter increment helper ------------------------------------------- *)
+
+(* Increments the 32-bit big-endian counter in lane 3 (bytes 12-15) of ivec.
+   This matches the AES-GCM standard counter increment. *)
+let gcm_ctr_inc = new_definition
+  `gcm_ctr_inc (ivec:(128)word) : (128)word =
+     word_insert ivec (96,32)
+       (word_bytereverse
+          (word_add (word_bytereverse
+                       (word_subword ivec (96,32):(32)word))
+                    (word 1:(32)word)))`;;
+
+(* ---- Helper lemmas/tactics (reuse from 1-block direct proof) ------------ *)
+
+let PMUL_NORM_CONV tm =
+  match tm with
+  | Comb(Comb(Const("word_pmul",_), a), b) ->
+    if term_order a b then SPECL [a;b] WORD_PMUL_SYM
+    else failwith "already normalized"
+  | _ -> failwith "not word_pmul";;
+
+let WORD_XOR_ASSOC = WORD_BITWISE_RULE
+  `word_xor (word_xor a b) c = word_xor a (word_xor b c):(N)word`;;
+
+let BYTESWAP128_SUBWORD_LO = prove(
+  `!(h:int128). word_subword (byteswap128 h) (0,64):(64)word = word_subword h (64,64)`,
+  REWRITE_TAC[byteswap128] THEN CONV_TAC WORD_BLAST);;
+
+let BYTESWAP128_SUBWORD_HI = prove(
+  `!(h:int128). word_subword (byteswap128 h) (64,64):(64)word = word_subword h (0,64)`,
+  REWRITE_TAC[byteswap128] THEN CONV_TAC WORD_BLAST);;
+
+(* ---- Machine code (2-block assembly) ------------------------------------ *)
+
+let two_blocks_prelooptail_mc = define_assert_from_elf
+  "two_blocks_prelooptail_mc"
+  "/home/ubuntu/auto_proofs/s2n-bignum/arm/aes-gcm/two_blocks_aes256_gcm_preloop_tail.o"
+[
+  0x6dbb27e8; 0xd343fc29; 0xaa0403f0; 0xaa0503eb; 0x6d012fea; 0x6d0237ec;
+  0x6d033fee; 0xd2f84005; 0xa9047fe5; 0x910103ea; 0x4c407200; 0xaa0903e5;
+  0xd2c0002f; 0x4f00e41f; 0x4e181dff; 0xd10004a5; 0x9279e0a5; 0x8b0000a5;
+  0x6e20081e; 0x4ebf87de; 0x6e200bc1; 0x4ebf87de; 0xad406d7a; 0x4e284b40;
+  0x4e286800; 0x4e284b41; 0x4e286821; 0xad41697c; 0x4e284b61; 0x4e286821;
+  0x4e284b60; 0x4e286800; 0x4e284b80; 0x4e286800; 0x4e284b81; 0x4e286821;
+  0xad42717b; 0x4e284b41; 0x4e286821; 0x4e284b40; 0x4e286800; 0x4e284b61;
+  0x4e286821; 0x4e284b60; 0x4e286800; 0x4e284b80; 0x4e286800; 0xad436d7a;
+  0x4e284b81; 0x4e286821; 0x4e284b41; 0x4e286821; 0x4e284b40; 0x4e286800;
+  0xad44697c; 0x4e284b60; 0x4e286800; 0x4e284b61; 0x4e286821; 0x4e284b81;
+  0x4e286821; 0x4e284b80; 0x4e286800; 0x4c407073; 0x6e134273; 0x4e200a73;
+  0xad45717b; 0x4e284b41; 0x4e286821; 0x4e284b40; 0x4e286800; 0x4e284b61;
+  0x4e286821; 0x4e284b60; 0x4e286800; 0xad466d7a; 0x4e284b81; 0x4e286821;
+  0x4e284b80; 0x4e286800; 0x3dc0397c; 0x4e284b41; 0x4e286821; 0x4e284b40;
+  0x4e286800; 0x4e284b61; 0x4e284b60; 0x8b410c04; 0xcb000085; 0x3cc10408;
+  0x6e134270; 0x4ebc1f9d; 0xce007509; 0x0f00e413; 0x0f00e411; 0x0f00e412;
+  0x3dc004d5; 0x4ea11c27; 0xf10040bf; 0x5400006c; 0x6ebf87de; 0x14000011;
+  0x4c9f7049; 0x3dc008d6;
+  0x4e200928; 0x3cc10409; 0x6e301d08; 0x0f00e410; 0x6e08451b; 0x4ef6e11c;
+  0xce077529; 0x6e3c1e31; 0x0ef6e11a; 0x2e281f7b; 0x6e3a1e73; 0x6e18077b;
+  0x4ef5e37b; 0x6e3b1e52; 0x92401821; 0xd1020021; 0xcb0103e1; 0xaa3f03e7;
+  0x92401821; 0x9ac124e7; 0xf101003f; 0xaa3f03e8; 0x9a9fb0ee; 0x9a87b10d;
+  0x4e081da0; 0x3dc000d4; 0x4c40705a; 0x4e181dc0; 0x4e201d29; 0x4e200928;
+  0x6e200bde; 0x3d80021e; 0x6e301d08; 0x4c007049; 0x6e084510; 0x4ef4e11c;
+  0x0ef4e11a; 0x6e3c1e31; 0x6e3a1e73; 0x2e281e10; 0x0ef5e210; 0x6e301e52;
+  0xfd400150; 0x6e114235; 0xce114e52; 0x0ef0e23d; 0xce1d5652; 0x0ef0e251;
+  0x6e124255; 0xce115673; 0x6e134273; 0x4e200a73; 0x4c007073; 0xaa0903e0;
+  0x6d412fea; 0x6d4237ec; 0x6d433fee; 0x6cc527e8; 0xd65f03c0
+];;
+
+let TWO_BLOCKS_PRELOOP_TAIL_EXEC =
+  ARM_MK_EXEC_RULE two_blocks_prelooptail_mc;;
+
+(* ================================================================== *)
+(*                    THE PROOFS (direct versions)                    *)
+(*                                                                    *)
+(* We prove the function correct for both bit_len = 128 (1 block) and *)
+(* bit_len = 256 (2 blocks) as separate concrete theorems, then       *)
+(* combine them in a single parameterised theorem quantified over     *)
+(* bit_len with precondition `bit_len IN {128, 256}`.                 *)
+(*                                                                    *)
+(* The assembly derives the block count from bit_len entirely via     *)
+(* registers:                                                         *)
+(*     x9 = bit_len / 8  (byte_len, preserved for return value)       *)
+(*     x4 = in_ptr + byte_len  (end-of-input pointer)                 *)
+(*     x5 = x4 - in_ptr = byte_len  (dispatch comparand at TAIL)      *)
+(* The branch `cmp x5,#16; b.gt more_than_1` takes the 2-block path   *)
+(* when byte_len > 16 (i.e. bit_len = 256) and falls through to the   *)
+(* 1-block path when byte_len = 16 (i.e. bit_len = 128).              *)
+(*                                                                    *)
+(* Htable precondition differs:                                       *)
+(*   - 1-block: only needs Htable[0] (twisted h) and Htable[1].lo =   *)
+(*     karatsuba_mid h.                                               *)
+(*   - 2-block: additionally needs Htable[1].hi = karatsuba_mid (h^2) *)
+(*     and Htable[2] = byteswap128 (h^2).                             *)
+(*                                                                    *)
+(* Postcondition: `X0 = word (bit_len DIV 8)` and `PC = pc + 648`.    *)
+(* ================================================================== *)
+
+(* --- 2-block concrete theorem (bit_len = 256) ---------------------- *)
+
+let TWO_BLOCKS_PRELOOP_TAIL_2BLOCK_CORRECT = prove
+ (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
+    (pt1:(128)word) (pt2:(128)word) (ivec:(128)word)
+    (rk0:(128)word) (rk1:(128)word) (rk2:(128)word) (rk3:(128)word)
+    (rk4:(128)word) (rk5:(128)word) (rk6:(128)word) (rk7:(128)word)
+    (rk8:(128)word) (rk9:(128)word) (rk10:(128)word) (rk11:(128)word)
+    (rk12:(128)word) (rk13:(128)word) (rk14:(128)word)
+    (xi:(128)word) (h:(128)word) (h1k:(128)word) (h2h:(128)word)
+    stackptr pc.
+    aligned 16 stackptr /\
+    nonoverlapping (word pc,652) (in_ptr:int64,32) /\
+    nonoverlapping (word pc,652) (out_ptr:int64,32) /\
+    nonoverlapping (word pc,652) (xi_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (ivec_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (key_ptr:int64,240) /\
+    nonoverlapping (word pc,652) (htable_ptr:int64,256) /\
+    nonoverlapping (word pc,652) (stackptr:int64,80) /\
+    nonoverlapping (in_ptr,32) (out_ptr,32) /\
+    nonoverlapping (in_ptr,32) (xi_ptr,16) /\
+    nonoverlapping (in_ptr,32) (ivec_ptr,16) /\
+    nonoverlapping (out_ptr,32) (xi_ptr,16) /\
+    nonoverlapping (out_ptr,32) (ivec_ptr,16) /\
+    nonoverlapping (xi_ptr,16) (ivec_ptr,16) /\
+    nonoverlapping (key_ptr,240) (out_ptr,32) /\
+    nonoverlapping (key_ptr,240) (xi_ptr,16) /\
+    nonoverlapping (key_ptr,240) (ivec_ptr,16) /\
+    nonoverlapping (htable_ptr,256) (out_ptr,32) /\
+    nonoverlapping (htable_ptr,256) (xi_ptr,16) /\
+    nonoverlapping (htable_ptr,256) (ivec_ptr,16) /\
+    nonoverlapping (stackptr,80) (out_ptr,32) /\
+    nonoverlapping (stackptr,80) (xi_ptr,16) /\
+    nonoverlapping (stackptr,80) (ivec_ptr,16) /\
+    nonoverlapping (stackptr,80) (in_ptr,32) /\
+    nonoverlapping (stackptr,80) (key_ptr,240) /\
+    nonoverlapping (stackptr,80) (htable_ptr,256) /\
+    nonoverlapping (ivec_ptr,16) (word pc,652) /\
+    nonoverlapping (xi_ptr,16) (word pc,652) /\
+    nonoverlapping (out_ptr,32) (word pc,652)
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) two_blocks_prelooptail_mc /\
+           read PC s = word pc /\
+           C_ARGUMENTS [in_ptr; word 256; out_ptr; xi_ptr;
+                        ivec_ptr; key_ptr; htable_ptr] s /\
+           read SP s = word_add stackptr (word 80) /\
+           read (memory :> bytes128 in_ptr) s = pt1 /\
+           read (memory :> bytes128 (word_add in_ptr (word 16))) s = pt2 /\
+           read (memory :> bytes128 ivec_ptr) s = ivec /\
+           read (memory :> bytes128 (word_add key_ptr (word 0))) s = rk0 /\
+           read (memory :> bytes128 (word_add key_ptr (word 16))) s = rk1 /\
+           read (memory :> bytes128 (word_add key_ptr (word 32))) s = rk2 /\
+           read (memory :> bytes128 (word_add key_ptr (word 48))) s = rk3 /\
+           read (memory :> bytes128 (word_add key_ptr (word 64))) s = rk4 /\
+           read (memory :> bytes128 (word_add key_ptr (word 80))) s = rk5 /\
+           read (memory :> bytes128 (word_add key_ptr (word 96))) s = rk6 /\
+           read (memory :> bytes128 (word_add key_ptr (word 112))) s = rk7 /\
+           read (memory :> bytes128 (word_add key_ptr (word 128))) s = rk8 /\
+           read (memory :> bytes128 (word_add key_ptr (word 144))) s = rk9 /\
+           read (memory :> bytes128 (word_add key_ptr (word 160))) s = rk10 /\
+           read (memory :> bytes128 (word_add key_ptr (word 176))) s = rk11 /\
+           read (memory :> bytes128 (word_add key_ptr (word 192))) s = rk12 /\
+           read (memory :> bytes128 (word_add key_ptr (word 208))) s = rk13 /\
+           read (memory :> bytes128 (word_add key_ptr (word 224))) s = rk14 /\
+           read (memory :> bytes128 xi_ptr) s = xi /\
+           read (memory :> bytes128 htable_ptr) s = byteswap128 h /\
+           read (memory :> bytes128 (word_add htable_ptr (word 16))) s = h1k /\
+           read (memory :> bytes128 (word_add htable_ptr (word 32))) s = h2h /\
+           word_subword h1k (0,64):(64)word = karatsuba_mid h /\
+           word_subword h1k (64,64):(64)word =
+             karatsuba_mid (polyval_dot h h) /\
+           h2h = byteswap128 (polyval_dot h h))
+      (\s. read PC s = word(pc + 648) /\
+           read X0 s = word 32)
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [memory :> bytes(out_ptr,32);
+                  memory :> bytes(xi_ptr,16);
+                  memory :> bytes(ivec_ptr,16)] ,,
+       MAYCHANGE [SP] ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes64 stackptr;
+                  memory :> bytes64 (word_add stackptr (word 8));
+                  memory :> bytes64 (word_add stackptr (word 16));
+                  memory :> bytes64 (word_add stackptr (word 24));
+                  memory :> bytes64 (word_add stackptr (word 32));
+                  memory :> bytes64 (word_add stackptr (word 40));
+                  memory :> bytes64 (word_add stackptr (word 48));
+                  memory :> bytes64 (word_add stackptr (word 56));
+                  memory :> bytes64 (word_add stackptr (word 64));
+                  memory :> bytes64 (word_add stackptr (word 72))])`,
+
+  REWRITE_TAC[C_ARGUMENTS; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+              SOME_FLAGS; NONOVERLAPPING_CLAUSES;
+              fst TWO_BLOCKS_PRELOOP_TAIL_EXEC] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+
+  (* Steps 1-19: prologue *)
+  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC (1--19) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    WORD_RULE `word_sub (word_add x (word 80)) (word 80) = (x:int64)`;
+    WORD_RULE `word_add (word_add x (word n)) (word m) = word_add x (word(n+m):int64)`]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(DEPTH_CONV NUM_ADD_CONV))) THEN
+  GCM_ENC_SIMPLIFY_TAC THEN
+
+  (* Steps 20-99: CTR setup + AES rounds on v0, v1 + tail entry *)
+  MAP_EVERY (fun n ->
+    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    GCM_ENC_SIMPLIFY_TAC) (20--99) THEN
+
+  (* Simplify x5 = word 32 before the conditional branch *)
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    WORD_RULE `word_sub (word_add x y) x = (y:int64)`]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV WORD_REDUCE_CONV)) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV NUM_REDUCE_CONV) o
+                 CONV_RULE(TRY_CONV INT_REDUCE_CONV)) THEN
+
+  (* Step 100: b.gt .L256_enc_blocks_more_than_1 (taken since 32 > 16) *)
+  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [100] THEN
+
+  (* Normalise the nonoverlapping representation so ARM_STEPS_TAC can find
+     it during the store at step 101. Without this, `ARM_STEPS_TAC` fails
+     with "could not prove that updates will not modify the program code". *)
+  RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`]) THEN
+
+  (* Steps 101-153: 2-block GHASH via Karatsuba using h^2 (block 0) and
+     h (block 1), followed by Barrett-like reduction. Per-step simplification
+     keeps term sizes bounded throughout the 53-step loop. *)
+  MAP_EVERY (fun n ->
+    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    GCM_ENC_SIMPLIFY_TAC) (101--153) THEN
+
+  (* By step 153 Q19 holds the final GHASH tag as a huge nested pmul
+     expression. Stepping the `st1 {v19.16b}, [x3]` at pc+616 without
+     abbreviating Q19 would carry this expression through each subsequent
+     step, slowing things unmanageably. Abbreviate it using the pattern
+     from aesv8_gcm_1block_enc_256.ml (lines 247--259): the abbreviation
+     is state-free so it survives DISCARD_OLDSTATE_TAC in later steps. *)
+  FIRST_ASSUM(fun th ->
+    if can (term_match [] `read Q19 (s:armstate) = (x:int128)`) (concl th)
+    then let rhs = rand(concl th) in
+         ABBREV_TAC(mk_eq(mk_var("final_xi",type_of rhs), rhs))
+    else NO_TAC) THEN
+
+  (* Steps 154-160: rev64 v19, store to xi_ptr, mov x0 = x9 (= 32),
+     restore saved D8-D15 registers, LDP d8/d9 with SP post-increment
+     (the final LDP sets PC -- no need to step the separate RET).
+     Note: we stop at 160, not 161 (the RET) because the postcondition
+     is `PC = pc + 640` which is reached *after* the final LDP. *)
+  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC (154--160) THEN
+
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[]);;
+
+
+(* --- 1-block concrete theorem (bit_len = 128) ---------------------- *)
+(* The caller passes a single 16-byte plaintext block. The 2-block     *)
+(* machine code's dispatch (cmp x5,#16; b.gt) falls through to the     *)
+(* `.L256_enc_blocks_less_than_1` path, exactly matching the original  *)
+(* aesv8_gcm_1block_enc_256 behaviour.                                 *)
+(* Only Htable[0] and Htable[1].lo = karatsuba_mid h are required.     *)
+
+let TWO_BLOCKS_PRELOOP_TAIL_1BLOCK_CORRECT = prove
+ (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
+    (pt:(128)word) (ivec:(128)word)
+    (rk0:(128)word) (rk1:(128)word) (rk2:(128)word) (rk3:(128)word)
+    (rk4:(128)word) (rk5:(128)word) (rk6:(128)word) (rk7:(128)word)
+    (rk8:(128)word) (rk9:(128)word) (rk10:(128)word) (rk11:(128)word)
+    (rk12:(128)word) (rk13:(128)word) (rk14:(128)word)
+    (xi:(128)word) (h:(128)word) (h1k:(128)word) stackptr pc.
+    aligned 16 stackptr /\
+    nonoverlapping (word pc,652) (in_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (out_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (xi_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (ivec_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (key_ptr:int64,240) /\
+    nonoverlapping (word pc,652) (htable_ptr:int64,256) /\
+    nonoverlapping (word pc,652) (stackptr:int64,80) /\
+    nonoverlapping (in_ptr,16) (out_ptr,16) /\
+    nonoverlapping (in_ptr,16) (xi_ptr,16) /\
+    nonoverlapping (in_ptr,16) (ivec_ptr,16) /\
+    nonoverlapping (out_ptr,16) (xi_ptr,16) /\
+    nonoverlapping (out_ptr,16) (ivec_ptr,16) /\
+    nonoverlapping (xi_ptr,16) (ivec_ptr,16) /\
+    nonoverlapping (key_ptr,240) (out_ptr,16) /\
+    nonoverlapping (key_ptr,240) (xi_ptr,16) /\
+    nonoverlapping (key_ptr,240) (ivec_ptr,16) /\
+    nonoverlapping (htable_ptr,256) (out_ptr,16) /\
+    nonoverlapping (htable_ptr,256) (xi_ptr,16) /\
+    nonoverlapping (htable_ptr,256) (ivec_ptr,16) /\
+    nonoverlapping (stackptr,80) (out_ptr,16) /\
+    nonoverlapping (stackptr,80) (xi_ptr,16) /\
+    nonoverlapping (stackptr,80) (ivec_ptr,16) /\
+    nonoverlapping (stackptr,80) (in_ptr,16) /\
+    nonoverlapping (stackptr,80) (key_ptr,240) /\
+    nonoverlapping (stackptr,80) (htable_ptr,256) /\
+    nonoverlapping (ivec_ptr,16) (word pc,652) /\
+    nonoverlapping (xi_ptr,16) (word pc,652) /\
+    nonoverlapping (out_ptr,16) (word pc,652)
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) two_blocks_prelooptail_mc /\
+           read PC s = word pc /\
+           C_ARGUMENTS [in_ptr; word 128; out_ptr; xi_ptr;
+                        ivec_ptr; key_ptr; htable_ptr] s /\
+           read SP s = word_add stackptr (word 80) /\
+           read (memory :> bytes128 in_ptr) s = pt /\
+           read (memory :> bytes128 ivec_ptr) s = ivec /\
+           read (memory :> bytes128 (word_add key_ptr (word 0))) s = rk0 /\
+           read (memory :> bytes128 (word_add key_ptr (word 16))) s = rk1 /\
+           read (memory :> bytes128 (word_add key_ptr (word 32))) s = rk2 /\
+           read (memory :> bytes128 (word_add key_ptr (word 48))) s = rk3 /\
+           read (memory :> bytes128 (word_add key_ptr (word 64))) s = rk4 /\
+           read (memory :> bytes128 (word_add key_ptr (word 80))) s = rk5 /\
+           read (memory :> bytes128 (word_add key_ptr (word 96))) s = rk6 /\
+           read (memory :> bytes128 (word_add key_ptr (word 112))) s = rk7 /\
+           read (memory :> bytes128 (word_add key_ptr (word 128))) s = rk8 /\
+           read (memory :> bytes128 (word_add key_ptr (word 144))) s = rk9 /\
+           read (memory :> bytes128 (word_add key_ptr (word 160))) s = rk10 /\
+           read (memory :> bytes128 (word_add key_ptr (word 176))) s = rk11 /\
+           read (memory :> bytes128 (word_add key_ptr (word 192))) s = rk12 /\
+           read (memory :> bytes128 (word_add key_ptr (word 208))) s = rk13 /\
+           read (memory :> bytes128 (word_add key_ptr (word 224))) s = rk14 /\
+           read (memory :> bytes128 xi_ptr) s = xi /\
+           read (memory :> bytes128 htable_ptr) s = byteswap128 h /\
+           read (memory :> bytes128 (word_add htable_ptr (word 16))) s = h1k /\
+           word_subword h1k (0,64):(64)word = karatsuba_mid h)
+      (\s. read PC s = word(pc + 648) /\
+           read X0 s = word 16)
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [memory :> bytes(out_ptr,16);
+                  memory :> bytes(xi_ptr,16);
+                  memory :> bytes(ivec_ptr,16)] ,,
+       MAYCHANGE [SP] ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes64 stackptr;
+                  memory :> bytes64 (word_add stackptr (word 8));
+                  memory :> bytes64 (word_add stackptr (word 16));
+                  memory :> bytes64 (word_add stackptr (word 24));
+                  memory :> bytes64 (word_add stackptr (word 32));
+                  memory :> bytes64 (word_add stackptr (word 40));
+                  memory :> bytes64 (word_add stackptr (word 48));
+                  memory :> bytes64 (word_add stackptr (word 56));
+                  memory :> bytes64 (word_add stackptr (word 64));
+                  memory :> bytes64 (word_add stackptr (word 72))])`,
+
+  REWRITE_TAC[C_ARGUMENTS; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+              SOME_FLAGS; NONOVERLAPPING_CLAUSES;
+              fst TWO_BLOCKS_PRELOOP_TAIL_EXEC] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+
+  (* Steps 1-19: prologue (same as 2-block path) *)
+  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC (1--19) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    WORD_RULE `word_sub (word_add x (word 80)) (word 80) = (x:int64)`;
+    WORD_RULE `word_add (word_add x (word n)) (word m) = word_add x (word(n+m):int64)`]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(DEPTH_CONV NUM_ADD_CONV))) THEN
+  GCM_ENC_SIMPLIFY_TAC THEN
+
+  (* Steps 20-99: CTR setup + AES rounds on v0 and v1 (the v1 rounds are
+     computed but unused for 1-block), then tail setup up to cmp.
+     Same simulation path as the 2-block theorem. *)
+  MAP_EVERY (fun n ->
+    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    GCM_ENC_SIMPLIFY_TAC) (20--99) THEN
+
+  (* Simplify x5 = word 16 and reduce the flags. For bit_len = 128,
+     byte_len = 16 and x5 = 16, so `cmp x5, #16` gives Z=1, CF=1, N=V=0. *)
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    WORD_RULE `word_sub (word_add x y) x = (y:int64)`]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV WORD_REDUCE_CONV)) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV NUM_REDUCE_CONV) o
+                 CONV_RULE(TRY_CONV INT_REDUCE_CONV)) THEN
+
+  (* Step 100: b.gt .L256_enc_blocks_more_than_1 (NOT taken: 16 is not > 16)
+     Falls through to step 101 (sub) and step 102 (b .L256_enc_blocks_less_than_1). *)
+  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [100] THEN
+
+  (* Normalise the nonoverlapping representation for the stores in less_than_1. *)
+  RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`]) THEN
+
+  (* Steps 101-102: sub v30 + unconditional b to less_than_1 (pc+472).    *)
+  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [101;102] THEN
+
+  (* Steps 103-140: the less_than_1 body (masking, partial-tag setup,
+     final GHASH pmull, Barrett reduction). Per-step simplification
+     keeps term sizes bounded. *)
+  MAP_EVERY (fun n ->
+    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    GCM_ENC_SIMPLIFY_TAC) (103--140) THEN
+
+  (* Abbreviate Q19 (final GHASH tag) before the store + epilogue. *)
+  FIRST_ASSUM(fun th ->
+    if can (term_match [] `read Q19 (s:armstate) = (x:int128)`) (concl th)
+    then let rhs = rand(concl th) in
+         ABBREV_TAC(mk_eq(mk_var("final_xi",type_of rhs), rhs))
+    else NO_TAC) THEN
+
+  (* Steps 141-146: rev64 v19, st1 v19 to xi_ptr, mov x0 = x9 (= 16),
+     restore D8-D15. Stop at 146 so PC = pc+648. *)
+  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC (141--146) THEN
+
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[]);;
+
+
+(* ================================================================== *)
+(*           COMBINED PARAMETERISED THEOREM (bit_len IN {128, 256})   *)
+(*                                                                    *)
+(* The function handles either 1 or 2 full 16-byte blocks based on   *)
+(* the `bit_len` argument (x1). The postcondition's return value is   *)
+(* X0 = word (bit_len DIV 8), matching the byte-length convention of  *)
+(* the original aesv8_gcm_1block_enc_256 and the new 2-block kernel.  *)
+(* ================================================================== *)
+
+let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
+ (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
+    (pt1:(128)word) (pt2:(128)word) (ivec:(128)word)
+    (rk0:(128)word) (rk1:(128)word) (rk2:(128)word) (rk3:(128)word)
+    (rk4:(128)word) (rk5:(128)word) (rk6:(128)word) (rk7:(128)word)
+    (rk8:(128)word) (rk9:(128)word) (rk10:(128)word) (rk11:(128)word)
+    (rk12:(128)word) (rk13:(128)word) (rk14:(128)word)
+    (xi:(128)word) (h:(128)word) (h1k:(128)word) (h2h:(128)word)
+    bit_len stackptr pc.
+    (bit_len = 128 \/ bit_len = 256) /\
+    aligned 16 stackptr /\
+    nonoverlapping (word pc,652) (in_ptr:int64,32) /\
+    nonoverlapping (word pc,652) (out_ptr:int64,32) /\
+    nonoverlapping (word pc,652) (xi_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (ivec_ptr:int64,16) /\
+    nonoverlapping (word pc,652) (key_ptr:int64,240) /\
+    nonoverlapping (word pc,652) (htable_ptr:int64,256) /\
+    nonoverlapping (word pc,652) (stackptr:int64,80) /\
+    nonoverlapping (in_ptr,32) (out_ptr,32) /\
+    nonoverlapping (in_ptr,32) (xi_ptr,16) /\
+    nonoverlapping (in_ptr,32) (ivec_ptr,16) /\
+    nonoverlapping (out_ptr,32) (xi_ptr,16) /\
+    nonoverlapping (out_ptr,32) (ivec_ptr,16) /\
+    nonoverlapping (xi_ptr,16) (ivec_ptr,16) /\
+    nonoverlapping (key_ptr,240) (out_ptr,32) /\
+    nonoverlapping (key_ptr,240) (xi_ptr,16) /\
+    nonoverlapping (key_ptr,240) (ivec_ptr,16) /\
+    nonoverlapping (htable_ptr,256) (out_ptr,32) /\
+    nonoverlapping (htable_ptr,256) (xi_ptr,16) /\
+    nonoverlapping (htable_ptr,256) (ivec_ptr,16) /\
+    nonoverlapping (stackptr,80) (out_ptr,32) /\
+    nonoverlapping (stackptr,80) (xi_ptr,16) /\
+    nonoverlapping (stackptr,80) (ivec_ptr,16) /\
+    nonoverlapping (stackptr,80) (in_ptr,32) /\
+    nonoverlapping (stackptr,80) (key_ptr,240) /\
+    nonoverlapping (stackptr,80) (htable_ptr,256) /\
+    nonoverlapping (ivec_ptr,16) (word pc,652) /\
+    nonoverlapping (xi_ptr,16) (word pc,652) /\
+    nonoverlapping (out_ptr,32) (word pc,652)
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) two_blocks_prelooptail_mc /\
+           read PC s = word pc /\
+           C_ARGUMENTS [in_ptr; word bit_len; out_ptr; xi_ptr;
+                        ivec_ptr; key_ptr; htable_ptr] s /\
+           read SP s = word_add stackptr (word 80) /\
+           read (memory :> bytes128 in_ptr) s = pt1 /\
+           read (memory :> bytes128 (word_add in_ptr (word 16))) s = pt2 /\
+           read (memory :> bytes128 ivec_ptr) s = ivec /\
+           read (memory :> bytes128 (word_add key_ptr (word 0))) s = rk0 /\
+           read (memory :> bytes128 (word_add key_ptr (word 16))) s = rk1 /\
+           read (memory :> bytes128 (word_add key_ptr (word 32))) s = rk2 /\
+           read (memory :> bytes128 (word_add key_ptr (word 48))) s = rk3 /\
+           read (memory :> bytes128 (word_add key_ptr (word 64))) s = rk4 /\
+           read (memory :> bytes128 (word_add key_ptr (word 80))) s = rk5 /\
+           read (memory :> bytes128 (word_add key_ptr (word 96))) s = rk6 /\
+           read (memory :> bytes128 (word_add key_ptr (word 112))) s = rk7 /\
+           read (memory :> bytes128 (word_add key_ptr (word 128))) s = rk8 /\
+           read (memory :> bytes128 (word_add key_ptr (word 144))) s = rk9 /\
+           read (memory :> bytes128 (word_add key_ptr (word 160))) s = rk10 /\
+           read (memory :> bytes128 (word_add key_ptr (word 176))) s = rk11 /\
+           read (memory :> bytes128 (word_add key_ptr (word 192))) s = rk12 /\
+           read (memory :> bytes128 (word_add key_ptr (word 208))) s = rk13 /\
+           read (memory :> bytes128 (word_add key_ptr (word 224))) s = rk14 /\
+           read (memory :> bytes128 xi_ptr) s = xi /\
+           read (memory :> bytes128 htable_ptr) s = byteswap128 h /\
+           read (memory :> bytes128 (word_add htable_ptr (word 16))) s = h1k /\
+           read (memory :> bytes128 (word_add htable_ptr (word 32))) s = h2h /\
+           word_subword h1k (0,64):(64)word = karatsuba_mid h /\
+           (bit_len = 256 ==>
+              word_subword h1k (64,64):(64)word =
+                karatsuba_mid (polyval_dot h h) /\
+              h2h = byteswap128 (polyval_dot h h)))
+      (\s. read PC s = word(pc + 648) /\
+           read X0 s = word (bit_len DIV 8))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [memory :> bytes(out_ptr,32);
+                  memory :> bytes(xi_ptr,16);
+                  memory :> bytes(ivec_ptr,16)] ,,
+       MAYCHANGE [SP] ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes64 stackptr;
+                  memory :> bytes64 (word_add stackptr (word 8));
+                  memory :> bytes64 (word_add stackptr (word 16));
+                  memory :> bytes64 (word_add stackptr (word 24));
+                  memory :> bytes64 (word_add stackptr (word 32));
+                  memory :> bytes64 (word_add stackptr (word 40));
+                  memory :> bytes64 (word_add stackptr (word 48));
+                  memory :> bytes64 (word_add stackptr (word 56));
+                  memory :> bytes64 (word_add stackptr (word 64));
+                  memory :> bytes64 (word_add stackptr (word 72))])`,
+  REPEAT STRIP_TAC THEN
+  FIRST_X_ASSUM DISJ_CASES_TAC THEN ASM_REWRITE_TAC[] THENL [
+    (* bit_len = 128 case *)
+    CONV_TAC NUM_REDUCE_CONV THEN
+    MATCH_MP_TAC(REWRITE_RULE[IMP_CONJ] TWO_BLOCKS_PRELOOP_TAIL_1BLOCK_CORRECT) THEN
+    ASM_REWRITE_TAC[] THEN
+    (* Upgrade nonoverlapping 32 -> 16 for the shared preconditions *)
+    REPEAT CONJ_TAC THEN NONOVERLAPPING_TAC;
+    (* bit_len = 256 case: matches the 2-block theorem directly *)
+    CONV_TAC NUM_REDUCE_CONV THEN
+    MATCH_MP_TAC(REWRITE_RULE[IMP_CONJ] TWO_BLOCKS_PRELOOP_TAIL_2BLOCK_CORRECT) THEN
+    ASM_REWRITE_TAC[]
+  ]);;
