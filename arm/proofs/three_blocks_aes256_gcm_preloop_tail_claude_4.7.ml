@@ -7,6 +7,10 @@
 (*     (three Karatsuba triples, summed, then one Barrett reduction)         *)
 (*  2. GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC: algebraic bridge               *)
 (*  3. THREE_BLOCKS_PRELOOP_TAIL_CORRECT: ARM simulation proof               *)
+(*                                                                           *)
+(* STATUS: bridge lemma PROVEN; main theorem statement formalized with      *)
+(* partial proof validated live via MCP through s156 (past 2nd shuffle);    *)
+(* remainder tracked in memory/project_three_blocks_sim_checkpoint.md.      *)
 (* ========================================================================= *)
 
 Sys.chdir "/home/ubuntu/auto_proofs/s2n-bignum";;
@@ -20,11 +24,6 @@ needs "common/ghash_spec.ml";;
 needs "arm/proofs/one_block_aes256_gcm_preloop_tail_claude_4.7.ml";;
 needs "arm/proofs/two_blocks_aes256_gcm_preloop_tail_claude_4.7.ml";;
 
-(* Reuse from 2-block file: gcm_ctr_inc, LANE0..3_BYTES_JOIN,
-   LANE3_BYTES_JOIN_BE, CTR_WORD_INSERT, BYTEREVERSE_JOIN_FOLD,
-   SHL_SUBWORD_CASES_128, ABBREV_SUBWORD_HALVES_TAC, HALFSWAP_INVOLUTION,
-   WORD_JOIN_SUBWORD_HALVES, ghash_2block_karatsuba. *)
-
 (* ---- Assembly-shaped spec for 3-block: three Karatsuba triples, summed,
    then one Barrett reduction. Mirrors ghash_2block_karatsuba. ------------ *)
 
@@ -33,7 +32,6 @@ let ghash_3block_karatsuba = new_definition
                          (h_tw:int128)  (hk:int128)
                          (h2_tw:int128) (h2k:int128)
                          (h3_tw:int128) (h3k:int128) : int128 =
-  (* Triple 1: b1 * h^3 *)
   let b1_lo:64 word = word_subword b1 (0,64) in
   let b1_hi:64 word = word_subword b1 (64,64) in
   let h3_lo:64 word = word_subword h3_tw (0,64) in
@@ -42,7 +40,6 @@ let ghash_3block_karatsuba = new_definition
   let pl1:int128 = word_pmul b1_lo h3_hi in
   let ph1:int128 = word_pmul b1_hi h3_lo in
   let pm1:int128 = word_pmul (word_xor b1_lo b1_hi) h3k_lo in
-  (* Triple 2: b2 * h^2 *)
   let b2_lo:64 word = word_subword b2 (0,64) in
   let b2_hi:64 word = word_subword b2 (64,64) in
   let h2_lo:64 word = word_subword h2_tw (0,64) in
@@ -51,7 +48,6 @@ let ghash_3block_karatsuba = new_definition
   let pl2:int128 = word_pmul b2_lo h2_hi in
   let ph2:int128 = word_pmul b2_hi h2_lo in
   let pm2:int128 = word_pmul (word_xor b2_lo b2_hi) h2k_lo in
-  (* Triple 3: b3 * h *)
   let b3_lo:64 word = word_subword b3 (0,64) in
   let b3_hi:64 word = word_subword b3 (64,64) in
   let h_lo:64 word = word_subword h_tw (0,64) in
@@ -60,12 +56,10 @@ let ghash_3block_karatsuba = new_definition
   let pl3:int128 = word_pmul b3_lo h_hi in
   let ph3:int128 = word_pmul b3_hi h_lo in
   let pm3:int128 = word_pmul (word_xor b3_lo b3_hi) hk_lo in
-  (* XOR-accumulate the three triples *)
   let pl:int128 = word_xor pl1 (word_xor pl2 pl3) in
   let ph:int128 = word_xor ph1 (word_xor ph2 ph3) in
   let pm:int128 = word_xor pm1 (word_xor pm2 pm3) in
   let mid:int128 = word_xor (word_xor pm ph) pl in
-  (* Single Barrett reduction (identical structure to 1-block and 2-block) *)
   let a:64 word = word_subword pl (0,64) in
   let b:64 word = word_xor (word_subword pl (64,64)) (word_subword mid (0,64)) in
   let c:64 word = word_xor (word_subword ph (0,64)) (word_subword mid (64,64)) in
@@ -120,32 +114,39 @@ let GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC = prove
   REWRITE_TAC[WORD_XOR_ASSOC; WORD_SUBWORD_XOR_COMM] THEN
   ABBREV_ALL_PMUL_TAC THEN
   ABBREV_SUBWORD_HALVES_TAC THEN
-  (* q1_fix = inner pmul (kmid(xor of 3 block-lo-halves)) w, 3 atoms. *)
   ABBREV_TAC
     `q1_fix = word_pmul (word_xor (h0:(64)word) (word_xor h4 h8))
                         (word 13979173243358019584:(64)word) :(128)word` THEN
-  (* q2 / q2b: outer pmul with 13-atom XOR, same atoms on both sides up to
-     commutativity. Abbreviate each side then prove equal via WORD_BITWISE_RULE. *)
   ABBREV_TAC
-    `q2 = word_pmul
-       (word_xor (h1:(64)word) (word_xor h5 (word_xor h9 (word_xor h12
-        (word_xor h14 (word_xor h16 (word_xor h2 (word_xor h6 (word_xor h10
-        (word_xor h0 (word_xor h4 (word_xor h8
-         (word_subword (q1_fix:(128)word) (0,64):(64)word))))))))))))
-       (word 13979173243358019584:(64)word) :(128)word` THEN
+    `q2 = word_pmul (word_xor (h1:(64)word) (word_xor h5 (word_xor h9 (word_xor h12
+      (word_xor h14 (word_xor h16 (word_xor h2 (word_xor h6 (word_xor h10
+      (word_xor h0 (word_xor h4 (word_xor h8
+       (word_subword (q1_fix:(128)word) (0,64):(64)word)))))))))))))
+     (word 13979173243358019584:(64)word) :(128)word` THEN
   ABBREV_TAC
-    `q2b = word_pmul
-       (word_xor (h1:(64)word) (word_xor h12 (word_xor h0 (word_xor h2
-        (word_xor h5 (word_xor h14 (word_xor h4 (word_xor h6 (word_xor h9
-        (word_xor h16 (word_xor h8 (word_xor h10
-         (word_subword (q1_fix:(128)word) (0,64):(64)word))))))))))))
-       (word 13979173243358019584:(64)word) :(128)word` THEN
+    `q2b = word_pmul (word_xor (h1:(64)word) (word_xor h12 (word_xor h0 (word_xor h2
+      (word_xor h5 (word_xor h14 (word_xor h4 (word_xor h6 (word_xor h9
+      (word_xor h16 (word_xor h8 (word_xor h10
+       (word_subword (q1_fix:(128)word) (0,64):(64)word)))))))))))))
+     (word 13979173243358019584:(64)word) :(128)word` THEN
   SUBGOAL_THEN `q2:(128)word = q2b` ASSUME_TAC THENL
    [MAP_EVERY EXPAND_TAC ["q2"; "q2b"] THEN
     AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;
     ALL_TAC] THEN
   POP_ASSUM(fun th -> REWRITE_TAC[th]) THEN
   AP_TERM_TAC THEN BINOP_TAC THEN CONV_TAC WORD_BITWISE_RULE);;
+
+(* ---- Helper: gcm_ctr_inc applied twice (for block 3's counter path) ---- *)
+
+let GCM_CTR_INC2_LANE_BRIDGE = prove
+ (`!(ivec:(128)word).
+    word_insert (gcm_ctr_inc ivec) (96,32)
+      (word_bytereverse
+        (word_add (word_bytereverse
+                     (word_subword (gcm_ctr_inc ivec) (96,32):(32)word))
+                  (word 1:(32)word))) =
+    gcm_ctr_inc (gcm_ctr_inc ivec)`,
+  REWRITE_TAC[gcm_ctr_inc]);;
 
 (* ---- Machine code (3-block assembly, extracted from .o) ----------------- *)
 
@@ -204,33 +205,6 @@ let THREE_BLOCKS_PRELOOP_TAIL_EXEC =
 (* ================================================================== *)
 (*                         THE MAIN THEOREM                            *)
 (* ================================================================== *)
-
-(* STATUS (2026-05-05):
-   - ghash_3block_karatsuba definition: PROVEN
-   - GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC bridge lemma: PROVEN
-   - three_blocks_prelooptail_mc: EXTRACTED (256 instructions, 1024 bytes)
-   - THREE_BLOCKS_PRELOOP_TAIL_CORRECT: STATED BELOW, proof scaffold provided
-
-   The proof mirrors TWO_BLOCKS_PRELOOP_TAIL_CORRECT with these adjustments:
-     * bit_len = word 384 (3 blocks = 48 bytes)
-     * pt3 added, stored at out_ptr+32
-     * Htable extends to offset 64 (h3k) and offset 48 (byteswap128 h^3)
-     * 4-way CONJ postcondition: ct1, ct2, ct3, GHASH over [ct1; ct2; ct3]
-     * Uses GHASH_POLYVAL_ACC_3 + GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC
-     * Simulation: ~256 ARM steps (vs 163 for 2-block)
-     * Extra lane-bridge needed for gcm_ctr_inc² counter (block 3's CTR).   *)
-
-(* Helper: 2-step gcm_ctr_inc for block 3. *)
-
-let GCM_CTR_INC2_LANE_BRIDGE = prove
- (`!(ivec:(128)word).
-    word_insert (gcm_ctr_inc ivec) (96,32)
-      (word_bytereverse
-        (word_add (word_bytereverse
-                     (word_subword (gcm_ctr_inc ivec) (96,32):(32)word))
-                  (word 1:(32)word))) =
-    gcm_ctr_inc (gcm_ctr_inc ivec)`,
-  REWRITE_TAC[gcm_ctr_inc]);;
 
 let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
  (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
@@ -349,49 +323,63 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
                   memory :> bytes64 (word_add stackptr (word 56));
                   memory :> bytes64 (word_add stackptr (word 64));
                   memory :> bytes64 (word_add stackptr (word 72))])`,
+  (* Partial tactic chain — validated live through s156 (past 2 cascade shuffles).
+     Remaining: continue cascade through shuffle 5, b.gt to .more_than_2,
+     ct2/ct3 eor3, Karatsuba+Barrett, final_xi abbrev, store, epilogue,
+     4-way CONJ closure. See memory/project_three_blocks_sim_checkpoint.md *)
+  REWRITE_TAC[C_ARGUMENTS; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+              SOME_FLAGS; NONOVERLAPPING_CLAUSES;
+              fst THREE_BLOCKS_PRELOOP_TAIL_EXEC] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC (1--19) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    WORD_RULE `word_sub (word_add x (word 80)) (word 80) = (x:int64)`;
+    WORD_RULE `word_add (word_add x (word n)) (word m) = word_add x (word(n+m):int64)`]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(DEPTH_CONV NUM_ADD_CONV))) THEN
+  GCM_ENC_SIMPLIFY_TAC THEN
+  MAP_EVERY (fun n ->
+    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    GCM_ENC_SIMPLIFY_TAC) (20--139) THEN
+  FIRST_ASSUM(fun th ->
+    if can (term_match [] `read Q0 (s:armstate) = (x:int128)`) (concl th)
+    then let rhs = rand(concl th) in
+         ABBREV_TAC(mk_eq(mk_var("s13_1",type_of rhs), rhs))
+    else NO_TAC) THEN
+  FIRST_ASSUM(fun th ->
+    if can (term_match [] `read Q1 (s:armstate) = (x:int128)`) (concl th)
+    then let rhs = rand(concl th) in
+         ABBREV_TAC(mk_eq(mk_var("s13_2",type_of rhs), rhs))
+    else NO_TAC) THEN
+  FIRST_ASSUM(fun th ->
+    if can (term_match [] `read Q2 (s:armstate) = (x:int128)`) (concl th)
+    then let rhs = rand(concl th) in
+         ABBREV_TAC(mk_eq(mk_var("s13_3",type_of rhs), rhs))
+    else NO_TAC) THEN
+  ABBREV_TAC `ct1 = word_xor (word_xor pt1 s13_1) rk14:(128)word` THEN
+  RULE_ASSUM_TAC(fun th ->
+    try CONV_RULE(RAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) th
+    with _ -> th) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_SWAP_HALVES_INVOLUTION;
+    REVERSEFIELDS8_SUBWORD_LO; REVERSEFIELDS8_SUBWORD_HI;
+    GSYM WORD_SUBWORD_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
+    WORD_XOR_0; WORD_XOR_ASSOC]) THEN
+  RULE_ASSUM_TAC(fun th ->
+    try CONV_RULE(RAND_CONV(TOP_DEPTH_CONV PMUL_NORM_CONV)) th
+    with _ -> th) THEN
+  ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC (140--148) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    WORD_RULE `word_sub (word_add x y) x = (y:int64)`]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV WORD_REDUCE_CONV)) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV NUM_REDUCE_CONV) o
+                 CONV_RULE(TRY_CONV INT_REDUCE_CONV)) THEN
+  MAP_EVERY (fun n ->
+    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    GCM_ENC_SIMPLIFY_TAC) (149--156) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`]) THEN
+  ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC (157--164) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`]) THEN
+  (* At s164: PC = pc+656, past 3 cascade shuffles. Remaining: shuffles 4,5,
+     b.gt to more_than_2 (taken), ct2/ct3 eor3, Karatsuba+Barrett, final_xi
+     abbrev, store, epilogue, 4-way CONJ closure. *)
   CHEAT_TAC);;
-
-(* ======== PROOF SCAFFOLD (interactive development) =======================
-   The proof mirrors TWO_BLOCKS_PRELOOP_TAIL_CORRECT (ditto 900 lines)
-   with these specific adjustments:
-
-   Phase A - Preamble (~line 522-527 in 2-block):
-     REWRITE_TAC[...MAYCHANGE_REGS_AND_FLAGS...; SOME_FLAGS; NONOVERLAPPING;
-                  fst THREE_BLOCKS_PRELOOP_TAIL_EXEC] THEN
-     REPEAT STRIP_TAC THEN ENSURES_INIT_TAC "s0"
-
-   Phase B - Simulation (~256 steps):
-     - Steps 1-19: prologue (same as 2-block)
-     - Steps 20-~138: CTR setup for all 8 blocks (v0..v7) + 13 AES rounds
-       for blocks 0, 1, 2 in parallel
-     - Then 3 ABBREV_TAC for s13_1, s13_2, s13_3 (v0, v1, v2 post-AES-chain)
-     - eor3 for block 0 (ct1)
-     - Cascade: #112 fallthrough, shuffle 1 (sub v30), #96 fallthrough,
-       shuffle 2 (sub v30), #80 fallthrough, shuffle 3 (sub v30), #64
-       fallthrough, shuffle 4 (sub v30), #48 fallthrough, shuffle 5
-       (#32 cmp + final sub v30), b.gt TAKEN to .more_than_2.
-     - .more_than_2: ct2 stored, ct3 via eor3 (v6)
-     - Falls through to .more_than_1: ct2 written, ct3 via eor3 (v7)
-     - ABBREV ct2, ct3 right after each eor3
-     - 43 Karatsuba + Barrett + store steps
-     - ABBREV final_xi BEFORE step 154 (same pattern as 2-block)
-     - Steps 154-160: rev64 v19, st1, epilogue
-
-   Phase C - 4-way CONJ:
-     - ct1 subgoal: same as 2-block
-     - ct2 subgoal: same as 2-block (gcm_ctr_inc ivec path)
-     - ct3 subgoal: NEW — needs gcm_ctr_inc (gcm_ctr_inc ivec) peel via
-       GCM_CTR_INC2_LANE_BRIDGE
-     - GHASH subgoal: apply GHASH_POLYVAL_ACC_3 (new) + bridge
-
-   Phase D - GHASH closure (bigger than 2-block):
-     - 3 xor/aes folds (ct1, ct2, ct3)
-     - Apply bridge with 3 witnesses for hk, h2k (from h1k.hi), h3k
-     - Unfold bridge target, then same halfswap + BINOP pattern
-     - G-half and F-half each need ~27 h-var equalities (vs 18 for 2-block)
-     - q2_big/q2_big_rhs has ~15 atoms (vs 9 for 2-block).
-       WORD_BITWISE_RULE runtime: ~5s (3-block bridge test confirmed this)
-
-   This main theorem requires ~2-4 hours of interactive validation following
-   the 2-block blueprint. The strategy is validated and the bridge lemma
-   proven. Remaining work is systematic application. *)
