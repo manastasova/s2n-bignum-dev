@@ -250,8 +250,14 @@ BIGNUM_OBJ = curve25519/bignum_add_p25519.o \
              generic/word_negmodinv.o \
              generic/word_popcount.o \
              generic/word_recip.o \
+             mldsa/mldsa_intt.o \
              mldsa/mldsa_ntt.o \
-             mldsa/mldsa_poly_reduce.o \
+             mldsa/mldsa_nttunpack.o \
+             mldsa/mldsa_pointwise.o \
+             mldsa/mldsa_pointwise_acc_l4.o \
+             mldsa/mldsa_pointwise_acc_l5.o \
+             mldsa/mldsa_pointwise_acc_l7.o \
+             mldsa/mldsa_reduce.o \
              mlkem/mlkem_basemul_k2.o \
              mlkem/mlkem_basemul_k3.o \
              mlkem/mlkem_basemul_k4.o \
@@ -380,6 +386,8 @@ BIGNUM_OBJ = curve25519/bignum_add_p25519.o \
              secp256k1/bignum_triple_p256k1.o \
              secp256k1/bignum_triple_p256k1_alt.o \
              sha3/sha3_keccak_f1600.o \
+             sha3/sha3_keccak4_f1600.o \
+             sha3/sha3_keccak4_f1600_alt.o \
              sm2/bignum_add_sm2.o \
              sm2/bignum_cmul_sm2.o \
              sm2/bignum_cmul_sm2_alt.o \
@@ -413,7 +421,8 @@ TUTORIAL_PROOFS = $(wildcard tutorial/*.ml)
 
 TUTORIAL_OBJ = $(filter-out tutorial/safety.o, $(TUTORIAL_PROOFS:.ml=.o)) \
     curve25519/bignum_mod_n25519.o p256/bignum_mux_4.o p256/bignum_mux_4.obj \
-    tutorial/rel_simp2.o tutorial/rel_equivtac2.o tutorial/rel_reordertac2.o
+    tutorial/rel_simp2.o tutorial/rel_equivtac2.o tutorial/rel_reordertac2.o \
+    tutorial/rodata_local.o
 
 .PHONY: bmi clean clobber
 
@@ -533,6 +542,7 @@ tutorial/safety.native: tutorial/safety.ml proofs/bignum_mux_4.ml \
 .SECONDEXPANSION:
 tutorial/%.native: tutorial/%.ml tutorial/%.o ; ../tools/build-proof.sh "$<" "$(HOLLIGHT)" "$@"
 # Additional dependencies on .o files
+tutorial/rodata.native: tutorial/rodata_local.o
 tutorial/rel_simp.native: tutorial/rel_simp2.o
 tutorial/rel_equivtac.native: tutorial/rel_equivtac2.o tutorial/rel_equivtac_sse.o
 tutorial/rel_reordertac.native: tutorial/rel_reordertac2.o

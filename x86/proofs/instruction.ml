@@ -318,17 +318,21 @@ let instruction_INDUCTION,instruction_RECURSION = define_type
    | TEST operand operand
    | TZCNT operand operand
    | VMOVD operand operand
+   | VMOVMSKPS operand operand
    | VMOVQ operand operand
    | VMOVDQA operand operand
    | VMOVDQU operand operand
+   | VMOVHPD operand operand
    | VMOVSHDUP operand operand
    | VMOVSLDUP operand operand
    | VPADDW operand operand operand
    | VPADDD operand operand operand
+   | VPADDQ operand operand operand
    | VPAND operand operand operand
    | VPANDN operand operand operand
    | VPBLENDD operand operand operand operand
    | VPBLENDW operand operand operand operand
+   | VPCLMULQDQ operand operand operand operand
    | VPBROADCASTD operand operand
    | VPBROADCASTQ operand operand
    | VPERMD operand operand operand
@@ -336,29 +340,45 @@ let instruction_INDUCTION,instruction_RECURSION = define_type
    | VPERM2I128 operand operand operand operand
    | VPEXTRD operand operand operand
    | VPEXTRQ operand operand operand
+   | VPEXTRW operand operand operand
    | VPINSRD operand operand operand operand
    | VPINSRQ operand operand operand operand
+   | VPINSRW operand operand operand operand
    | VEXTRACTI128 operand operand operand
    | VINSERTI128 operand operand operand operand
+   | VPACKUSWB operand operand operand
+   | VPCMPGTD operand operand operand
+   | VPCMPGTW operand operand operand
+   | VPBLENDVB operand operand operand operand
+   | VPMADDUBSW operand operand operand
+   | VPMADDWD operand operand operand
+   | VPMOVZXBD operand operand
    | VPMULDQ operand operand operand
+   | VPMULHRSW operand operand operand
    | VPMULHW operand operand operand
    | VPMULLD operand operand operand
    | VPMULLW operand operand operand
    | VPOR operand operand operand
    | VPSHUFB operand operand operand
    | VPSLLD operand operand operand
+   | VPSLLVD operand operand operand
    | VPSLLQ operand operand operand
    | VPSLLW operand operand operand
    | VPSRAD operand operand operand
    | VPSRAW operand operand operand
    | VPSRLD operand operand operand
+   | VPSRLDQ operand operand operand
+   | VPSRLVD operand operand operand
+   | VPSRLVQ operand operand operand
    | VPSRLQ operand operand operand
    | VPSRLW operand operand operand
    | VPSUBD operand operand operand
+   | VPSUBQ operand operand operand
    | VPSUBW operand operand operand
    | VPUNPCKHQDQ operand operand operand
    | VPUNPCKLQDQ operand operand operand
    | VPXOR operand operand operand
+   | VZEROUPPER
    | XCHG operand operand
    | XOR operand operand";;
 

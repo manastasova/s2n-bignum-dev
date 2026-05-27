@@ -111,6 +111,9 @@ let iclasses =
   (*** ADD ***)
   "0x001110xx1xxxxx100001xxxxxxxxxx";
 
+  (*** ABS ***)
+  "0x001110xx100000101110xxxxxxxxxx";
+
   (*** AND ***)
   "0x001110001xxxxx000111xxxxxxxxxx";
 
@@ -123,8 +126,17 @@ let iclasses =
   (*** BIT ***)
   "0x101110101xxxxx000111xxxxxxxxxx";
 
+  (*** CMGT, vector, register, signed ***)
+  "0x001110xx1xxxxx001101xxxxxxxxxx";
+
   (*** CMHI, vector ***)
   "0x101110xx1xxxxx001101xxxxxxxxxx";
+
+  (*** CMGE, vector ***)
+  "0x001110xx1xxxxx001111xxxxxxxxxx";
+
+  (*** CMLE, vector, zero ***)
+  "0x101110xx100000100110xxxxxxxxxx";
 
   (*** CNT, bias to defined size = 0 ***)
   "0x00111000100000010110xxxxxxxxxx";
@@ -173,8 +185,31 @@ let iclasses =
   (*** MLS (vector) ***)
   "0x101110xx1xxxxx100101xxxxxxxxxx";
 
+  (*** MLA (by element; focus on defined sizes) ***)
+  "0x10111101xxxxxx0000x0xxxxxxxxxx";
+  "0x10111110xxxxxx0000x0xxxxxxxxxx";
+  "0x101111xxxxxxxx0000x0xxxxxxxxxx";
+
+  (*** MLA (vector) ***)
+  "0x001110xx1xxxxx100101xxxxxxxxxx";
+
   (*** MOVI ***)
-  "0110111100000xxx111001xxxxxxxxxx"; (* q=1, cmode=1110 *)
+  "0110111100000xxx111001xxxxxxxxxx"; (* q=1, cmode=1110, 64-bit *)
+  "0x00111100000xxx000001xxxxxxxxxx"; (* 32-bit MOVI, immh=0 *)
+  "0100111100000xxx010001xxxxxxxxxx"; (* q=1, op=0, cmode=0100, LSL #16 *)
+  "0100111100000xxx110101xxxxxxxxxx"; (* q=1, op=0, cmode=1101, MSL #16 *)
+
+  (*** MOVI (op=0, cmode=1110, byte) ***)
+  "0x00111100000xxx111001xxxxxxxxxx";
+
+  (*** MOVI (op=0, cmode=1000, 16-bit, q=1 only) -- shares opcode with SHRN ***)
+  "0100111100000xxx100001xxxxxxxxxx";
+
+  (*** MOVI (op=0, cmode=1010, 16-bit shifted, q=1 only) -- shares opcode with SSHLL ***)
+  "0100111100000xxx101001xxxxxxxxxx";
+
+  (*** ORR (vector, immediate, 32-bit) ***)
+  "0x00111100000xxx000101xxxxxxxxxx"; (* 32-bit ORR imm, immh=0 *)
 
   (*** MUL (by element; focus on defined sizes) ***)
   "0x00111101xxxxxx1000x0xxxxxxxxxx";
@@ -183,6 +218,21 @@ let iclasses =
 
   (*** MUL (vector) ***)
   "0x001110xx1xxxxx100111xxxxxxxxxx";
+
+  (*** PMUL (vector, size = 00) ***)
+  "0x101110001xxxxx100111xxxxxxxxxx";
+
+  (*** PMULL (size = 00, i.e. 8-bit) ***)
+  "00001110001xxxxx111000xxxxxxxxxx";
+
+  (*** PMULL2 (size = 00, i.e. 8-bit) ***)
+  "01001110001xxxxx111000xxxxxxxxxx";
+
+  (*** PMULL (size = 11, i.e. 64-bit) ***)
+  "00001110111xxxxx111000xxxxxxxxxx";
+
+  (*** PMULL2 (size = 11, i.e. 64-bit) ***)
+  "01001110111xxxxx111000xxxxxxxxxx";
 
   (*** NOP ***)
   "11010101000000110010000000011111";
@@ -293,6 +343,9 @@ let iclasses =
   (*** TBL ***)
   "0x001110000xxxxx000000xxxxxxxxxx";
 
+  (*** TBL2 ***)
+  "0x001110000xxxxx001000xxxxxxxxxx";
+
   (*** TRN1 and TRN2 ***)
   "0x001110xx0xxxxx0x1010xxxxxxxxxx";
 
@@ -301,6 +354,12 @@ let iclasses =
 
   (*** UADDLV ***)
   "0x101110xx110000001110xxxxxxxxxx";
+
+  (*** UMAXV ***)
+  "0x101110xx110000101010xxxxxxxxxx";
+
+  (*** UMIN, vector ***)
+  "0x101110xx1xxxxx011011xxxxxxxxxx";
 
   (*** UMOV (.d, .s) ***)
   "01001110000x1000001111xxxxxxxxxx";
@@ -326,6 +385,20 @@ let iclasses =
 
   (*** UMULL2 ***)
   "01101110xx1xxxxx110000xxxxxxxxxx";
+
+  (*** USHL ***)
+  "0x101110xx1xxxxx010001xxxxxxxxxx";
+
+  (*** USHLL / USHLL2 (make sure immh is nonzero) ***)
+  "0x10111101xxxxxx101001xxxxxxxxxx";
+  "0x101111001xxxxx101001xxxxxxxxxx";
+  "0x1011110001xxxx101001xxxxxxxxxx";
+  "0x10111100001xxx101001xxxxxxxxxx";
+
+  (*** SSHLL (make sure immh is nonzero) ***)
+  "0x001111001xxxxx101001xxxxxxxxxx";
+  "0x0011110001xxxx101001xxxxxxxxxx";
+  "0x00111100001xxx101001xxxxxxxxxx";
 
   (*** USHR (make sure immh is nonzero) ***)
   "0x10111101xxxxxx000001xxxxxxxxxx";
@@ -449,6 +522,9 @@ let check_insns () =
     "00111000010xxxxxxxxx01xxxxxxxxxx";
     "00111000010xxxxxxxxx11xxxxxxxxxx";
     "0011100101xxxxxxxxxxxxxxxxxxxxxx";
+
+    (*** ldrb / strb (shifted register, no shift S = 0) ***)
+    "001110000x1xxxxxxxx010xxxxxxxxxx";
 
     (*** ld1 (1 register, Post-immediate offset) ***)
     "0x001100110111110111xxxxxxxxxxxx";

@@ -1114,16 +1114,6 @@ let MASK_AND_VALUE_FROM_CARRY_LT = prove
   MATCH_MP_TAC MASK_AND_VALUE_FROM_CARRY_REAL_LT THEN ASM_REWRITE_TAC[]);;
 
 (* ------------------------------------------------------------------------- *)
-(* Useful for showing that a call is accessible.                             *)
-(* ------------------------------------------------------------------------- *)
-
-let WORD32_ADD_SUB_OF_LT = prove
- (`!pc tgt. pc <= 2 EXP 31 /\ tgt < 2 EXP 31 ==>
-  word_add (word pc) (word_sx (iword (&tgt - &pc):int32)):int64 = word tgt`,
-  IMP_REWRITE_TAC [word_sx; IVAL_IWORD; WORD_IWORD; GSYM IWORD_INT_ADD;
-    INT_SUB_ADD2; DIMINDEX_32] THEN ARITH_TAC);;
-
-(* ------------------------------------------------------------------------- *)
 (* Transformation for a slightly different way multiplication can be done.   *)
 (* ------------------------------------------------------------------------- *)
 
@@ -1963,16 +1953,28 @@ let MULT_ADD_DIV_LT = prove(
 let COMPUTE_LENGTH_RULE th =
   let ltm = mk_const("LENGTH",
     [hd(snd(dest_type(type_of(lhand(concl th))))),aty]) in
-  CONV_RULE(RAND_CONV LENGTH_CONV) (AP_TERM ltm th);;
+  CONV_RULE(RAND_CONV
+    (REWRITE_CONV [LENGTH_BYTELIST_OF_NUM; LENGTH_BYTELIST_OF_INT;
+        LENGTH; LENGTH_APPEND] THENC NUM_REDUCE_CONV))
+    (AP_TERM ltm th);;
 
 (* ------------------------------------------------------------------------- *)
-(* Normalize (x + m) + n -> x + [m+n] for numerals m and n                   *)
+(* Normalize (x + m) + n -> x + [m+n] for numerals m and n.                  *)
+(* The int variant `&(x + m) + &n -> &x + &[m+n]` is needed for x86 rodata-  *)
+(* aware mc bytelists (rip-relative displacement encodings) so that          *)
+(* BYTELIST_SUBLIST_CONV can match an outer mc evaluated at `pc` against an  *)
+(* inner mc evaluated at `pc + offset`.                                      *)
 (* ------------------------------------------------------------------------- *)
 
 let NORMALIZE_ADD_ADD_CONV =
-  GEN_REWRITE_CONV I [ARITH_RULE
-   `(pc + NUMERAL m) + NUMERAL n = pc + NUMERAL m + NUMERAL n`] THENC
-  RAND_CONV NUM_ADD_CONV;;
+  let nat_pth = ARITH_RULE
+   `(pc + NUMERAL m) + NUMERAL n = pc + NUMERAL m + NUMERAL n`
+  and int_pth = prove
+   (`&(pc + NUMERAL m) + &(NUMERAL n) = &pc + &(NUMERAL m + NUMERAL n):int`,
+    REWRITE_TAC[GSYM INT_OF_NUM_ADD;
+                INT_ARITH `(a + b:int) + c = a + b + c`]) in
+  (GEN_REWRITE_CONV I [nat_pth] THENC RAND_CONV NUM_ADD_CONV) ORELSEC
+  (GEN_REWRITE_CONV I [int_pth] THENC RAND_CONV (RAND_CONV NUM_ADD_CONV));;
 
 (* ------------------------------------------------------------------------- *)
 (* Prove byte list l2 is an initial sublist of l1, as `?r. l1 = APPEND l2 r` *)
@@ -1987,17 +1989,23 @@ let BYTELIST_SUBLIST_CONV =
    (`CONS h t1 = APPEND (CONS h t2) r <=>
       t1:byte list = APPEND t2 r`,
     REWRITE_TAC[APPEND; CONS_11])
+  and pth_largestep = prove
+   (`APPEND h t1 = APPEND (APPEND h t2) r <=>
+      t1:byte list = APPEND t2 r`,
+    REWRITE_TAC[GSYM APPEND_ASSOC;APPEND_LCANCEL])
   and pth_fin = prove
    (`(?r:byte list. l = r) <=> T`,
     MESON_TAC[]) in
   let baseconv = GEN_REWRITE_CONV I [pth_base]
   and stepconv = GEN_REWRITE_CONV I [pth_step]
+  and largestepconv = GEN_REWRITE_CONV I [pth_largestep]
   and simpconv = ONCE_DEPTH_CONV NORMALIZE_ADD_ADD_CONV THENC
                  GEN_REWRITE_CONV ONCE_DEPTH_CONV
                    [ARITH_RULE `n + 0 = n /\ 0 + n = n`]
   and finrule = GEN_REWRITE_RULE RAND_CONV [pth_fin] in
   let simpstep_conv =
     stepconv ORELSEC
+    largestepconv ORELSEC
     (BINOP2_CONV (LAND_CONV simpconv) (LAND_CONV(LAND_CONV simpconv)) THENC
      stepconv) in
   let rec rule th =
@@ -2053,42 +2061,6 @@ let PRINT_TAC (s:string): tactic =
 (* ------------------------------------------------------------------------- *)
 (* Tactics for using existential variables                                   *)
 (* ------------------------------------------------------------------------- *)
-
-(* Equality version of UNIFY_ACCEPT_TAC.
-   The conclusion ust be `expr = x` where x is a meta variable.
-   It can be `expr = f x y z` where f is a meta variable as well.
- *)
-let UNIFY_REFL_TAC: tactic =
-  fun (asl,w:goal) ->
-    let w_lhs,w_rhs = dest_eq w in
-    if is_var w_rhs then
-      if vfree_in w_rhs w_lhs then
-        failwith (Printf.sprintf "UNIFY_REFL_TAC: failed: `%s`" (string_of_term w))
-      else
-        UNIFY_ACCEPT_TAC [w_rhs] (REFL w_lhs) (asl,w)
-    else
-      let constr,rargs = strip_comb w_rhs in
-      if not (is_var constr) then failwith "UNIFY_REFL_TAC: not variable" else
-      if vfree_in constr w_lhs then
-        failwith (Printf.sprintf "UNIFY_REFL_TAC: failed: `%s`" (string_of_term w))
-      else
-        (* replace non-variable arguments of the RHS function with temporary
-           variables. *)
-        let rargs_vars = map
-          (fun v -> if is_var v then v else
-            let _ = Printf.printf
-              "UNIFY_REFL_TAC: warning: this isn't var: %s\n"
-              (string_of_term v) in genvar (type_of v)) rargs in
-        let f = list_mk_abs (rargs_vars,w_lhs) in
-        let the_goal = mk_eq (w_lhs, list_mk_comb (f,rargs)) in
-        let th = prove(the_goal, REWRITE_TAC[]) in
-        UNIFY_ACCEPT_TAC [constr] th (asl,w);;
-
-let UNIFY_REFL_TAC_TEST = prove(`?x. 1 = x`, META_EXISTS_TAC THEN UNIFY_REFL_TAC);;
-let UNIFY_REFL_TAC_TEST2 = prove(`?f. y + z = f y z`,
-                META_EXISTS_TAC THEN UNIFY_REFL_TAC);;
-let UNIFY_REFL_TAC_TEST3 = prove(`?f. y + 1 = f y 0`,
-                META_EXISTS_TAC THEN UNIFY_REFL_TAC);;
 
 (* Given `?x1 x2 ... . t` where t is a conjunction of equalities,
    HINT_EXISTS_REFL_TAC infers an assignment for the outermost quantfier x1.
