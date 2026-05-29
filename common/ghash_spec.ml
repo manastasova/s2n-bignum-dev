@@ -1032,6 +1032,31 @@ let GHASH_POLYVAL_ACC_BATCHED = prove(
 (* ========================================================================= *)
 
 (* ========================================================================= *)
+(* GHASH_POLYVAL_ACC_4: 4-block Horner unrolling specialization.            *)
+(* Derived directly from GHASH_POLYVAL_ACC_BATCHED for list [p;q;r;s].      *)
+(* Unfolds h_power 0..3 to the polyval_dot chain (h, h^2, h^3, h^4).         *)
+(* ========================================================================= *)
+
+let GHASH_POLYVAL_ACC_4 = prove
+ (`!(h:int128) (a:int128) (p:int128) (q:int128) (r:int128) (s:int128).
+    ghash_polyval_acc h a [p:int128; q; r; s] =
+    polyval_reduce_prop3
+      (word_xor
+        (word_pmul (word_xor a p) (polyval_dot (polyval_dot (polyval_dot h h) h) h) : 256 word)
+       (word_xor
+        (word_pmul q (polyval_dot (polyval_dot h h) h) : 256 word)
+       (word_xor
+        (word_pmul r (polyval_dot h h) : 256 word)
+        (word_pmul s h : 256 word))))`,
+  REPEAT GEN_TAC THEN
+  MP_TAC (SPECL [`h:int128`; `[q:int128; r; s]`; `a:int128`; `p:int128`]
+                GHASH_POLYVAL_ACC_BATCHED) THEN
+  REWRITE_TAC[LENGTH; ghash_wide; h_power; ARITH; SUB_0] THEN
+  REWRITE_TAC[WORD_XOR_0] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
+  REWRITE_TAC[num_CONV `3`; num_CONV `2`; num_CONV `1`; h_power]);;
+
+(* ========================================================================= *)
 (* Htable precondition and Karatsuba middle term                             *)
 (* ========================================================================= *)
 
