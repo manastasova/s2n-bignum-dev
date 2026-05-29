@@ -578,18 +578,20 @@ let GCM_CT_STEP_TAC =
   REWRITE_TAC[aes256_block_enc; LET_DEF; LET_END_DEF; WORD_XOR_ASSOC] THEN
   ASM_REWRITE_TAC[];;
 
+
 (* GCM_GHASH_STEP_TAC : closes the GHASH subgoal of the 1-block proof.
-   This is the GCM analog of XTS's XTSENC_TAC.  Internal phases:
-     1. Unfold ghash_polyval_acc to one polyval_dot call.
-     2. Apply the bridge lemma GHASH_1BLOCK_KARATSUBA_EQ_POLYVAL_DOT
-        (one MATCH_MP using the precondition).  Both sides are now
-        in assembly-shape Karatsuba terms.
-     3. Unfold ghash_1block_karatsuba.
-     4. Identify the AES-chain subterm as `ct` via SUBGOAL_THEN.
-     5. Normalise: subword-distrib, BIF/INS-driven half-swap collapses,
-        byte-reversal refold, KAR_MID_BRIDGE.
-     6. Abbreviate every word_pmul atom, sort XOR-arg leaves, abbreviate
-        the resulting outer pmul atoms, then close with WORD_BLAST. *)
+   Uses common-pattern abbreviations (no h-mappings) AND the 2-block-style
+   final_xi inversion (avoids byte-level term explosion from REV64).
+   1. Apply bridge lemma + standard normalization (subword/halfswap/PMUL_NORM).
+   2. Invert the rev64 byte expansion via final_xi ABBREV (MATCH_MP_TAC + SYM).
+   3. ABBREV the 4 atomic subwords common to both sides (uA0/uA1, uD0/uD1).
+   4. ABBREV the 3 inner pmuls (p1, p2, p3).
+   5. DOUBLE_SUBWORD_JOIN unfolding to collapse word_subword(word_join Y Y).
+   6. ABBREV the 7 z-vars (subwords of pmul outputs and the small outer pmul).
+   7. ASM_REWRITE to fold zD on the RHS.
+   8. SUBGOAL_THEN equating two pmul forms via XOR-AC of args.
+   9. ABBREV qBigP, qSmallP and their subword extractions.
+  10. BINOP_TAC THENL [WORD_RULE; WORD_RULE]. *)
 let GCM_GHASH_STEP_TAC =
   REWRITE_TAC[ghash_polyval_acc; GSYM WORD_REVERSEFIELDS_XOR_8_128] THEN
   FIRST_ASSUM(fun th ->
@@ -607,10 +609,21 @@ let GCM_GHASH_STEP_TAC =
     ALL_TAC
   ] THEN
   ASM_REWRITE_TAC[] THEN
-  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  (* Invert the rev64 + halfswap byte-level expansion via final_xi.
+     This is the key 2-block-style optimization for the LHS collapse. *)
+  CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  REWRITE_TAC[REV64_LOWER_LANE; REV64_UPPER_LANE; REV8_JOIN_FOLD] THEN
+  MATCH_MP_TAC(MESON[]
+    `x = y ==> word_reversefields 8 x = word_reversefields 8 y:(128)word`) THEN
+  FIRST_ASSUM(fun th ->
+    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word`
+    then SUBST1_TAC(SYM th) else NO_TAC) THEN
+  REWRITE_TAC[WORD_SWAP_HALVES_INVOLUTION] THEN
+  CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   REWRITE_TAC[WORD_INSERT_AS_JOIN_1; WORD_INSERT_AS_JOIN_2;
               KAR_SUBWORD_LEMMA; WORD_SWAP_HALVES_INVOLUTION;
-              WORD_OR_REFL; WORD_XOR_ASSOC; WORD_SUBWORD_XOR] THEN
+              WORD_OR_REFL; WORD_XOR_ASSOC; WORD_SUBWORD_XOR;
+              BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   REWRITE_TAC[HALFSWAP_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
               WORD_XOR_0; WORD_XOR_ASSOC;
@@ -618,6 +631,7 @@ let GCM_GHASH_STEP_TAC =
               REVERSEFIELDS8_SUBWORD_HI] THEN
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
+  REWRITE_TAC[WORD_XOR_ASSOC] THEN
   REWRITE_TAC[WORD_XOR_ASSOC; KAR_MID_BRIDGE; WORD_SUBWORD_0;
               WORD_XOR_0; WORD_XOR_0_LEFT] THEN
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
@@ -626,16 +640,66 @@ let GCM_GHASH_STEP_TAC =
               WORD_XOR_ASSOC; WORD_XOR_0; WORD_XOR_0_LEFT] THEN
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   REWRITE_TAC[KAR_MID_BRIDGE; WORD_XOR_ASSOC] THEN
-  AP_TERM_TAC THEN
   CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
   REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  ABBREV_ALL_PMUL_TAC THEN
-  REWRITE_TAC[WORD_SUBWORD_XOR; WORD_XOR_ASSOC] THEN
-  CONV_TAC(TOP_DEPTH_CONV PMUL_ARG_SORT_CONV) THEN
-  REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  ABBREV_ALL_PMUL_TAC THEN
-  REWRITE_TAC[DOUBLE_SUBWORD_JOIN; DOUBLE_SUBWORD_JOIN_HI] THEN
-  CONV_TAC WORD_BLAST;;
+  (* Common-pattern atomic abbreviations *)
+  REWRITE_TAC[BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
+  ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[karatsuba_mid] THEN
+  ABBREV_TAC `(uA0:(64)word) =
+    word_subword (word_reversefields 8 (word_xor (xi:(128)word) ct)) (0,64)` THEN
+  ABBREV_TAC `(uA1:(64)word) =
+    word_subword (word_reversefields 8 (word_xor (xi:(128)word) ct)) (64,64)` THEN
+  ABBREV_TAC `(uD0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
+  ABBREV_TAC `(uD1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
+  (* 3 inner pmul abbreviations *)
+  ABBREV_TAC `(p1:(128)word) = word_pmul (uA0:(64)word) (uD0:(64)word)` THEN
+  ABBREV_TAC `(p2:(128)word) = word_pmul (uA1:(64)word) (uD1:(64)word)` THEN
+  ABBREV_TAC `(p3:(128)word) =
+    word_pmul (word_xor (uA0:(64)word) (uA1:(64)word))
+              (word_xor (uD0:(64)word) (uD1:(64)word))` THEN
+  REWRITE_TAC[DOUBLE_SUBWORD_JOIN; DOUBLE_SUBWORD_JOIN_HI; WORD_SUBWORD_XOR] THEN
+  (* 7 atomic subwords of pmul outputs *)
+  ABBREV_TAC `(z1:(64)word) = word_subword (p1:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z2:(64)word) = word_subword (p1:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z3:(64)word) = word_subword (p2:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z4:(64)word) = word_subword (p2:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z5:(64)word) = word_subword (p3:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z6:(64)word) = word_subword (p3:(128)word) (64,64)` THEN
+  ABBREV_TAC `(zD:(64)word) =
+    word_subword (word_pmul (z1:(64)word) (word 13979173243358019584:(64)word):(128)word)
+                 (0,64)` THEN
+  ASM_REWRITE_TAC[] THEN
+  (* Normalize the BIG pmul args (XOR-AC) *)
+  SUBGOAL_THEN
+    `word_pmul (word_xor (z2:(64)word)
+                (word_xor z5
+                (word_xor z3
+                (word_xor z1 zD))))
+               (word 13979173243358019584:(64)word):(128)word =
+     word_pmul (word_xor (z5:(64)word)
+                (word_xor z1
+                (word_xor z3
+                (word_xor zD z2))))
+               (word 13979173243358019584:(64)word):(128)word`
+    ASSUME_TAC THENL
+    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  (* ABBREV the outer pmul terms and their subword extractions *)
+  ABBREV_TAC
+    `qBigP = word_pmul
+       (word_xor (z5:(64)word) (word_xor z1 (word_xor z3 (word_xor zD z2))))
+       (word 13979173243358019584:(64)word):(128)word` THEN
+  ABBREV_TAC
+    `qSmallP = word_pmul (z1:(64)word)
+                        (word 13979173243358019584:(64)word):(128)word` THEN
+  ABBREV_TAC `qBigPL = word_subword (qBigP:(128)word) (0,64):(64)word` THEN
+  ABBREV_TAC `qBigPH = word_subword (qBigP:(128)word) (64,64):(64)word` THEN
+  ABBREV_TAC `qSmallPH = word_subword (qSmallP:(128)word) (64,64):(64)word` THEN
+  (* Final closure *)
+  BINOP_TAC THENL [CONV_TAC WORD_RULE; CONV_TAC WORD_RULE];;
+
+
 
 (* ================================================================== *)
 (*                         THE PROOF                                   *)
@@ -761,13 +825,27 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
     GSYM WORD_SUBWORD_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
     WORD_XOR_0; WORD_XOR_ASSOC]) THEN
 
-  (* Steps 94-111: GHASH Karatsuba + reduction + restores. *)
+  (* Steps 94-103: GHASH Karatsuba + reduction up to final EOR3 in Q19.
+     Stop BEFORE the EXT/REV64 byte-level explosion of Q19. *)
   MAP_EVERY (fun n ->
     ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC [n] THEN
-    GCM_ENC_SIMPLIFY_TAC) (94--111) THEN
+    GCM_ENC_SIMPLIFY_TAC) (94--103) THEN
 
   (* Post-simulation normalization, lifted into a named tactic. *)
   GCM_POST_SIM_NORMALIZE_TAC THEN
+
+  (* Abbreviate Q19 (the assembled Karatsuba+Barrett result) as `final_xi`
+     BEFORE step 104's EXT + step 105's REV64 — avoids the byte-level term
+     explosion AND lets the GHASH closure invert the rev64 via SUBST(SYM).
+     This mirrors the 2-block proof's strategy. *)
+  FIRST_ASSUM(fun th ->
+    if can (term_match [] `read Q19 (s:armstate) = (x:int128)`) (concl th)
+    then let rhs = rand(concl th) in
+         ABBREV_TAC(mk_eq(mk_var("final_xi",type_of rhs), rhs))
+    else NO_TAC) THEN
+
+  (* Steps 104-111: EXT, REV64, ST1, MOV, LDP*4, RET — now Q19 is opaque. *)
+  ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC (104--111) THEN
 
   CONV_TAC(ONCE_DEPTH_CONV let_CONV) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
