@@ -211,9 +211,18 @@ let GCM_CT1_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 2 1;;
 let GCM_CT2_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 2 2;;
 
 (* ========================================================================= *)
-(*  GHASH STEP TACTIC (N=2 instance) -- same template as 4/5/6/7 blocks.      *)
-(*  Atoms (c?lo/c?hi, xilo/xihi, hd/he) -> inner pmuls (w?lo/w?hi/w?md) ->     *)
-(*  z-vars -> qS/qB Barrett pmuls -> bubble_sort_conv XOR-AC closure.         *)
+(*  GHASH STEP TACTIC (N=2 instance)                                         *)
+(*                                                                           *)
+(* The closure recipe scales linearly with N. For N=2:                       *)
+(*   - 10 atomic ABBREVs:                                                     *)
+(*       uA0/uA1 (subwords of RF ct2), uB0/uB1 (subwords of RF ct1),         *)
+(*       uC0/uC1 (subwords of RF xi),  uD0/uD1 (subwords of h),               *)
+(*       uE0/uE1 (subwords of polyval_dot h h)                                *)
+(*   - 6 inner pmul ABBREVs (p1..p6)                                          *)
+(*   - 13 z-vars (z1..zC for subwords of pi, plus zD for subword(pmul z1 z3))*)
+(*   - 1 outer XOR-AC SUBGOAL_THEN (BIG pmul args)                            *)
+(*   - 5 outer ABBREVs (qBigP, qSmallP, qBigPL, qBigPH, qSmallPH)             *)
+(*   - BINOP_TAC THENL [WORD_RULE; WORD_RULE]                                 *)
 (* ========================================================================= *)
 
 let GCM_2BLOCK_GHASH_STEP_TAC =
@@ -226,7 +235,9 @@ let GCM_2BLOCK_GHASH_STEP_TAC =
     (fun th -> REWRITE_TAC[th]) THENL [
     EXPAND_TAC "ct1" THEN EXPAND_TAC "s13_1" THEN
     REWRITE_TAC[aes256_block_enc; LET_DEF; LET_END_DEF; WORD_XOR_ASSOC] THEN
-    ASM_REWRITE_TAC[]; ALL_TAC ] THEN
+    ASM_REWRITE_TAC[];
+    ALL_TAC
+  ] THEN
   SUBGOAL_THEN
     `word_xor pt2
        (aes256_block_enc (gcm_ctr_inc ivec) rk0 rk1 rk2 rk3 rk4 rk5 rk6
@@ -235,53 +246,69 @@ let GCM_2BLOCK_GHASH_STEP_TAC =
     (fun th -> REWRITE_TAC[th]) THENL [
     FIRST_ASSUM(fun th ->
       if is_eq(concl th) && rand(concl th) = `ct2:(128)word` &&
-         aconv (lhs(concl th)) `word_xor pt2 (word_xor s13_2 rk14):(128)word`
+         aconv (lhs(concl th))
+               `word_xor pt2 (word_xor s13_2 rk14):(128)word`
       then SUBST1_TAC(SYM th) else NO_TAC) THEN
-    REWRITE_TAC[aes256_block_enc] THEN CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+    REWRITE_TAC[aes256_block_enc] THEN
+    CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
     AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
     FIRST_ASSUM(fun th ->
       if is_eq(concl th) && rand(concl th) = `s13_2:(128)word` &&
-         not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read" with _ -> false)
+         not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read"
+             with _ -> false)
       then SUBST1_TAC(SYM th) else NO_TAC) THEN
     REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
-    REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN; LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
+    REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN;
+                LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
                 CTR_WORD_INSERT; gcm_ctr_inc] THEN
-    AP_TERM_TAC THEN REWRITE_TAC[BYTEREVERSE_JOIN_FOLD]; ALL_TAC ] THEN
-  MP_TAC(SPECL
-    [`word_reversefields 8 (word_xor xi ct1):int128`;
-     `word_reversefields 8 ct2:int128`;
-     `h:int128`;
-     `h1k:int128`;
-     `word_join (word 0:(64)word) (word_subword (h1k:(128)word) (64,64):(64)word):(128)word`]
-    GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC) THEN
+    AP_TERM_TAC THEN
+    REWRITE_TAC[BYTEREVERSE_JOIN_FOLD];
+    ALL_TAC
+  ] THEN
+  MP_TAC(SPECL [`word_reversefields 8 (word_xor xi ct1):int128`;
+                `word_reversefields 8 ct2:int128`;
+                `h:int128`; `h1k:int128`;
+                `word_join (word 0:(64)word)
+                   (word_subword (h1k:(128)word) (64,64):(64)word)
+                 :(128)word`]
+         GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC) THEN
   SUBGOAL_THEN
-    `word_subword (word_join (word 0:(64)word) (word_subword (h1k:(128)word) (64,64):(64)word):(128)word) (0,64):(64)word =
+    `word_subword
+       (word_join (word 0:(64)word)
+                  (word_subword (h1k:(128)word) (64,64):(64)word)
+        :(128)word) (0,64):(64)word =
      karatsuba_mid (polyval_dot h h)`
     (fun th -> REWRITE_TAC[th]) THENL [
     SUBGOAL_THEN
-      `word_subword (word_join (word 0:(64)word) (word_subword (h1k:(128)word) (64,64):(64)word):(128)word) (0,64):(64)word =
+      `word_subword
+         (word_join (word 0:(64)word)
+                    (word_subword (h1k:(128)word) (64,64):(64)word)
+          :(128)word) (0,64):(64)word =
        word_subword (h1k:(128)word) (64,64):(64)word`
-      (fun th -> REWRITE_TAC[th]) THENL [CONV_TAC WORD_BLAST; ASM_REWRITE_TAC[]]; ALL_TAC ] THEN
-  ASM_REWRITE_TAC[] THEN DISCH_THEN(fun th -> REWRITE_TAC[GSYM th]) THEN
+      (fun th -> REWRITE_TAC[th]) THENL
+      [CONV_TAC WORD_BLAST; ASM_REWRITE_TAC[]];
+    ALL_TAC
+  ] THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[GSYM th]) THEN
   REWRITE_TAC[ghash_2block_karatsuba; LET_DEF; LET_END_DEF] THEN
   CONV_TAC(DEPTH_CONV BETA_CONV) THEN
   REWRITE_TAC[BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
   SUBGOAL_THEN
-    `word_subword (word_join (word 0:(64)word) (karatsuba_mid (polyval_dot h h):(64)word):(128)word) (0,64):(64)word =
+    `word_subword (word_join (word 0:(64)word)
+                             (karatsuba_mid (polyval_dot h h):(64)word)
+                   :(128)word) (0,64):(64)word =
      karatsuba_mid (polyval_dot h h)`
     (fun th -> REWRITE_TAC[th]) THENL [CONV_TAC WORD_BLAST; ALL_TAC] THEN
-  REWRITE_TAC[GSYM karatsuba_mid] THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[GSYM karatsuba_mid] THEN
+  ASM_REWRITE_TAC[] THEN
   CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
-  CONV_TAC SYM_CONV THEN
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word` &&
-       (try (let l = lhs(concl th) in is_comb l &&
-             (let r = rator l in not(is_comb r && (try fst(dest_const(rator r)) = "read" with _ -> false))))
-        with _ -> false)
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
   REWRITE_TAC[REV64_LOWER_LANE; REV64_UPPER_LANE; REV8_JOIN_FOLD] THEN
   MATCH_MP_TAC(MESON[]
     `x = y ==> word_reversefields 8 x = word_reversefields 8 y:(128)word`) THEN
+  FIRST_ASSUM(fun th ->
+    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word`
+    then SUBST1_TAC(SYM th) else NO_TAC) THEN
   REWRITE_TAC[WORD_SWAP_HALVES_INVOLUTION] THEN
   CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   REWRITE_TAC[WORD_INSERT_AS_JOIN_1; WORD_INSERT_AS_JOIN_2;
@@ -291,75 +318,112 @@ let GCM_2BLOCK_GHASH_STEP_TAC =
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   REWRITE_TAC[HALFSWAP_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
               WORD_XOR_0; WORD_XOR_ASSOC;
-              REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO; REVERSEFIELDS8_SUBWORD_HI] THEN
+              REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO;
+              REVERSEFIELDS8_SUBWORD_HI] THEN
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
   REWRITE_TAC[WORD_XOR_ASSOC] THEN
   SUBGOAL_THEN
     `word_subword (word 0:(128)word) (0,64):(64)word = word 0 /\
      word_subword (word 0:(128)word) (64,64):(64)word = word 0`
-    (fun th -> REWRITE_TAC[th]) THENL [CONJ_TAC THEN CONV_TAC WORD_BLAST; ALL_TAC] THEN
-  REWRITE_TAC[WORD_XOR_0; WORD_XOR_0_LEFT] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
+    (fun th -> REWRITE_TAC[th]) THENL
+    [CONJ_TAC THEN CONV_TAC WORD_BLAST; ALL_TAC] THEN
+  REWRITE_TAC[WORD_XOR_0; WORD_XOR_0_LEFT] THEN
+  REWRITE_TAC[WORD_XOR_ASSOC] THEN
+  (* Common-pattern abbreviations: 10 atomic subwords *)
   REWRITE_TAC[karatsuba_mid; WORD_REVERSEFIELDS_XOR_8_128; WORD_SUBWORD_XOR] THEN
-  (* 10 atomic ABBREVs *)
-  ABBREV_TAC `(c1lo:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(c1hi:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(c2lo:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(c2hi:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(xilo:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(xihi:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(hd0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
-  ABBREV_TAC `(hd1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
-  ABBREV_TAC `(he0:(64)word) = word_subword ((polyval_dot h h):(128)word) (0,64)` THEN
-  ABBREV_TAC `(he1:(64)word) = word_subword ((polyval_dot h h):(128)word) (64,64)` THEN
-  ASM_REWRITE_TAC[] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  (* 6 inner pmul ABBREVs *)
-  ABBREV_TAC `(w1lo:(128)word) = word_pmul (word_xor (xilo:(64)word) (c1lo:(64)word)) (he0:(64)word)` THEN
-  ABBREV_TAC `(w1hi:(128)word) = word_pmul (word_xor (xihi:(64)word) (c1hi:(64)word)) (he1:(64)word)` THEN
-  ABBREV_TAC `(w1md:(128)word) = word_pmul (word_xor (word_xor (xihi:(64)word) (c1hi:(64)word)) (word_xor (xilo:(64)word) (c1lo:(64)word))) (word_xor (he0:(64)word) (he1:(64)word))` THEN
-  ABBREV_TAC `(w2lo:(128)word) = word_pmul (c2lo:(64)word) (hd0:(64)word)` THEN
-  ABBREV_TAC `(w2hi:(128)word) = word_pmul (c2hi:(64)word) (hd1:(64)word)` THEN
-  ABBREV_TAC `(w2md:(128)word) = word_pmul (word_xor (c2hi:(64)word) (c2lo:(64)word)) (word_xor (hd0:(64)word) (hd1:(64)word))` THEN
+  ABBREV_TAC `(uA0:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(uA1:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(uB0:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(uB1:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(uC0:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(uC1:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(uD0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
+  ABBREV_TAC `(uD1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
+  ABBREV_TAC `(uE0:(64)word) = word_subword ((polyval_dot h h):(128)word) (0,64)` THEN
+  ABBREV_TAC `(uE1:(64)word) = word_subword ((polyval_dot h h):(128)word) (64,64)` THEN
+  (* Normalize XOR-AC of pmul args *)
+  SUBGOAL_THEN
+    `word_xor uA1 uA0 = word_xor uA0 uA1:(64)word /\
+     word_xor uC1 (word_xor uB1 (word_xor uC0 uB0)) =
+       word_xor (word_xor uC0 uB0) (word_xor uC1 uB1):(64)word`
+    (fun th -> REWRITE_TAC[th]) THENL
+    [CONJ_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  (* 6 inner pmul abbreviations *)
+  ABBREV_TAC `(p1:(128)word) = word_pmul (uA0:(64)word) (uD0:(64)word)` THEN
+  ABBREV_TAC `(p2:(128)word) = word_pmul (uA1:(64)word) (uD1:(64)word)` THEN
+  ABBREV_TAC `(p3:(128)word) =
+    word_pmul (word_xor (uA0:(64)word) (uA1:(64)word))
+              (word_xor (uD0:(64)word) (uD1:(64)word))` THEN
+  ABBREV_TAC `(p4:(128)word) =
+    word_pmul (word_xor (uC0:(64)word) (uB0:(64)word)) (uE0:(64)word)` THEN
+  ABBREV_TAC `(p5:(128)word) =
+    word_pmul (word_xor (uC1:(64)word) (uB1:(64)word)) (uE1:(64)word)` THEN
+  ABBREV_TAC `(p6:(128)word) =
+    word_pmul (word_xor (word_xor (uC0:(64)word) (uB0:(64)word))
+                       (word_xor (uC1:(64)word) (uB1:(64)word)))
+              (word_xor (uE0:(64)word) (uE1:(64)word))` THEN
+  (* Collapse subword-of-join-self via DOUBLE_SUBWORD_JOIN *)
   REWRITE_TAC[DOUBLE_SUBWORD_JOIN; DOUBLE_SUBWORD_JOIN_HI; WORD_SUBWORD_XOR] THEN
-  SUBGOAL_THEN
-    `word_pmul (word_xor (xihi:(64)word) (word_xor (c1hi:(64)word) (word_xor (xilo:(64)word) (c1lo:(64)word)))) (word_xor (he0:(64)word) (he1:(64)word)):(128)word = w1md`
-    (fun th -> REWRITE_TAC[th]) THENL
-    [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
-  (* 12 z-vars *)
-  ABBREV_TAC `(w1lo_l:(64)word) = word_subword (w1lo:(128)word) (0,64)` THEN
-  ABBREV_TAC `(w1lo_h:(64)word) = word_subword (w1lo:(128)word) (64,64)` THEN
-  ABBREV_TAC `(w1hi_l:(64)word) = word_subword (w1hi:(128)word) (0,64)` THEN
-  ABBREV_TAC `(w1hi_h:(64)word) = word_subword (w1hi:(128)word) (64,64)` THEN
-  ABBREV_TAC `(w1md_l:(64)word) = word_subword (w1md:(128)word) (0,64)` THEN
-  ABBREV_TAC `(w1md_h:(64)word) = word_subword (w1md:(128)word) (64,64)` THEN
-  ABBREV_TAC `(w2lo_l:(64)word) = word_subword (w2lo:(128)word) (0,64)` THEN
-  ABBREV_TAC `(w2lo_h:(64)word) = word_subword (w2lo:(128)word) (64,64)` THEN
-  ABBREV_TAC `(w2hi_l:(64)word) = word_subword (w2hi:(128)word) (0,64)` THEN
-  ABBREV_TAC `(w2hi_h:(64)word) = word_subword (w2hi:(128)word) (64,64)` THEN
-  ABBREV_TAC `(w2md_l:(64)word) = word_subword (w2md:(128)word) (0,64)` THEN
-  ABBREV_TAC `(w2md_h:(64)word) = word_subword (w2md:(128)word) (64,64)` THEN
-  ASM_REWRITE_TAC[] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  (* Normalize LHS mid-pmuls to abbreviated w?md. *)
-  SUBGOAL_THEN `word_pmul (word_xor (c2lo:(64)word) (c2hi:(64)word)) (word_xor (hd0:(64)word) (hd1:(64)word)):(128)word = w2md`
-    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w2md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
-  SUBGOAL_THEN `word_pmul (word_xor (xilo:(64)word) (word_xor (c1lo:(64)word) (word_xor (xihi:(64)word) (c1hi:(64)word)))) (word_xor (he0:(64)word) (he1:(64)word)):(128)word = w1md`
-    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
-  (* qS. *)
-  ABBREV_TAC `(qS:(128)word) = word_pmul (word_xor (w2lo_l:(64)word) (w1lo_l)) (word 13979173243358019584:(64)word)` THEN
-  SUBGOAL_THEN `word_pmul (word_xor (w1lo_l:(64)word) (w2lo_l)) (word 13979173243358019584:(64)word):(128)word = qS`
-    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "qS" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  (* 13 atomic z-vars for subwords of pmul outputs *)
+  ABBREV_TAC `(z1:(64)word) = word_subword (p1:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z2:(64)word) = word_subword (p1:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z3:(64)word) = word_subword (p4:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z4:(64)word) = word_subword (p4:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z5:(64)word) = word_subword (p2:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z6:(64)word) = word_subword (p2:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z7:(64)word) = word_subword (p3:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z8:(64)word) = word_subword (p3:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z9:(64)word) = word_subword (p5:(128)word) (0,64)` THEN
+  ABBREV_TAC `(zA:(64)word) = word_subword (p5:(128)word) (64,64)` THEN
+  ABBREV_TAC `(zB:(64)word) = word_subword (p6:(128)word) (0,64)` THEN
+  ABBREV_TAC `(zC:(64)word) = word_subword (p6:(128)word) (64,64)` THEN
+  ABBREV_TAC `(zD:(64)word) =
+    word_subword (word_pmul (word_xor (z1:(64)word) (z3:(64)word))
+                            (word 13979173243358019584:(64)word):(128)word)
+                 (0,64)` THEN
   ASM_REWRITE_TAC[] THEN
-  (* qB. *)
-  ABBREV_TAC `(qB:(128)word) = word_pmul
-    (word_xor (w2md_l:(64)word) (word_xor w1md_l (word_xor w2lo_l (word_xor w1lo_l (word_xor w2hi_l (word_xor w1hi_l (word_xor (word_subword (qS:(128)word) (0,64)) (word_xor w2lo_h (w1lo_h))))))))) (word 13979173243358019584:(64)word)` THEN
+  (* Normalize the second pmul arg to share form with LHS *)
   SUBGOAL_THEN
-    `word_pmul (word_xor (w1lo_h:(64)word) (word_xor w2lo_h (word_xor w1md_l (word_xor w2md_l (word_xor w1hi_l (word_xor w2hi_l (word_xor w1lo_l (word_xor w2lo_l ((word_subword (qS:(128)word) (0,64))))))))))) (word 13979173243358019584:(64)word):(128)word = qB`
+    `word_pmul (word_xor (z3:(64)word) z1) (word 13979173243358019584:(64)word):(128)word
+     = word_pmul (word_xor (z1:(64)word) z3) (word 13979173243358019584:(64)word):(128)word`
     (fun th -> REWRITE_TAC[th]) THENL
-    [EXPAND_TAC "qB" THEN AP_THM_TAC THEN AP_TERM_TAC THEN
-     CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC; ALL_TAC] THEN
-  BINOP_TAC THENL
-   [CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC;
-    CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC];;
+    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  (* Normalize the BIG pmul arg (XOR-AC) *)
+  SUBGOAL_THEN
+    `word_pmul (word_xor (z4:(64)word)
+                (word_xor (z2:(64)word)
+                (word_xor (zB:(64)word)
+                (word_xor (z7:(64)word)
+                (word_xor (z9:(64)word)
+                (word_xor (z5:(64)word)
+                (word_xor (z3:(64)word)
+                (word_xor (z1:(64)word) (zD:(64)word)))))))))
+              (word 13979173243358019584:(64)word):(128)word =
+     word_pmul (word_xor (z7:(64)word)
+                (word_xor (zB:(64)word)
+                (word_xor (z1:(64)word)
+                (word_xor (z3:(64)word)
+                (word_xor (z5:(64)word)
+                (word_xor (z9:(64)word)
+                (word_xor (zD:(64)word)
+                (word_xor (z2:(64)word) (z4:(64)word)))))))))
+              (word 13979173243358019584:(64)word):(128)word` ASSUME_TAC THENL
+    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  ABBREV_TAC
+    `qBigP = word_pmul
+       (word_xor (z7:(64)word) (word_xor zB (word_xor z1 (word_xor z3
+        (word_xor z5 (word_xor z9 (word_xor zD (word_xor z2 z4))))))))
+       (word 13979173243358019584:(64)word):(128)word` THEN
+  ABBREV_TAC
+    `qSmallP = word_pmul (word_xor (z1:(64)word) z3)
+                        (word 13979173243358019584:(64)word):(128)word` THEN
+  ABBREV_TAC `qBigPL = word_subword (qBigP:(128)word) (0,64):(64)word` THEN
+  ABBREV_TAC `qBigPH = word_subword (qBigP:(128)word) (64,64):(64)word` THEN
+  ABBREV_TAC `qSmallPH = word_subword (qSmallP:(128)word) (64,64):(64)word` THEN
+  BINOP_TAC THENL [CONV_TAC WORD_RULE; CONV_TAC WORD_RULE];;
 
 (* ========================================================================= *)
 (*                         THE PROOF                                         *)

@@ -743,11 +743,11 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
   MATCH_MP_TAC(MESON[]
     `x = y ==> word_reversefields 8 x = word_reversefields 8 y:(128)word`) THEN
   (* LHS = word_join(fx.lo)(fx.hi) = halfswap(halfswap(A)) = A by
-     HALFSWAP_INVOLUTION, after substituting final_xi = halfswap(A). *)
+     WORD_SWAP_HALVES_INVOLUTION, after substituting final_xi = halfswap(A). *)
   FIRST_ASSUM(fun th ->
     if is_eq(concl th) && rand(concl th) = `final_xi:(128)word`
     then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REWRITE_TAC[HALFSWAP_INVOLUTION] THEN
+  REWRITE_TAC[WORD_SWAP_HALVES_INVOLUTION] THEN
   (* Goal: A = word_join G F. Collapse A via standard rewrites. *)
   CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   REWRITE_TAC[WORD_INSERT_AS_JOIN_1; WORD_INSERT_AS_JOIN_2;

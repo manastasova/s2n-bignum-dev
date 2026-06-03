@@ -144,6 +144,7 @@ BIGNUM_OBJ = aes-gcm/aesv8_gcm_1block_enc_256.o \
              aes-gcm/one_block_aes256_gcm_preloop_tail.o \
              aes-gcm/two_blocks_aes256_gcm_preloop_tail.o \
              aes-gcm/three_blocks_aes256_gcm_preloop_tail.o \
+             aes-gcm/four_blocks_aes256_gcm_preloop_tail.o \
              curve25519/bignum_add_p25519.o \
              curve25519/bignum_cmul_p25519.o \
              curve25519/bignum_double_p25519.o \
