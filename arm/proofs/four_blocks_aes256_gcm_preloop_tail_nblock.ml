@@ -323,15 +323,18 @@ let GCM_CT4_STEP_TAC =
 (* ========================================================================= *)
 (*  GHASH STEP TACTIC (N=4 instance)                                          *)
 (*                                                                           *)
-(* Mirrors the 3-block style scaled to N=4. Key extra steps vs 3-block:       *)
-(*   - 18 atomic ABBREVs (4 ct + xi + 4 H powers, vs 3-block's 14)            *)
-(*   - 12 inner pmul ABBREVs (3 per block × 4 blocks, vs 3-block's 9)         *)
-(*   - 24 z-vars (lo+hi for 12 pmuls, vs 3-block's 18)                        *)
-(*   - Byte-form folding for the BIG mid pmul: the karatsuba_mid expansion   *)
-(*     of (xi⊕ct1) leaves byte forms (rev8 pt1)_hi etc. that need to be      *)
-(*     re-folded to uH0/uH1 atoms before the inner pmul ABBREVs match.        *)
-(*   - 21-atom XOR-AC closure uses bubble_sort_conv (WORD_BITWISE_RULE        *)
-(*     times out on 21+ atoms).                                                *)
+(* Same template as the 5/6/7-block files, scaled to N=4:                     *)
+(*   - 18 atomic ABBREVs (c1..c4 + xi + h..h^4), named cNlo/cNhi/hd..hg       *)
+(*   - 12 inner pmul ABBREVs w1..w4 (lo/hi/md per block)                      *)
+(*   - 24 z-vars (lo+hi for the 12 pmuls)                                     *)
+(*   - qS/qB Barrett pmuls; bubble_sort_conv XOR-AC closure (no              *)
+(*     WORD_BITWISE_RULE).                                                     *)
+(*                                                                           *)
+(* 4-block-SPECIFIC: because ct1 = pt1⊕s13_1⊕rk14 is not opaque here, the    *)
+(* karatsuba_mid expansion of (xi⊕ct1) leaks the (rev8 _)_lo/_hi byte forms; *)
+(* two byte-form folds (after the atomic ABBREVs) re-fold them to c1lo/c1hi   *)
+(* before the inner pmul ABBREVs match. This is the only structural          *)
+(* divergence from the 5/6/7-block closers.                                   *)
 (* ========================================================================= *)
 
 let GCM_4BLOCK_GHASH_STEP_TAC =
@@ -560,229 +563,137 @@ let GCM_4BLOCK_GHASH_STEP_TAC =
     [CONJ_TAC THEN CONV_TAC WORD_BLAST; ALL_TAC] THEN
   REWRITE_TAC[WORD_XOR_0; WORD_XOR_0_LEFT] THEN
   REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  (* 18 atomic ABBREVs (4 cts + xi + 4 H powers) *)
+  (* GHASH closure in 5/6-block style: 18 atomic + 12 pmul + 24 z-var ABBREVs,
+     qS/qB Barrett pmuls, bubble_sort_conv XOR-AC closure. The two byte-form
+     folds below are 4-block-specific (ct1 is not opaque in the mid term). *)
   REWRITE_TAC[karatsuba_mid; WORD_REVERSEFIELDS_XOR_8_128; WORD_SUBWORD_XOR] THEN
-  ABBREV_TAC `(uA0:(64)word) = word_subword (word_reversefields 8 (ct4:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uA1:(64)word) = word_subword (word_reversefields 8 (ct4:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uB0:(64)word) = word_subword (word_reversefields 8 (ct3:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uB1:(64)word) = word_subword (word_reversefields 8 (ct3:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uG0:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uG1:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uH0:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uH1:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uC0:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uC1:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uD0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
-  ABBREV_TAC `(uD1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
-  ABBREV_TAC `(uE0:(64)word) = word_subword ((polyval_dot h h):(128)word) (0,64)` THEN
-  ABBREV_TAC `(uE1:(64)word) = word_subword ((polyval_dot h h):(128)word) (64,64)` THEN
-  ABBREV_TAC `(uF0:(64)word) = word_subword ((polyval_dot h (polyval_dot h h)):(128)word) (0,64)` THEN
-  ABBREV_TAC `(uF1:(64)word) = word_subword ((polyval_dot h (polyval_dot h h)):(128)word) (64,64)` THEN
-  ABBREV_TAC `(uK0:(64)word) = word_subword ((polyval_dot (polyval_dot h h) (polyval_dot h h)):(128)word) (0,64)` THEN
-  ABBREV_TAC `(uK1:(64)word) = word_subword ((polyval_dot (polyval_dot h h) (polyval_dot h h)):(128)word) (64,64)` THEN
-  ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  (* Byte-form fold: the karatsuba_mid expansion of (xi⊕ct1) leaves
-     (rev8 pt1)_lo ⊕ (rev8 s13_1)_lo ⊕ (rev8 rk14)_lo and the corresponding
-     hi form distributed in the goal. Re-fold them back to uH0/uH1 atoms
-     (since uH0/uH1 = subword(rev8 ct1)(lo/hi) and ct1 = pt1⊕s13_1⊕rk14). *)
+  ABBREV_TAC `(c1lo:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(c1hi:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(c2lo:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(c2hi:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(c3lo:(64)word) = word_subword (word_reversefields 8 (ct3:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(c3hi:(64)word) = word_subword (word_reversefields 8 (ct3:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(c4lo:(64)word) = word_subword (word_reversefields 8 (ct4:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(c4hi:(64)word) = word_subword (word_reversefields 8 (ct4:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(xilo:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(xihi:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(hd0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
+  ABBREV_TAC `(hd1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
+  ABBREV_TAC `(he0:(64)word) = word_subword ((polyval_dot h h):(128)word) (0,64)` THEN
+  ABBREV_TAC `(he1:(64)word) = word_subword ((polyval_dot h h):(128)word) (64,64)` THEN
+  ABBREV_TAC `(hf0:(64)word) = word_subword ((polyval_dot h (polyval_dot h h)):(128)word) (0,64)` THEN
+  ABBREV_TAC `(hf1:(64)word) = word_subword ((polyval_dot h (polyval_dot h h)):(128)word) (64,64)` THEN
+  ABBREV_TAC `(hg0:(64)word) = word_subword ((polyval_dot (polyval_dot h h) (polyval_dot h h)):(128)word) (0,64)` THEN
+  ABBREV_TAC `(hg1:(64)word) = word_subword ((polyval_dot (polyval_dot h h) (polyval_dot h h)):(128)word) (64,64)` THEN
+  ASM_REWRITE_TAC[] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
+  (* Byte-form fold: ct1's definition (pt1 xor s13_1 xor rk14) leaks the
+     (rev8 _)_lo/_hi byte forms into the (xi xor ct1) Karatsuba term; re-fold
+     them to the c1lo/c1hi atoms (4-block-specific; ct1 is not opaque here). *)
   SUBGOAL_THEN
     `(word_xor (word_subword (word_reversefields 8 (pt1:(128)word)) (0,64))
                (word_xor (word_subword (word_reversefields 8 (s13_1:(128)word)) (0,64))
                          (word_subword (word_reversefields 8 (rk14:(128)word)) (0,64))) :(64)word
-      = uH0) /\
+      = c1lo) /\
      (word_xor (word_subword (word_reversefields 8 (pt1:(128)word)) (64,64))
                (word_xor (word_subword (word_reversefields 8 (s13_1:(128)word)) (64,64))
                          (word_subword (word_reversefields 8 (rk14:(128)word)) (64,64))) :(64)word
-      = uH1)`
+      = c1hi)`
     (fun th -> REWRITE_TAC[th]) THENL
     [CONJ_TAC THENL
-       [EXPAND_TAC "uH0" THEN EXPAND_TAC "ct1" THEN
+       [EXPAND_TAC "c1lo" THEN EXPAND_TAC "ct1" THEN
         REWRITE_TAC[GSYM WORD_REVERSEFIELDS_XOR_8_128; GSYM WORD_SUBWORD_XOR];
-        EXPAND_TAC "uH1" THEN EXPAND_TAC "ct1" THEN
+        EXPAND_TAC "c1hi" THEN EXPAND_TAC "ct1" THEN
         REWRITE_TAC[GSYM WORD_REVERSEFIELDS_XOR_8_128; GSYM WORD_SUBWORD_XOR]];
      ALL_TAC] THEN
-  (* BIG-mid-pmul fold: the karatsuba_mid argument inside the BIG outer pmul
-     contains (uC1 ⊕ pt1_hi ⊕ s13_1_hi ⊕ rk14_hi ⊕ uC0 ⊕ uH0)  (after the lo
-     bytes were just folded to uH0). Split into G-half and F-half then re-fold
-     to (uC0⊕uH0) ⊕ (uC1⊕uH1). *)
+  (* BIG-mid-pmul fold: the (xi xor ct1) mid term inside the w1md pmul argument
+     also carries the byte forms; fold to (xihi xor c1hi) xor (xilo xor c1lo). *)
   SUBGOAL_THEN
-    `word_xor (uC1:(64)word)
+    `word_xor (xihi:(64)word)
        (word_xor (word_subword (word_reversefields 8 (pt1:(128)word)) (64,64))
         (word_xor (word_subword (word_reversefields 8 (s13_1:(128)word)) (64,64))
          (word_xor (word_subword (word_reversefields 8 (rk14:(128)word)) (64,64))
-                   (word_xor uC0 uH0)))) =
-     word_xor (word_xor uH0 uC0) (word_xor uH1 uC1):(64)word`
+                   (word_xor xilo c1lo)))) =
+     word_xor (word_xor (xihi:(64)word) c1hi) (word_xor xilo c1lo):(64)word`
     (fun th -> REWRITE_TAC[th]) THENL
     [SUBGOAL_THEN
-       `word_xor (uC1:(64)word)
+       `word_xor (xihi:(64)word)
           (word_xor (word_subword (word_reversefields 8 (pt1:(128)word)) (64,64))
            (word_xor (word_subword (word_reversefields 8 (s13_1:(128)word)) (64,64))
             (word_xor (word_subword (word_reversefields 8 (rk14:(128)word)) (64,64))
-                      (word_xor uC0 uH0)))) =
+                      (word_xor xilo c1lo)))) =
         word_xor
-          (word_xor (uC1:(64)word)
+          (word_xor (xihi:(64)word)
             (word_xor (word_subword (word_reversefields 8 (pt1:(128)word)) (64,64))
              (word_xor (word_subword (word_reversefields 8 (s13_1:(128)word)) (64,64))
                        (word_subword (word_reversefields 8 (rk14:(128)word)) (64,64)))))
-          (word_xor uC0 uH0)`
+          (word_xor xilo c1lo)`
        SUBST1_TAC THENL [CONV_TAC WORD_RULE; ALL_TAC] THEN
      REWRITE_TAC[GSYM WORD_REVERSEFIELDS_XOR_8_128; GSYM WORD_SUBWORD_XOR] THEN
      EXPAND_TAC "ct1" THEN
      REWRITE_TAC[GSYM WORD_REVERSEFIELDS_XOR_8_128; GSYM WORD_SUBWORD_XOR] THEN
      ASM_REWRITE_TAC[] THEN CONV_TAC WORD_RULE;
      ALL_TAC] THEN
-  (* Normalize XOR-AC of small pmul args BEFORE inner pmul ABBREVs (mirrors
-     3-block recipe). The last 2 conjuncts collapse the flattened (assoc-r)
-     form back into the paired (assoc-l) form that p1_mid uses. *)
-  SUBGOAL_THEN
-    `(word_xor uC0 uH0 = word_xor uH0 uC0:(64)word) /\
-     (word_xor uC1 uH1 = word_xor uH1 uC1:(64)word) /\
-     (word_xor uA1 uA0 = word_xor uA0 uA1:(64)word) /\
-     (word_xor uB1 uB0 = word_xor uB0 uB1:(64)word) /\
-     (word_xor uG1 uG0 = word_xor uG0 uG1:(64)word) /\
-     (word_xor uC1 (word_xor uH1 (word_xor uC0 uH0)) =
-        word_xor (word_xor uH0 uC0) (word_xor uH1 uC1):(64)word) /\
-     (word_xor uC0 (word_xor uH0 (word_xor uC1 uH1)) =
-        word_xor (word_xor uH0 uC0) (word_xor uH1 uC1):(64)word)`
-    (fun th -> REWRITE_TAC[th]) THENL
-    [REPEAT CONJ_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
-  (* 12 inner pmul ABBREVs (3 per block × 4 blocks) *)
-  ABBREV_TAC `(p1_lo:(128)word) =
-    word_pmul (word_xor (uH0:(64)word) (uC0:(64)word)) (uK0:(64)word)` THEN
-  ABBREV_TAC `(p1_hi:(128)word) =
-    word_pmul (word_xor (uH1:(64)word) (uC1:(64)word)) (uK1:(64)word)` THEN
-  ABBREV_TAC `(p1_mid:(128)word) =
-    word_pmul (word_xor (word_xor (uH0:(64)word) (uC0:(64)word))
-                       (word_xor (uH1:(64)word) (uC1:(64)word)))
-              (word_xor (uK0:(64)word) (uK1:(64)word))` THEN
-  ABBREV_TAC `(p2_lo:(128)word) = word_pmul (uG0:(64)word) (uF0:(64)word)` THEN
-  ABBREV_TAC `(p2_hi:(128)word) = word_pmul (uG1:(64)word) (uF1:(64)word)` THEN
-  ABBREV_TAC `(p2_mid:(128)word) =
-    word_pmul (word_xor (uG0:(64)word) (uG1:(64)word))
-              (word_xor (uF0:(64)word) (uF1:(64)word))` THEN
-  ABBREV_TAC `(p3_lo:(128)word) = word_pmul (uB0:(64)word) (uE0:(64)word)` THEN
-  ABBREV_TAC `(p3_hi:(128)word) = word_pmul (uB1:(64)word) (uE1:(64)word)` THEN
-  ABBREV_TAC `(p3_mid:(128)word) =
-    word_pmul (word_xor (uB0:(64)word) (uB1:(64)word))
-              (word_xor (uE0:(64)word) (uE1:(64)word))` THEN
-  ABBREV_TAC `(p4_lo:(128)word) = word_pmul (uA0:(64)word) (uD0:(64)word)` THEN
-  ABBREV_TAC `(p4_hi:(128)word) = word_pmul (uA1:(64)word) (uD1:(64)word)` THEN
-  ABBREV_TAC `(p4_mid:(128)word) =
-    word_pmul (word_xor (uA0:(64)word) (uA1:(64)word))
-              (word_xor (uD0:(64)word) (uD1:(64)word))` THEN
+  ABBREV_TAC `(w1lo:(128)word) = word_pmul (word_xor (xilo:(64)word) (c1lo:(64)word)) (hg0:(64)word)` THEN
+  ABBREV_TAC `(w1hi:(128)word) = word_pmul (word_xor (xihi:(64)word) (c1hi:(64)word)) (hg1:(64)word)` THEN
+  ABBREV_TAC `(w1md:(128)word) = word_pmul (word_xor (word_xor (xihi:(64)word) (c1hi:(64)word)) (word_xor (xilo:(64)word) (c1lo:(64)word))) (word_xor (hg0:(64)word) (hg1:(64)word))` THEN
+  ABBREV_TAC `(w2lo:(128)word) = word_pmul (c2lo:(64)word) (hf0:(64)word)` THEN
+  ABBREV_TAC `(w2hi:(128)word) = word_pmul (c2hi:(64)word) (hf1:(64)word)` THEN
+  ABBREV_TAC `(w2md:(128)word) = word_pmul (word_xor (c2hi:(64)word) (c2lo:(64)word)) (word_xor (hf0:(64)word) (hf1:(64)word))` THEN
+  ABBREV_TAC `(w3lo:(128)word) = word_pmul (c3lo:(64)word) (he0:(64)word)` THEN
+  ABBREV_TAC `(w3hi:(128)word) = word_pmul (c3hi:(64)word) (he1:(64)word)` THEN
+  ABBREV_TAC `(w3md:(128)word) = word_pmul (word_xor (c3hi:(64)word) (c3lo:(64)word)) (word_xor (he0:(64)word) (he1:(64)word))` THEN
+  ABBREV_TAC `(w4lo:(128)word) = word_pmul (c4lo:(64)word) (hd0:(64)word)` THEN
+  ABBREV_TAC `(w4hi:(128)word) = word_pmul (c4hi:(64)word) (hd1:(64)word)` THEN
+  ABBREV_TAC `(w4md:(128)word) = word_pmul (word_xor (c4hi:(64)word) (c4lo:(64)word)) (word_xor (hd0:(64)word) (hd1:(64)word))` THEN
   REWRITE_TAC[DOUBLE_SUBWORD_JOIN; DOUBLE_SUBWORD_JOIN_HI; WORD_SUBWORD_XOR] THEN
-  (* 24 z-vars for lo/hi subwords of 12 inner pmuls *)
-  ABBREV_TAC `(z1_lo:(64)word) = word_subword (p1_lo:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z1_hi:(64)word) = word_subword (p1_lo:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z2_lo:(64)word) = word_subword (p1_hi:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z2_hi:(64)word) = word_subword (p1_hi:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z3_lo:(64)word) = word_subword (p1_mid:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z3_hi:(64)word) = word_subword (p1_mid:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z4_lo:(64)word) = word_subword (p2_lo:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z4_hi:(64)word) = word_subword (p2_lo:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z5_lo:(64)word) = word_subword (p2_hi:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z5_hi:(64)word) = word_subword (p2_hi:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z6_lo:(64)word) = word_subword (p2_mid:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z6_hi:(64)word) = word_subword (p2_mid:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z7_lo:(64)word) = word_subword (p3_lo:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z7_hi:(64)word) = word_subword (p3_lo:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z8_lo:(64)word) = word_subword (p3_hi:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z8_hi:(64)word) = word_subword (p3_hi:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z9_lo:(64)word) = word_subword (p3_mid:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z9_hi:(64)word) = word_subword (p3_mid:(128)word) (64,64)` THEN
-  ABBREV_TAC `(zA_lo:(64)word) = word_subword (p4_lo:(128)word) (0,64)` THEN
-  ABBREV_TAC `(zA_hi:(64)word) = word_subword (p4_lo:(128)word) (64,64)` THEN
-  ABBREV_TAC `(zB_lo:(64)word) = word_subword (p4_hi:(128)word) (0,64)` THEN
-  ABBREV_TAC `(zB_hi:(64)word) = word_subword (p4_hi:(128)word) (64,64)` THEN
-  ABBREV_TAC `(zC_lo:(64)word) = word_subword (p4_mid:(128)word) (0,64)` THEN
-  ABBREV_TAC `(zC_hi:(64)word) = word_subword (p4_mid:(128)word) (64,64)` THEN
-  ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  (* Normalize the small pmul on the RHS to share the (z1_lo,z4_lo,z7_lo,zA_lo)
-     form used by zD and qSmallP. *)
   SUBGOAL_THEN
-    `word_pmul (word_xor (zA_lo:(64)word) (word_xor z7_lo (word_xor z4_lo z1_lo)))
-               (word 13979173243358019584:(64)word):(128)word =
-     word_pmul (word_xor (z1_lo:(64)word) (word_xor z4_lo (word_xor z7_lo zA_lo)))
-               (word 13979173243358019584:(64)word):(128)word`
+    `word_pmul (word_xor (xihi:(64)word) (word_xor (c1hi:(64)word) (word_xor (xilo:(64)word) (c1lo:(64)word)))) (word_xor (hg0:(64)word) (hg1:(64)word)):(128)word = w1md`
     (fun th -> REWRITE_TAC[th]) THENL
-    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
-  ABBREV_TAC `(zD:(64)word) =
-    word_subword (word_pmul
-      (word_xor (z1_lo:(64)word)
-       (word_xor (z4_lo:(64)word) (word_xor (z7_lo:(64)word) (zA_lo:(64)word))))
-      (word 13979173243358019584:(64)word):(128)word) (0,64)` THEN
+    [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  ABBREV_TAC `(w1lo_l:(64)word) = word_subword (w1lo:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w1lo_h:(64)word) = word_subword (w1lo:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w1hi_l:(64)word) = word_subword (w1hi:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w1hi_h:(64)word) = word_subword (w1hi:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w1md_l:(64)word) = word_subword (w1md:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w1md_h:(64)word) = word_subword (w1md:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w2lo_l:(64)word) = word_subword (w2lo:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w2lo_h:(64)word) = word_subword (w2lo:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w2hi_l:(64)word) = word_subword (w2hi:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w2hi_h:(64)word) = word_subword (w2hi:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w2md_l:(64)word) = word_subword (w2md:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w2md_h:(64)word) = word_subword (w2md:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w3lo_l:(64)word) = word_subword (w3lo:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w3lo_h:(64)word) = word_subword (w3lo:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w3hi_l:(64)word) = word_subword (w3hi:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w3hi_h:(64)word) = word_subword (w3hi:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w3md_l:(64)word) = word_subword (w3md:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w3md_h:(64)word) = word_subword (w3md:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w4lo_l:(64)word) = word_subword (w4lo:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w4lo_h:(64)word) = word_subword (w4lo:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w4hi_l:(64)word) = word_subword (w4hi:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w4hi_h:(64)word) = word_subword (w4hi:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w4md_l:(64)word) = word_subword (w4md:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w4md_h:(64)word) = word_subword (w4md:(128)word) (64,64)` THEN
+  ASM_REWRITE_TAC[] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
+  SUBGOAL_THEN `word_pmul (word_xor (c2lo:(64)word) (c2hi:(64)word)) (word_xor (hf0:(64)word) (hf1:(64)word)):(128)word = w2md`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w2md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  SUBGOAL_THEN `word_pmul (word_xor (c3lo:(64)word) (c3hi:(64)word)) (word_xor (he0:(64)word) (he1:(64)word)):(128)word = w3md`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w3md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  SUBGOAL_THEN `word_pmul (word_xor (c4lo:(64)word) (c4hi:(64)word)) (word_xor (hd0:(64)word) (hd1:(64)word)):(128)word = w4md`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w4md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  SUBGOAL_THEN `word_pmul (word_xor (xilo:(64)word) (word_xor (c1lo:(64)word) (word_xor (xihi:(64)word) (c1hi:(64)word)))) (word_xor (hg0:(64)word) (hg1:(64)word)):(128)word = w1md`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  ABBREV_TAC `(qS:(128)word) = word_pmul (word_xor (w4lo_l:(64)word) (word_xor w3lo_l (word_xor w2lo_l w1lo_l))) (word 13979173243358019584:(64)word)` THEN
+  SUBGOAL_THEN `word_pmul (word_xor (w1lo_l:(64)word) (word_xor w2lo_l (word_xor w3lo_l w4lo_l))) (word 13979173243358019584:(64)word):(128)word = qS`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "qS" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
   ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  ASM_REWRITE_TAC[] THEN
-  (* Normalize BIG outer pmul arg (XOR-AC of all 17 z-atoms). WORD_RULE times
-     out on 17 atoms; WORD_BITWISE_RULE handles it. *)
+  ABBREV_TAC `(qB:(128)word) = word_pmul
+    (word_xor (w4md_l:(64)word) (word_xor w3md_l (word_xor w2md_l (word_xor w1md_l (word_xor w4lo_l (word_xor w3lo_l (word_xor w2lo_l (word_xor w1lo_l (word_xor w4hi_l (word_xor w3hi_l (word_xor w2hi_l (word_xor w1hi_l (word_xor (word_subword (qS:(128)word) (0,64)) (word_xor w4lo_h (word_xor w3lo_h (word_xor w2lo_h w1lo_h)))))))))))))))) (word 13979173243358019584:(64)word)` THEN
   SUBGOAL_THEN
-    `word_pmul
-       (word_xor (zC_lo:(64)word)
-        (word_xor z9_lo
-        (word_xor z6_lo
-        (word_xor z3_lo
-        (word_xor zA_lo
-        (word_xor z7_lo
-        (word_xor z4_lo
-        (word_xor z1_lo
-        (word_xor zB_lo
-        (word_xor z8_lo
-        (word_xor z5_lo
-        (word_xor z2_lo
-        (word_xor zD
-        (word_xor zA_hi (word_xor z7_hi (word_xor z4_hi z1_hi))))))))))))))))
-       (word 13979173243358019584:(64)word):(128)word =
-     word_pmul
-       (word_xor (z1_hi:(64)word)
-        (word_xor z4_hi
-        (word_xor z7_hi
-        (word_xor zA_hi
-        (word_xor z3_lo
-        (word_xor z6_lo
-        (word_xor z9_lo
-        (word_xor zC_lo
-        (word_xor z2_lo
-        (word_xor z5_lo
-        (word_xor z8_lo
-        (word_xor zB_lo
-        (word_xor z1_lo
-        (word_xor z4_lo (word_xor z7_lo (word_xor zA_lo zD))))))))))))))))
-       (word 13979173243358019584:(64)word):(128)word`
-    ASSUME_TAC THENL
-    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE; ALL_TAC] THEN
-  ASM_REWRITE_TAC[] THEN
-  (* 5 outer ABBREVs: qBigP, qSmallP, qBigPL, qBigPH, qSmallPH. *)
-  ABBREV_TAC
-    `qBigP = word_pmul
-       (word_xor (z1_hi:(64)word)
-        (word_xor z4_hi
-        (word_xor z7_hi
-        (word_xor zA_hi
-        (word_xor z3_lo
-        (word_xor z6_lo
-        (word_xor z9_lo
-        (word_xor zC_lo
-        (word_xor z2_lo
-        (word_xor z5_lo
-        (word_xor z8_lo
-        (word_xor zB_lo
-        (word_xor z1_lo
-        (word_xor z4_lo (word_xor z7_lo (word_xor zA_lo zD))))))))))))))))
-       (word 13979173243358019584:(64)word):(128)word` THEN
-  ABBREV_TAC
-    `qSmallP = word_pmul
-       (word_xor (z1_lo:(64)word) (word_xor z4_lo (word_xor z7_lo zA_lo)))
-       (word 13979173243358019584:(64)word):(128)word` THEN
-  ABBREV_TAC `qBigPL = word_subword (qBigP:(128)word) (0,64):(64)word` THEN
-  ABBREV_TAC `qBigPH = word_subword (qBigP:(128)word) (64,64):(64)word` THEN
-  ABBREV_TAC `qSmallPH = word_subword (qSmallP:(128)word) (64,64):(64)word` THEN
-  (* Each BINOP half has 22 atoms — beyond WORD_BITWISE_RULE's reach. Both
-     sides are XOR-AC equal (same multiset of atoms in different order); use
-     bubble_sort_conv to canonicalize each side via XOR commutativity, then
-     REFL_TAC closes each half. Each half takes ~10s. *)
+    `word_pmul (word_xor (w1lo_h:(64)word) (word_xor w2lo_h (word_xor w3lo_h (word_xor w4lo_h (word_xor w1md_l (word_xor w2md_l (word_xor w3md_l (word_xor w4md_l (word_xor w1hi_l (word_xor w2hi_l (word_xor w3hi_l (word_xor w4hi_l (word_xor w1lo_l (word_xor w2lo_l (word_xor w3lo_l (word_xor w4lo_l (word_subword (qS:(128)word) (0,64)))))))))))))))))) (word 13979173243358019584:(64)word):(128)word = qB`
+    (fun th -> REWRITE_TAC[th]) THENL
+    [EXPAND_TAC "qB" THEN AP_THM_TAC THEN AP_TERM_TAC THEN
+     CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC; ALL_TAC] THEN
   BINOP_TAC THENL
    [CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC;
     CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC];;
