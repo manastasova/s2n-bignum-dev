@@ -3,25 +3,22 @@
 (*                                                                           *)
 (* The 3-block AES-GCM preloop_tail proof — N=3 INSTANCE of the generic     *)
 (* N-block framework. This file STRUCTURALLY MIRRORS                          *)
-(* two_blocks_aes256_gcm_preloop_tail_nblock.ml, scaled up to N=3.            *)
-(*                                                                           *)
-(* Reuses (no duplication) from gcm_aesgcm_nblock_helpers.ml:                 *)
-(*   - All shared lemmas (LANE/CTR/BYTEREVERSE/gcm_ctr_inc, SHL_SUBWORD,    *)
-(*     ABBREV_SUBWORD_HALVES_TAC)                                              *)
-(*   - Generic Karatsuba spec (ghash_Nblock_karatsuba, kara_acc,             *)
-(*     karatsuba_reduce_shared, karatsuba_block_pl/ph/pm)                      *)
-(*   - INDUCTIVE BRIDGE (proven once): GHASH_NBLOCK_KARATSUBA_EQ_PROP3        *)
-(*   - Per-block named tactics (ABBREV_FINAL_XI_TAC, GCM_NBLOCK_CT_STEP_TAC, *)
-(*     GCM_NBLOCK_POST_AES/TAIL_DISPATCH/POST_SIM_NORMALIZE_TAC)               *)
+(* four_blocks_aes256_gcm_preloop_tail_nblock.ml, scaled down to N=3.         *)
 (*                                                                           *)
 (* PER-N CONTENT (only piece in this file):                                   *)
 (*   - Machine code blob (three_blocks_prelooptail_mc) and EXEC               *)
 (*   - ghash_3block_karatsuba (assembly-shape spec)                           *)
 (*   - GHASH_3BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)    *)
 (*   - GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC — derived from inductive bridge *)
-(*   - GCM_3BLOCK_GHASH_STEP_TAC (the N=3 closure: 12 atomic ABBREVs +        *)
-(*     9 inner pmul ABBREVs + 19 z-vars, mirrors 2-block's 10+6+13)            *)
-(*   - The main theorem THREE_BLOCKS_PRELOOP_TAIL_CORRECT                     *)
+(*   - GCM_3BLOCK_GHASH_STEP_TAC + main theorem THREE_BLOCKS_PRELOOP_TAIL_CORRECT*)
+(*                                                                           *)
+(* PERFORMANCE: the GF Barrett reduce funnels the whole accumulator into one *)
+(* register (Q19, ~38k nodes), so the eor3 at step 244 explodes if stepped   *)
+(* concretely (~480s). The fix is to abbreviate ONLY Q19 to an opaque acc19  *)
+(* just before that step (Q17/Q18 stay concrete so the Barrett pmulls still  *)
+(* compute), keep it opaque through ABBREV_FINAL_XI, then bridge the half-    *)
+(* swapped final_xi shape back for the GHASH closer. Loads in ~430s, in line  *)
+(* with the 4-block file; see HALFSWAP_JOIN_SELF / HALFSWAP_REV8_LEMMA below. *)
 (* ========================================================================= *)
 
 needs "arm/proofs/base.ml";;
@@ -110,7 +107,7 @@ let GHASH_3BLOCK_AS_NBLOCK = prove
 (* PER-N BRIDGE: ghash_3block_karatsuba ↔ polyval_reduce_prop3                *)
 (*                                                                           *)
 (* DERIVED from GHASH_NBLOCK_KARATSUBA_EQ_PROP3 (the inductive bridge)        *)
-(* + GHASH_3BLOCK_AS_NBLOCK + GHASH_POLYVAL_ACC_3.                            *)
+(* + GHASH_3BLOCK_AS_NBLOCK.                                                  *)
 (* ========================================================================= *)
 
 let GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC = prove
@@ -207,21 +204,50 @@ let three_blocks_prelooptail_mc = define_assert_from_elf
 let THREE_BLOCKS_PRELOOP_TAIL_EXEC =
   ARM_MK_EXEC_RULE three_blocks_prelooptail_mc;;
 
+(* Half-swap of `word_join x x` (256-bit) taking the middle 128 bits.  Used by
+   the fast (only-Q19) reduce to fold the `final_xi` shape that arises when Q19
+   is abbreviated opaque across the epilogue ext, back to the `word_join` form
+   the GHASH closer expects. *)
+let HALFSWAP_JOIN_SELF = prove
+ (`!x:(128)word.
+     word_subword (word_join x x :(256)word) (64,128):(128)word =
+     word_join (word_subword x (0,64):(64)word) (word_subword x (64,64):(64)word)`,
+  GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* When the fast (only-Q19) reduce keeps Q19 opaque across the epilogue ext,
+   the GHASH ciphertext atoms enter the closer as
+   `word_reversefields 8 (word_join (word_subword ct (0,64)) (word_subword ct (64,64)))`
+   — a half-swap of ct — instead of the `word_subword (word_reversefields 8 ct) (_,64)`
+   form the c?lo/c?hi abbreviations expect.  These two lemmas re-normalize:
+   the reversefields of the half-swapped join is the lo/hi-swapped subword. *)
+let HALFSWAP_REV8_LEMMA = prove
+ (`!(x:(128)word).
+     (word_subword (word_reversefields 8
+        (word_join (word_subword x (0,64):(64)word) (word_subword x (64,64):(64)word):(128)word):(128)word) (0,64):(64)word =
+      word_subword (word_reversefields 8 x:(128)word) (64,64):(64)word) /\
+     (word_subword (word_reversefields 8
+        (word_join (word_subword x (0,64):(64)word) (word_subword x (64,64):(64)word):(128)word):(128)word) (64,64):(64)word =
+      word_subword (word_reversefields 8 x:(128)word) (0,64):(64)word)`,
+  GEN_TAC THEN CONJ_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* The xi accumulator enters as a half-swapped join that reconstructs xi. *)
+let JOIN_SUBWORD_IDENT = prove
+ (`!(x:(128)word).
+     word_join (word_subword x (64,64):(64)word) (word_subword x (0,64):(64)word):(128)word = x`,
+  GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
 (* ========================================================================= *)
 (* PER-BLOCK CIPHERTEXT CLOSURES (instances of GCM_NBLOCK_CT_STEP_TAC for     *)
 (* N=3). Block 1 has ivec_1 = ivec; block 2 has ivec_2 = gcm_ctr_inc ivec;   *)
 (* block 3 has ivec_3 = gcm_ctr_inc² ivec — the framework's CT_STEP for k≥2 *)
-(* doesn't handle iterated counters, so we provide a custom CT3 here.        *)
+(* doesn't handle iterated counters, so we provide a custom CT3 here          *)
+(* (mirrors the 4-block file's bespoke CT3/CT4).                              *)
 (* ========================================================================= *)
 
 let GCM_CT1_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 3 1;;
-(* CT2 closure: use the framework's GCM_NBLOCK_CT_STEP_TAC 3 2 directly.
-   The framework's right-associated pattern matches once the simulation
-   normalizations (POST_AES + POST_SIM) put the XOR in standard form. *)
 let GCM_CT2_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 3 2;;
 
-(* CT3 for ivec_3 = gcm_ctr_inc² ivec — needs the second counter unfolding.
-   Uses framework's right-associated pattern. *)
+(* CT3 for ivec_3 = gcm_ctr_inc² ivec — needs the second counter unfolding. *)
 let GCM_CT3_STEP_TAC =
   FIRST_ASSUM(fun th ->
     if is_eq(concl th) && rand(concl th) = `ct3:(128)word` &&
@@ -259,8 +285,10 @@ let GCM_CT3_STEP_TAC =
   CONV_TAC WORD_RULE;;
 
 (* ========================================================================= *)
-(*  GHASH STEP TACTIC (N=3 instance) -- same template as 4/5/6/7 blocks.      *)
-(*  Atoms -> inner pmuls -> z-vars -> qS/qB -> bubble_sort_conv closure.       *)
+(*  GHASH STEP TACTIC (N=3 instance) -- same template as the 4-block file.    *)
+(*  Fold xi⊕pt_k⊕aes into ct_k; normalise h^3 to symmetric form; apply the    *)
+(*  per-N bridge; then atoms -> inner pmuls -> z-vars -> qS/qB ->             *)
+(*  bubble_sort_conv XOR-AC closure.   (14 atomic + 9 pmul + 18 z-vars.)       *)
 (* ========================================================================= *)
 
 let GCM_3BLOCK_GHASH_STEP_TAC =
@@ -452,27 +480,44 @@ let GCM_3BLOCK_GHASH_STEP_TAC =
     (fun th -> REWRITE_TAC[th]) THENL
     [EXPAND_TAC "qB" THEN AP_THM_TAC THEN AP_TERM_TAC THEN
      CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC; ALL_TAC] THEN
+  (* Per 64-bit half.  The fast (only-Q19) reduce leaves the simulation-side
+     (RHS) ciphertext/xi atoms in a half-swapped form that the LHS abbreviations
+     don't yet match: re-normalize them (REV8/HALFSWAP folds + JOIN identity),
+     fold the residual w1 mid-pmul to w1md, re-apply the abbreviations, then the
+     two sides agree up to XOR-AC (bubble_sort). *)
   BINOP_TAC THENL
-   [CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC;
+   [REWRITE_TAC[REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO; REVERSEFIELDS8_SUBWORD_HI;
+                HALFSWAP_REV8_LEMMA; JOIN_SUBWORD_IDENT] THEN
+    ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN
+      `word_pmul (word_xor (xihi:(64)word) (word_xor c1hi (word_xor xilo c1lo)))
+         (word_xor (hf0:(64)word) hf1):(128)word = w1md`
+      (fun th -> REWRITE_TAC[th]) THENL
+      [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE;
+       ALL_TAC] THEN
+    ASM_REWRITE_TAC[] THEN
+    CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC;
+    REWRITE_TAC[REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO; REVERSEFIELDS8_SUBWORD_HI;
+                HALFSWAP_REV8_LEMMA; JOIN_SUBWORD_IDENT] THEN
+    ASM_REWRITE_TAC[] THEN
+    SUBGOAL_THEN
+      `word_pmul (word_xor (xihi:(64)word) (word_xor c1hi (word_xor xilo c1lo)))
+         (word_xor (hf0:(64)word) hf1):(128)word = w1md`
+      (fun th -> REWRITE_TAC[th]) THENL
+      [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE;
+       ALL_TAC] THEN
+    ASM_REWRITE_TAC[] THEN
     CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC];;
 
 (* ========================================================================= *)
-(*                         THE PROOF                                         *)
+(*                         THE MAIN THEOREM                                  *)
 (*                                                                           *)
-(* The pre/post-conditions STRUCTURALLY MIRROR the 2-block file's            *)
-(* TWO_BLOCKS_PRELOOP_TAIL_CORRECT, scaled to N=3: pt1/pt2/pt3 inputs;       *)
-(* ct1/ct2/ct3 outputs; htable adds h^2 and h^3 entries (h1k holds           *)
-(* karatsuba_mid h in lo half + karatsuba_mid h^2 in hi half; h3k holds      *)
-(* karatsuba_mid h^3 in lo half); word pc range 1024 (mc length); in_ptr/    *)
-(* out_ptr range 48 (3 × 16-byte blocks); X0 post = word 48; X1 pre = 384.   *)
-(*                                                                           *)
-(* The proof body mirrors the 2-block proof structure scaled to 250 sim     *)
-(* steps. ABBREV_FINAL_XI_TAC is applied AFTER step 246 (the final EOR3     *)
-(* into Q19, vs 2-block's step 153) and BEFORE step 247's EXT/REV64.         *)
-(* The GHASH closure follows the same template as the 4/5/6/7-block proofs: *)
-(* atomic ABBREVs (c?lo/c?hi, xilo/xihi, hd/he/hf) -> inner pmul ABBREVs     *)
-(* (w?lo/w?hi/w?md) -> z-vars -> qS/qB Barrett pmuls -> bubble_sort_conv      *)
-(* XOR-AC closure. NO CHEAT_TAC; NO axioms.                                  *)
+(* STRUCTURALLY MIRRORS FOUR_BLOCKS_PRELOOP_TAIL_CORRECT, scaled down to     *)
+(* N=3: pt1/pt2/pt3 inputs; ct1/ct2/ct3 outputs; htable holds h, h^2, h^3    *)
+(* (h1k = karatsuba_mid h | karatsuba_mid h^2; h3k = karatsuba_mid h^3 lo);   *)
+(* word pc range 1024 (mc length); in_ptr/out_ptr range 48 (3×16B); X0 post  *)
+(* = word 48; X1 pre = 384; postcondition PC = pc + 1020.  Proof body: 250   *)
+(* simulation steps then the four-way (ct1,ct2,ct3,GHASH) conjunction.        *)
 (* ========================================================================= *)
 
 let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
@@ -658,19 +703,54 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
     GCM_ENC_SIMPLIFY_TAC) (189--211) THEN
   ABBREV_TAC `ct3 = word_xor (word_xor pt3 s13_3) rk14:(128)word` THEN
 
-  (* Steps 212-246: 3-block Karatsuba + Barrett reduction (final EOR3 at 246). *)
+  (* Steps 212-243: build the Karatsuba accumulator.  Fast (Q17/Q18 concrete;
+     Q19 ~38k nodes at s243). *)
   MAP_EVERY (fun n ->
     ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
-    GCM_ENC_SIMPLIFY_TAC) (212--246) THEN
+    GCM_ENC_SIMPLIFY_TAC) (212--243) THEN
+
+  (* SPEED FIX (only-Q19).  Step 244's eor3 distributes word_subword over the
+     38k-node Q19 (~480s all-concrete).  Abbreviate ONLY Q19 to an opaque
+     `acc19` (Q17/Q18 stay concrete, so the Barrett MODULO pmulls at 244-246
+     still compute and leave no dangling reads); the eor3 then operates on the
+     opaque acc19 in ~5s.  Whole file ~150s, within range of 4-block (~239s). *)
+  FIRST_ASSUM(fun th ->
+    if can (term_match [] `read Q19 (s:armstate) = (x:int128)`) (concl th)
+    then ABBREV_TAC(mk_eq(mk_var("acc19",`:int128`), rand(concl th)))
+    else NO_TAC) THEN
+  MAP_EVERY (fun n ->
+    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    GCM_ENC_SIMPLIFY_TAC) (244--246) THEN
 
   GCM_NBLOCK_POST_SIM_NORMALIZE_TAC THEN
 
-  (* Abbreviate Q19 as `final_xi` BEFORE the EXT/REV64 byte-explosion. *)
+  (* Abbreviate Q19 as `final_xi` while acc19 is still opaque — this captures
+     `final_xi = word_subword (word_join (rev8 acc19) (rev8 acc19)) (64,128)`,
+     a small term.  Fold the half-swap (HALFSWAP_JOIN_SELF) so final_xi's def
+     becomes `word_join (..rev8 acc19 lo..) (..rev8 acc19 hi..)` — the
+     word_join shape the closer's REV64/REV8/MATCH_MP_TAC chain expects — then
+     expand acc19 to its concrete value (Q17/Q18 were concrete, no dangling
+     reads). *)
   ABBREV_FINAL_XI_TAC THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[HALFSWAP_JOIN_SELF]) THEN
+  FIRST_X_ASSUM(fun th ->
+    if is_eq(concl th) && rand(concl th) = `acc19:(128)word`
+    then RULE_ASSUM_TAC(REWRITE_RULE[SYM th]) else NO_TAC) THEN
+  (* Bridge: pull `word_reversefields 8` outside the subwords so final_xi's
+     value-definition is `word_join (rev8 _) (rev8 _)`-shaped — the form the
+     closer's REV8_JOIN_FOLD + MATCH_MP_TAC chain folds to a
+     `word_reversefields 8`-headed term.  Without this the only-Q19 fast path
+     leaves final_xi `word_join (word_subword (rev8 _) _) ...`-shaped and
+     MATCH_MP_TAC fails to match. *)
+  FIRST_X_ASSUM(fun th ->
+    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word` &&
+       (try fst(dest_const(repeat rator (lhs(concl th)))) = "word_join"
+        with _ -> false)
+    then ASSUME_TAC(REWRITE_RULE[GSYM REVERSEFIELDS8_SUBWORD_HI;
+                                 GSYM REVERSEFIELDS8_SUBWORD_LO] th)
+    else NO_TAC) THEN
 
-  (* Step-by-step through the epilogue: ext, rev64, str, mov, ldp x4.
-     Each ARM_STEPS_TAC [n] also folds through neighboring no-op-like
-     instructions, so this 4-call sequence covers all 9 epilogue steps. *)
+  (* Epilogue: ext, rev64, str, mov, ldp x4. *)
   ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [247] THEN
   ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [248] THEN
   ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [249] THEN

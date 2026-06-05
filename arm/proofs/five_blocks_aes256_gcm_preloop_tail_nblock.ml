@@ -35,7 +35,7 @@ needs "arm/proofs/utils/gcm_aesgcm_helpers.ml";;
 needs "arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml";;
 
 (* ========================================================================= *)
-(*  PER-N: 4-block assembly-shape spec ghash_5block_karatsuba.               *)
+(*  PER-N: 5-block assembly-shape spec ghash_5block_karatsuba.               *)
 (* ========================================================================= *)
 
 let ghash_5block_karatsuba = new_definition
@@ -405,7 +405,7 @@ let GCM_CT5_STEP_TAC =
 (* ========================================================================= *)
 
 (* ========================================================================= *)
-(*  GHASH STEP TACTIC (N=4 instance)                                          *)
+(*  GHASH STEP TACTIC (N=5 instance)                                          *)
 (*                                                                           *)
 (* Mirrors the 3-block style scaled to N=4. Key extra steps vs 3-block:       *)
 (*   - 18 atomic ABBREVs (4 ct + xi + 4 H powers, vs 3-block's 14)            *)

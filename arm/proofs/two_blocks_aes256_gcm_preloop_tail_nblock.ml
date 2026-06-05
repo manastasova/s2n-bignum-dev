@@ -2,31 +2,15 @@
 (* two_blocks_aes256_gcm_preloop_tail_nblock.ml                              *)
 (*                                                                           *)
 (* The 2-block AES-GCM preloop_tail proof — N=2 INSTANCE of the generic     *)
-(* N-block framework defined in arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml *)
-(*                                                                           *)
-(* Reuses (no duplication):                                                   *)
-(*   - All shared lemmas (LANE/CTR/BYTEREVERSE/gcm_ctr_inc, SHL_SUBWORD,    *)
-(*     ABBREV_SUBWORD_HALVES_TAC) — from nblock helpers                      *)
-(*   - Generic Karatsuba spec (ghash_Nblock_karatsuba, kara_acc,             *)
-(*     karatsuba_reduce_shared, karatsuba_block_pl/ph/pm) — from nblock      *)
-(*     helpers                                                                *)
-(*   - INDUCTIVE BRIDGE (proven once, reused at each N): the structural      *)
-(*     identities KARATSUBA_REDUCE_AS_PROP3_CLEAN,                            *)
-(*     KARATSUBA_BLOCK_PACKS_TO_PMUL_CLEAN, PACK_CORRECTED_XOR,                *)
-(*     KARA_ACC_FIRST/PACK_HELPER, GHASH_NBLOCK_KARATSUBA_EQ_PROP3 — from    *)
-(*     nblock helpers                                                          *)
-(*   - Per-block named tactics (ABBREV_FINAL_XI_TAC, GCM_NBLOCK_CT_STEP_TAC, *)
-(*     GCM_NBLOCK_POST_AES/TAIL_DISPATCH/POST_SIM_NORMALIZE_TAC) — from       *)
-(*     nblock helpers                                                          *)
+(* N-block framework. This file STRUCTURALLY MIRRORS                          *)
+(* three_blocks_aes256_gcm_preloop_tail_nblock.ml, scaled down to N=2.        *)
 (*                                                                           *)
 (* PER-N CONTENT (only piece in this file):                                   *)
 (*   - Machine code blob (two_blocks_prelooptail_mc) and EXEC                *)
-(*   - Per-N derived bridge: the existing GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC *)
-(*     (or its derivation from GHASH_NBLOCK_KARATSUBA_EQ_PROP3 via            *)
-(*      GHASH_POLYVAL_ACC_2)                                                   *)
-(*   - GCM_GHASH_STEP_TAC (the N=2 closure: 10+6+13 ABBREVs for the          *)
-(*     cross-block pmul XOR-AC structure)                                      *)
-(*   - The main theorem TWO_BLOCKS_PRELOOP_TAIL_CORRECT                       *)
+(*   - ghash_2block_karatsuba (assembly-shape spec)                           *)
+(*   - GHASH_2BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)    *)
+(*   - GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC — derived from inductive bridge *)
+(*   - GCM_2BLOCK_GHASH_STEP_TAC + main theorem TWO_BLOCKS_PRELOOP_TAIL_CORRECT*)
 (* ========================================================================= *)
 
 needs "arm/proofs/base.ml";;
@@ -40,16 +24,6 @@ needs "arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml";;
 
 (* ========================================================================= *)
 (*  PER-N: 2-block assembly-shape spec ghash_2block_karatsuba.               *)
-(*                                                                           *)
-(* This is the existing 2-block spec from gcm_aesgcm_helpers.ml /            *)
-(* two_blocks_aes256_gcm_preloop_tail_claude_4.7_simplified_new.ml. We       *)
-(* keep it here because the existing proven bridge lemma                      *)
-(* GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC uses it in its statement.            *)
-(*                                                                           *)
-(* Future work: rebase this onto ghash_Nblock_karatsuba (the N=2             *)
-(* instance via project_triples [(b1,htw,hk,h);(b2,h2tw,h2k,h2)]) and        *)
-(* derive the 2-block bridge directly from GHASH_NBLOCK_KARATSUBA_EQ_PROP3  *)
-(* + GHASH_POLYVAL_ACC_2.                                                     *)
 (* ========================================================================= *)
 
 let ghash_2block_karatsuba = new_definition
@@ -362,7 +336,7 @@ let GCM_2BLOCK_GHASH_STEP_TAC =
     CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC];;
 
 (* ========================================================================= *)
-(*                         THE PROOF                                         *)
+(*                         THE MAIN THEOREM                                  *)
 (* ========================================================================= *)
 
 let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove

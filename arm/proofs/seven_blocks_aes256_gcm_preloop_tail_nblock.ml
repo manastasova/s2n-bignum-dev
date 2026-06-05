@@ -186,7 +186,7 @@ let GHASH_7BLOCK_KARATSUBA_EQ_POLYVAL_ACC = prove
   AP_TERM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE);;
 
 (* ========================================================================= *)
-(* GHASH_POLYVAL_ACC_7                                                        *)
+(* GHASH_POLYVAL_ACC_7: 7-block specialization of GHASH_POLYVAL_ACC_BATCHED.  *)
 (* ========================================================================= *)
 
 let GHASH_POLYVAL_ACC_7 = prove
