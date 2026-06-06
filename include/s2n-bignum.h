@@ -1240,15 +1240,31 @@ extern size_t aesv8_gcm_1block_dec_256
   (const uint8_t *in, size_t bit_len, uint8_t *out,
    uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
 // AES-256-GCM two-block (32 byte) encrypt + GHASH accumulation
-extern size_t two_blocks_aes256_gcm_preloop_tail
+extern size_t aes256_gcm_two_block
   (const uint8_t *in, size_t bit_len, uint8_t *out,
    uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
 // AES-256-GCM three-block (48 byte) encrypt + GHASH accumulation
-extern size_t three_blocks_aes256_gcm_preloop_tail
+extern size_t aes256_gcm_three_block
   (const uint8_t *in, size_t bit_len, uint8_t *out,
    uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
 // AES-256-GCM four-block (64 byte) encrypt + GHASH accumulation
-extern size_t four_blocks_aes256_gcm_preloop_tail
+extern size_t aes256_gcm_four_block
+  (const uint8_t *in, size_t bit_len, uint8_t *out,
+   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
+// AES-256-GCM one-block (16 byte) encrypt + GHASH accumulation
+extern size_t aes256_gcm_one_block
+  (const uint8_t *in, size_t bit_len, uint8_t *out,
+   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
+// AES-256-GCM five-block (80 byte) encrypt + GHASH accumulation
+extern size_t aes256_gcm_five_block
+  (const uint8_t *in, size_t bit_len, uint8_t *out,
+   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
+// AES-256-GCM six-block (96 byte) encrypt + GHASH accumulation
+extern size_t aes256_gcm_six_block
+  (const uint8_t *in, size_t bit_len, uint8_t *out,
+   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
+// AES-256-GCM seven-block (112 byte) encrypt + GHASH accumulation
+extern size_t aes256_gcm_seven_block
   (const uint8_t *in, size_t bit_len, uint8_t *out,
    uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
 #endif

@@ -1,26 +1,25 @@
+(*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
+ *)
+
 (* ========================================================================= *)
-(* six_blocks_aes256_gcm_preloop_tail_nblock.ml                              *)
-(*                                                                           *)
-(* The 6-block AES-GCM preloop_tail proof — N=6 INSTANCE of the generic     *)
-(* N-block framework. This file STRUCTURALLY MIRRORS                          *)
-(* five_blocks_aes256_gcm_preloop_tail_nblock.ml, scaled up to N=6.           *)
-(*                                                                           *)
-(* PER-N CONTENT (only piece in this file):                                   *)
-(*   - Machine code blob (six_blocks_prelooptail_mc) and EXEC                 *)
-(*   - ghash_6block_karatsuba (assembly-shape spec)                           *)
-(*   - GHASH_6BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)    *)
+(* aes256_gcm_six_block.ml                                                 *)
+(*                                                                         *)
+(* The 6-block AES-256-GCM separate-blocks encrypt proof — the N=6         *)
+(* instance of the generic N-block framework. STRUCTURALLY MIRRORS         *)
+(* aes256_gcm_five_block.ml, scaled up to N=6.                             *)
+(*                                                                         *)
+(* PER-N CONTENT (only piece in this file):                                *)
+(*   - Machine code blob (aes256_gcm_six_block_mc) and EXEC                *)
+(*   - ghash_6block_karatsuba (assembly-shape spec)                        *)
+(*   - GHASH_6BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)  *)
 (*   - GHASH_6BLOCK_KARATSUBA_EQ_POLYVAL_ACC — derived from inductive bridge *)
-(*   - GHASH_POLYVAL_ACC_6, POLYVAL_DOT_H5_EQ, POLYVAL_DOT_H6_EQ              *)
-(*   - GCM_6BLOCK_GHASH_STEP_TAC + main theorem SIX_BLOCKS_PRELOOP_TAIL_CORRECT*)
+(*   - GCM_6BLOCK_GHASH_STEP_TAC + main theorem SIX_BLOCKS_PRELOOP_TAIL_CORRECT *)
 (* ========================================================================= *)
 
-needs "arm/proofs/base.ml";;
-needs "common/aes.ml";;
-needs "arm/proofs/aes.ml";;
-needs "arm/proofs/utils/new_instructions.ml";;
-needs "arm/proofs/utils/one_block_preloop_tail_spec.ml";;
-needs "common/ghash_spec.ml";;
-needs "arm/proofs/utils/gcm_aesgcm_helpers.ml";;
+(* All dependencies (base/AES/ghash_spec/aesgcm helpers) are pulled in       *)
+(* transitively by the N-block framework file below.                          *)
 needs "arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml";;
 
 (* ========================================================================= *)
@@ -191,114 +190,411 @@ let GHASH_6BLOCK_KARATSUBA_EQ_POLYVAL_ACC = prove
   DISCH_THEN SUBST1_TAC THEN
   AP_TERM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE);;
 
-(* ========================================================================= *)
-(* GHASH_POLYVAL_ACC_6: 6-block specialization of GHASH_POLYVAL_ACC_BATCHED.  *)
-(* ========================================================================= *)
-
-let GHASH_POLYVAL_ACC_6 = prove
- (`!(h:int128) (a:int128) (p:int128) (q:int128) (r:int128) (s:int128) (t:int128) (u:int128).
-    ghash_polyval_acc h a [p:int128; q; r; s; t; u] =
-    polyval_reduce_prop3
-      (word_xor
-        (word_pmul (word_xor a p) (polyval_dot (polyval_dot (polyval_dot (polyval_dot (polyval_dot h h) h) h) h) h) : 256 word)
-       (word_xor
-        (word_pmul q (polyval_dot (polyval_dot (polyval_dot (polyval_dot h h) h) h) h) : 256 word)
-       (word_xor
-        (word_pmul r (polyval_dot (polyval_dot (polyval_dot h h) h) h) : 256 word)
-       (word_xor
-        (word_pmul s (polyval_dot (polyval_dot h h) h) : 256 word)
-       (word_xor
-        (word_pmul t (polyval_dot h h) : 256 word)
-        (word_pmul u h : 256 word))))))`,
-  REPEAT GEN_TAC THEN
-  MP_TAC (SPECL [`h:int128`; `[q:int128; r; s; t; u]`; `a:int128`; `p:int128`]
-                GHASH_POLYVAL_ACC_BATCHED) THEN
-  REWRITE_TAC[LENGTH; ghash_wide; h_power; ARITH; SUB_0] THEN
-  REWRITE_TAC[WORD_XOR_0] THEN
-  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
-  REWRITE_TAC[num_CONV `5`; num_CONV `4`; num_CONV `3`; num_CONV `2`; num_CONV `1`; h_power]);;
-
-(* ========================================================================= *)
-(* POLYVAL_DOT_H4_EQ_LOCAL / H5_EQ / H6_EQ                                    *)
-(* ========================================================================= *)
+(* GHASH_POLYVAL_ACC_6 (6-block specialization of GHASH_POLYVAL_ACC_BATCHED)
+   is defined in arm/proofs/utils/gcm_aesgcm_helpers.ml (ACC_2..4 are in
+   common/ghash_spec.ml; ACC_5/6/7 are derived in the helpers file).
+   POLYVAL_DOT_H4_EQ_LOCAL / H5_EQ / H6_EQ live in
+   arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml. *)
 
 (* ========================================================================= *)
 (*  PER-N: MACHINE CODE                                                      *)
 (* ========================================================================= *)
 
-let six_blocks_prelooptail_mc = define_assert_from_elf
-  "six_blocks_prelooptail_mc"
-  "/home/ubuntu/auto_proofs/s2n-bignum/arm/aes-gcm/six_blocks_aes256_gcm_preloop_tail.o"
+let aes256_gcm_six_block_mc = define_assert_from_elf
+  "aes256_gcm_six_block_mc"
+  "arm/aes-gcm/aes256_gcm_six_block.o"
 [
-  0x6dbb27e8; 0xd343fc29; 0xaa0403f0; 0xaa0503eb; 0x6d012fea; 0x6d0237ec;
-  0x6d033fee; 0xd2f84005; 0xa9047fe5; 0x910103ea; 0x4c407200; 0xaa0903e5;
-  0xd2c0002f; 0x4f00e41f; 0x4e181dff; 0xd10004a5; 0x9279e0a5; 0x8b0000a5;
-  0x6e20081e; 0x4ebf87de; 0x6e200bc1; 0x4ebf87de; 0x6e200bc2; 0x4ebf87de;
-  0x6e200bc3; 0x4ebf87de; 0x6e200bc4; 0x4ebf87de; 0x6e200bc5; 0x4ebf87de;
-  0xad406d7a; 0x6e200bc6; 0x4ebf87de; 0x6e200bc7; 0x4e284b43; 0x4e286863;
-  0x4e284b44; 0x4e286884; 0x4e284b42; 0x4e286842; 0x4e284b40; 0x4e286800;
-  0x4e284b41; 0x4e286821; 0x4e284b45; 0x4e2868a5; 0xad41697c; 0x4e284b64;
-  0x4e286884; 0x4e284b61; 0x4e286821; 0x4e284b63; 0x4e286863; 0x4e284b65;
-  0x4e2868a5; 0x4e284b62; 0x4e286842; 0x4e284b82; 0x4e286842; 0x4e284b83;
-  0x4e286863; 0x4e284b60; 0x4e286800; 0x4e284b85; 0x4e2868a5; 0x4e284b84;
-  0x4e286884; 0x4e284b80; 0x4e286800; 0x4e284b81; 0x4e286821; 0x4e284b45;
-  0x4e2868a5; 0x4e284b43; 0x4e286863; 0xad42717b; 0x4e284b44; 0x4e286884;
-  0x4e284b41; 0x4e286821; 0x4e284b42; 0x4e286842; 0x4e284b40; 0x4e286800;
-  0x4e284b64; 0x4e286884; 0x4e284b61; 0x4e286821; 0x4e284b62; 0x4e286842;
-  0x4e284b60; 0x4e286800; 0x4e284b63; 0x4e286863; 0x4e284b65; 0x4e2868a5;
-  0x4e284b80; 0x4e286800; 0x4e284b82; 0x4e286842; 0xad436d7a; 0x4e284b81;
-  0x4e286821; 0x4e284b84; 0x4e286884; 0x4e284b85; 0x4e2868a5; 0x4e284b83;
-  0x4e286863; 0x4e284b41; 0x4e286821; 0x4e284b45; 0x4e2868a5; 0x4e284b44;
-  0x4e286884; 0x4e284b42; 0x4e286842; 0x4e284b40; 0x4e286800; 0x4e284b43;
-  0x4e286863; 0xad44697c; 0x4e284b62; 0x4e286842; 0x4e284b60; 0x4e286800;
-  0x4e284b61; 0x4e286821; 0x4e284b65; 0x4e2868a5; 0x4e284b63; 0x4e286863;
-  0x4e284b64; 0x4e286884; 0x4e284b81; 0x4e286821; 0x4e284b83; 0x4e286863;
-  0x4e284b80; 0x4e286800; 0x4e284b85; 0x4e2868a5; 0x4e284b84; 0x4e286884;
-  0x4e284b82; 0x4e286842; 0x4c407073; 0x6e134273; 0x4e200a73; 0xad45717b;
-  0x4e284b43; 0x4e286863; 0x4e284b44; 0x4e286884; 0x4e284b45; 0x4e2868a5;
-  0x4e284b42; 0x4e286842; 0x4e284b41; 0x4e286821; 0x4e284b64; 0x4e286884;
-  0x4e284b40; 0x4e286800; 0x4e284b61; 0x4e286821; 0x4e284b65; 0x4e2868a5;
-  0x4e284b63; 0x4e286863; 0x4e284b62; 0x4e286842; 0x4e284b60; 0x4e286800;
-  0x4e284b84; 0x4e286884; 0xad466d7a; 0x4e284b85; 0x4e2868a5; 0x4e284b82;
-  0x4e286842; 0x4e284b81; 0x4e286821; 0x4e284b80; 0x4e286800; 0x4e284b83;
-  0x4e286863; 0x4ebf87de; 0x3dc0397c; 0x4e284b44; 0x4e286884; 0x4e284b42;
-  0x4e286842; 0x4e284b41; 0x4e286821; 0x4e284b40; 0x4e286800; 0x4e284b45;
-  0x4e2868a5; 0x4e284b43; 0x4e286863; 0x4e284b62; 0x4e284b61; 0x4e284b64;
-  0x4e284b60; 0x4e284b65; 0x4e284b63; 0x8b410c04; 0xce02714a; 0xce04718c;
-  0xce0571ad; 0xcb000085; 0x3cc10408; 0x6e134270; 0xad445cd6; 0x4ebc1f9d;
-  0xce007509; 0x0f00e413; 0x0f00e411; 0x0f00e412; 0xad4354d4; 0x4ea61cc7;
-  0x0f00e411; 0x4ea51ca6; 0x4ea41c85; 0x4ea31c64; 0x4ea21c43; 0x6ebf87de;
-  0x4ea11c22; 0x0f00e412; 0xf10180bf; 0x5400042c; 0x4ea61cc7; 0x4ea51ca6;
-  0xf10140bf; 0x4ea41c85; 0x4ea31c64; 0x4ea11c23; 0x6ebf87de; 0x5400032c;
-  0x4ea61cc7; 0x6ebf87de; 0x4ea51ca6; 0x4ea41c85; 0xf10100bf; 0x4ea11c24;
-  0x5400042c; 0xf100c0bf; 0x4ea61cc7; 0x4ea51ca6; 0x4ea11c25; 0x6ebf87de;
-  0x5400052c; 0xf10080bf; 0x4ea61cc7; 0x3dc010d8; 0x4ea11c26; 0x6ebf87de;
-  0x5400068c; 0x4ea11c27; 0xf10040bf; 0x5400080c; 0x6ebf87de; 0x1400004f;
-  0x4c9f7049; 0x4e200928; 0x6e301d08; 0x6e08451b; 0x4ef6e11c; 0x6e3c1e31;
-  0x2e281f7b; 0x6e18077b; 0x3cc10409; 0x0ef6e11a; 0x4ef5e37b; 0x0f00e410;
-  0x6e3a1e73; 0x6e3b1e52; 0xce037529; 0x4c9f7049; 0x4e200928; 0x3cc10409;
-  0x6e301d08; 0x6e08451b; 0x4ef4e11c; 0xce047529; 0x0ef4e11a; 0x2e281f7b;
-  0x6e3a1e73; 0x0ef5e37b; 0x0f00e410; 0x6e3b1e52; 0x6e3c1e31; 0x4c9f7049;
-  0x3dc014d9; 0x4e200928; 0x6e301d08; 0x6e08451b; 0x4ef9e11c; 0x6e3c1e31;
-  0x2e281f7b; 0x3dc010d8; 0x6e18077b; 0x3cc10409; 0x4ef8e37b; 0x0ef9e11a;
-  0xce057529; 0x0f00e410; 0x6e3b1e52; 0x6e3a1e73; 0x3dc00cd7; 0x4c9f7049;
-  0x4e200928; 0x3cc10409; 0x6e301d08; 0x6e08451b; 0x0f00e410; 0x4ef7e11c;
-  0xce067529; 0x2e281f7b; 0x6e3c1e31; 0x0ef8e37b; 0x0ef7e11a; 0x6e3b1e52;
-  0x6e3a1e73; 0x4c9f7049; 0x3dc008d6; 0x4e200928; 0x3cc10409; 0x6e301d08;
-  0x0f00e410; 0x6e08451b; 0x4ef6e11c; 0xce077529; 0x6e3c1e31; 0x0ef6e11a;
-  0x2e281f7b; 0x3dc004d5; 0x6e3a1e73; 0x6e18077b; 0x4ef5e37b; 0x6e3b1e52;
-  0x92401821; 0xd1020021; 0xcb0103e1; 0xaa3f03e7; 0x92401821; 0x9ac124e7;
-  0xf101003f; 0xaa3f03e8; 0x9a9fb0ee; 0x9a87b10d; 0x4e081da0; 0x3dc000d4;
-  0x4c40705a; 0x4e181dc0; 0x4e201d29; 0x4e200928; 0x6e200bde; 0x3d80021e;
-  0x6e301d08; 0x4c007049; 0x6e084510; 0x4ef4e11c; 0x0ef4e11a; 0x6e3c1e31;
-  0x6e3a1e73; 0x2e281e10; 0x0ef5e210; 0x6e301e52; 0xfd400150; 0x6e114235;
-  0xce114e52; 0x0ef0e23d; 0xce1d5652; 0x0ef0e251; 0x6e124255; 0xce115673;
-  0x6e134273; 0x4e200a73; 0x4c007073; 0xaa0903e0; 0x6d412fea; 0x6d4237ec;
-  0x6d433fee; 0x6cc527e8; 0xd65f03c0
+  0x6dbb27e8;       (* arm_STP D8 D9 SP (Preimmediate_Offset (iword (-- &80))) *)
+  0xd343fc29;       (* arm_LSR X9 X1 3 *)
+  0xaa0403f0;       (* arm_MOV X16 X4 *)
+  0xaa0503eb;       (* arm_MOV X11 X5 *)
+  0x6d012fea;       (* arm_STP D10 D11 SP (Immediate_Offset (iword (&16))) *)
+  0x6d0237ec;       (* arm_STP D12 D13 SP (Immediate_Offset (iword (&32))) *)
+  0x6d033fee;       (* arm_STP D14 D15 SP (Immediate_Offset (iword (&48))) *)
+  0xd2f84005;       (* arm_MOVZ X5 (word 49664) 48 *)
+  0xa9047fe5;       (* arm_STP X5 XZR SP (Immediate_Offset (iword (&64))) *)
+  0x910103ea;       (* arm_ADD X10 SP (rvalue (word 64)) *)
+  0x4c407200;       (* arm_LDR Q0 X16 No_Offset *)
+  0xaa0903e5;       (* arm_MOV X5 X9 *)
+  0xd2c0002f;       (* arm_MOVZ X15 (word 1) 32 *)
+  0x4f00e41f;       (* arm_MOVI Q31 (word 0) *)
+  0x4e181dff;       (* arm_INS_GEN Q31 X15 64 64 *)
+  0xd10004a5;       (* arm_SUB X5 X5 (rvalue (word 1)) *)
+  0x9279e0a5;       (* arm_AND X5 X5 (rvalue (word 18446744073709551488)) *)
+  0x8b0000a5;       (* arm_ADD X5 X5 X0 *)
+  0x6e20081e;       (* arm_REV32_VEC Q30 Q0 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200bc1;       (* arm_REV32_VEC Q1 Q30 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200bc2;       (* arm_REV32_VEC Q2 Q30 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200bc3;       (* arm_REV32_VEC Q3 Q30 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200bc4;       (* arm_REV32_VEC Q4 Q30 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200bc5;       (* arm_REV32_VEC Q5 Q30 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0xad406d7a;       (* arm_LDP Q26 Q27 X11 (Immediate_Offset (iword (&0))) *)
+  0x6e200bc6;       (* arm_REV32_VEC Q6 Q30 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200bc7;       (* arm_REV32_VEC Q7 Q30 8 128 *)
+  0x4e284b43;       (* arm_AESE Q3 Q26 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b44;       (* arm_AESE Q4 Q26 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b42;       (* arm_AESE Q2 Q26 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b45;       (* arm_AESE Q5 Q26 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0xad41697c;       (* arm_LDP Q28 Q26 X11 (Immediate_Offset (iword (&32))) *)
+  0x4e284b64;       (* arm_AESE Q4 Q27 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b63;       (* arm_AESE Q3 Q27 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b65;       (* arm_AESE Q5 Q27 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b62;       (* arm_AESE Q2 Q27 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b82;       (* arm_AESE Q2 Q28 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b83;       (* arm_AESE Q3 Q28 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b85;       (* arm_AESE Q5 Q28 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b84;       (* arm_AESE Q4 Q28 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b45;       (* arm_AESE Q5 Q26 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b43;       (* arm_AESE Q3 Q26 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0xad42717b;       (* arm_LDP Q27 Q28 X11 (Immediate_Offset (iword (&64))) *)
+  0x4e284b44;       (* arm_AESE Q4 Q26 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b42;       (* arm_AESE Q2 Q26 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b64;       (* arm_AESE Q4 Q27 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b62;       (* arm_AESE Q2 Q27 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b63;       (* arm_AESE Q3 Q27 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b65;       (* arm_AESE Q5 Q27 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b82;       (* arm_AESE Q2 Q28 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0xad436d7a;       (* arm_LDP Q26 Q27 X11 (Immediate_Offset (iword (&96))) *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b84;       (* arm_AESE Q4 Q28 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b85;       (* arm_AESE Q5 Q28 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b83;       (* arm_AESE Q3 Q28 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b45;       (* arm_AESE Q5 Q26 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b44;       (* arm_AESE Q4 Q26 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b42;       (* arm_AESE Q2 Q26 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b43;       (* arm_AESE Q3 Q26 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0xad44697c;       (* arm_LDP Q28 Q26 X11 (Immediate_Offset (iword (&128))) *)
+  0x4e284b62;       (* arm_AESE Q2 Q27 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b65;       (* arm_AESE Q5 Q27 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b63;       (* arm_AESE Q3 Q27 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b64;       (* arm_AESE Q4 Q27 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b83;       (* arm_AESE Q3 Q28 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b85;       (* arm_AESE Q5 Q28 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b84;       (* arm_AESE Q4 Q28 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b82;       (* arm_AESE Q2 Q28 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4c407073;       (* arm_LDR Q19 X3 No_Offset *)
+  0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
+  0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
+  0xad45717b;       (* arm_LDP Q27 Q28 X11 (Immediate_Offset (iword (&160))) *)
+  0x4e284b43;       (* arm_AESE Q3 Q26 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b44;       (* arm_AESE Q4 Q26 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b45;       (* arm_AESE Q5 Q26 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b42;       (* arm_AESE Q2 Q26 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b64;       (* arm_AESE Q4 Q27 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b65;       (* arm_AESE Q5 Q27 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b63;       (* arm_AESE Q3 Q27 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b62;       (* arm_AESE Q2 Q27 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b84;       (* arm_AESE Q4 Q28 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0xad466d7a;       (* arm_LDP Q26 Q27 X11 (Immediate_Offset (iword (&192))) *)
+  0x4e284b85;       (* arm_AESE Q5 Q28 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b82;       (* arm_AESE Q2 Q28 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b83;       (* arm_AESE Q3 Q28 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x3dc0397c;       (* arm_LDR Q28 X11 (Immediate_Offset (word 224)) *)
+  0x4e284b44;       (* arm_AESE Q4 Q26 *)
+  0x4e286884;       (* arm_AESMC Q4 Q4 *)
+  0x4e284b42;       (* arm_AESE Q2 Q26 *)
+  0x4e286842;       (* arm_AESMC Q2 Q2 *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b45;       (* arm_AESE Q5 Q26 *)
+  0x4e2868a5;       (* arm_AESMC Q5 Q5 *)
+  0x4e284b43;       (* arm_AESE Q3 Q26 *)
+  0x4e286863;       (* arm_AESMC Q3 Q3 *)
+  0x4e284b62;       (* arm_AESE Q2 Q27 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e284b64;       (* arm_AESE Q4 Q27 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e284b65;       (* arm_AESE Q5 Q27 *)
+  0x4e284b63;       (* arm_AESE Q3 Q27 *)
+  0x8b410c04;       (* arm_ADD X4 X0 (Shiftedreg X1 LSR 3) *)
+  0xce02714a;       (* arm_EOR3 Q10 Q10 Q2 Q28 *)
+  0xce04718c;       (* arm_EOR3 Q12 Q12 Q4 Q28 *)
+  0xce0571ad;       (* arm_EOR3 Q13 Q13 Q5 Q28 *)
+  0xcb000085;       (* arm_SUB X5 X4 X0 *)
+  0x3cc10408;       (* arm_LDR Q8 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e134270;       (* arm_EXT Q16 Q19 Q19 64 *)
+  0xad445cd6;       (* arm_LDP Q22 Q23 X6 (Immediate_Offset (iword (&128))) *)
+  0x4ebc1f9d;       (* arm_MOV_VEC Q29 Q28 128 *)
+  0xce007509;       (* arm_EOR3 Q9 Q8 Q0 Q29 *)
+  0x0f00e413;       (* arm_MOVI D19 (word 0) *)
+  0x0f00e411;       (* arm_MOVI D17 (word 0) *)
+  0x0f00e412;       (* arm_MOVI D18 (word 0) *)
+  0xad4354d4;       (* arm_LDP Q20 Q21 X6 (Immediate_Offset (iword (&96))) *)
+  0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
+  0x0f00e411;       (* arm_MOVI D17 (word 0) *)
+  0x4ea51ca6;       (* arm_MOV_VEC Q6 Q5 128 *)
+  0x4ea41c85;       (* arm_MOV_VEC Q5 Q4 128 *)
+  0x4ea31c64;       (* arm_MOV_VEC Q4 Q3 128 *)
+  0x4ea21c43;       (* arm_MOV_VEC Q3 Q2 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x4ea11c22;       (* arm_MOV_VEC Q2 Q1 128 *)
+  0x0f00e412;       (* arm_MOVI D18 (word 0) *)
+  0xf10180bf;       (* arm_CMP X5 (rvalue (word 96)) *)
+  0x5400042c;       (* arm_BGT (word 132) *)
+  0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
+  0x4ea51ca6;       (* arm_MOV_VEC Q6 Q5 128 *)
+  0xf10140bf;       (* arm_CMP X5 (rvalue (word 80)) *)
+  0x4ea41c85;       (* arm_MOV_VEC Q5 Q4 128 *)
+  0x4ea31c64;       (* arm_MOV_VEC Q4 Q3 128 *)
+  0x4ea11c23;       (* arm_MOV_VEC Q3 Q1 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x5400032c;       (* arm_BGT (word 100) *)
+  0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x4ea51ca6;       (* arm_MOV_VEC Q6 Q5 128 *)
+  0x4ea41c85;       (* arm_MOV_VEC Q5 Q4 128 *)
+  0xf10100bf;       (* arm_CMP X5 (rvalue (word 64)) *)
+  0x4ea11c24;       (* arm_MOV_VEC Q4 Q1 128 *)
+  0x5400042c;       (* arm_BGT (word 132) *)
+  0xf100c0bf;       (* arm_CMP X5 (rvalue (word 48)) *)
+  0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
+  0x4ea51ca6;       (* arm_MOV_VEC Q6 Q5 128 *)
+  0x4ea11c25;       (* arm_MOV_VEC Q5 Q1 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x5400052c;       (* arm_BGT (word 164) *)
+  0xf10080bf;       (* arm_CMP X5 (rvalue (word 32)) *)
+  0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
+  0x3dc010d8;       (* arm_LDR Q24 X6 (Immediate_Offset (word 64)) *)
+  0x4ea11c26;       (* arm_MOV_VEC Q6 Q1 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x5400068c;       (* arm_BGT (word 208) *)
+  0x4ea11c27;       (* arm_MOV_VEC Q7 Q1 128 *)
+  0xf10040bf;       (* arm_CMP X5 (rvalue (word 16)) *)
+  0x5400080c;       (* arm_BGT (word 256) *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x1400004f;       (* arm_B (word 316) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08451b;       (* arm_INS Q27 Q8 0 64 64 128 *)
+  0x4ef6e11c;       (* arm_PMULL2 Q28 Q8 Q22 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x6e18077b;       (* arm_INS Q27 Q27 64 0 64 64 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x0ef6e11a;       (* arm_PMULL Q26 Q8 Q22 64 *)
+  0x4ef5e37b;       (* arm_PMULL2 Q27 Q27 Q21 64 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0xce037529;       (* arm_EOR3 Q9 Q9 Q3 Q29 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08451b;       (* arm_INS Q27 Q8 0 64 64 128 *)
+  0x4ef4e11c;       (* arm_PMULL2 Q28 Q8 Q20 64 *)
+  0xce047529;       (* arm_EOR3 Q9 Q9 Q4 Q29 *)
+  0x0ef4e11a;       (* arm_PMULL Q26 Q8 Q20 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x0ef5e37b;       (* arm_PMULL Q27 Q27 Q21 64 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc014d9;       (* arm_LDR Q25 X6 (Immediate_Offset (word 80)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08451b;       (* arm_INS Q27 Q8 0 64 64 128 *)
+  0x4ef9e11c;       (* arm_PMULL2 Q28 Q8 Q25 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3dc010d8;       (* arm_LDR Q24 X6 (Immediate_Offset (word 64)) *)
+  0x6e18077b;       (* arm_INS Q27 Q27 64 0 64 64 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x4ef8e37b;       (* arm_PMULL2 Q27 Q27 Q24 64 *)
+  0x0ef9e11a;       (* arm_PMULL Q26 Q8 Q25 64 *)
+  0xce057529;       (* arm_EOR3 Q9 Q9 Q5 Q29 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x3dc00cd7;       (* arm_LDR Q23 X6 (Immediate_Offset (word 48)) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08451b;       (* arm_INS Q27 Q8 0 64 64 128 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x4ef7e11c;       (* arm_PMULL2 Q28 Q8 Q23 64 *)
+  0xce067529;       (* arm_EOR3 Q9 Q9 Q6 Q29 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x0ef8e37b;       (* arm_PMULL Q27 Q27 Q24 64 *)
+  0x0ef7e11a;       (* arm_PMULL Q26 Q8 Q23 64 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc008d6;       (* arm_LDR Q22 X6 (Immediate_Offset (word 32)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x6e08451b;       (* arm_INS Q27 Q8 0 64 64 128 *)
+  0x4ef6e11c;       (* arm_PMULL2 Q28 Q8 Q22 64 *)
+  0xce077529;       (* arm_EOR3 Q9 Q9 Q7 Q29 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x0ef6e11a;       (* arm_PMULL Q26 Q8 Q22 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3dc004d5;       (* arm_LDR Q21 X6 (Immediate_Offset (word 16)) *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x6e18077b;       (* arm_INS Q27 Q27 64 0 64 64 *)
+  0x4ef5e37b;       (* arm_PMULL2 Q27 Q27 Q21 64 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x92401821;       (* arm_AND X1 X1 (rvalue (word 127)) *)
+  0xd1020021;       (* arm_SUB X1 X1 (rvalue (word 128)) *)
+  0xcb0103e1;       (* arm_NEG X1 X1 *)
+  0xaa3f03e7;       (* arm_MVN X7 XZR *)
+  0x92401821;       (* arm_AND X1 X1 (rvalue (word 127)) *)
+  0x9ac124e7;       (* arm_LSRV X7 X7 X1 *)
+  0xf101003f;       (* arm_CMP X1 (rvalue (word 64)) *)
+  0xaa3f03e8;       (* arm_MVN X8 XZR *)
+  0x9a9fb0ee;       (* arm_CSEL X14 X7 XZR Condition_LT *)
+  0x9a87b10d;       (* arm_CSEL X13 X8 X7 Condition_LT *)
+  0x4e081da0;       (* arm_INS_GEN Q0 X13 0 64 *)
+  0x3dc000d4;       (* arm_LDR Q20 X6 (Immediate_Offset (word 0)) *)
+  0x4c40705a;       (* arm_LDR Q26 X2 No_Offset *)
+  0x4e181dc0;       (* arm_INS_GEN Q0 X14 64 64 *)
+  0x4e201d29;       (* arm_AND_VEC Q9 Q9 Q0 128 *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 128 *)
+  0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
+  0x6e084510;       (* arm_INS Q16 Q8 0 64 64 128 *)
+  0x4ef4e11c;       (* arm_PMULL2 Q28 Q8 Q20 64 *)
+  0x0ef4e11a;       (* arm_PMULL Q26 Q8 Q20 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x2e281e10;       (* arm_EOR_VEC Q16 Q16 Q8 64 *)
+  0x0ef5e210;       (* arm_PMULL Q16 Q16 Q21 64 *)
+  0x6e301e52;       (* arm_EOR_VEC Q18 Q18 Q16 128 *)
+  0xfd400150;       (* arm_LDR D16 X10 (Immediate_Offset (word 0)) *)
+  0x6e114235;       (* arm_EXT Q21 Q17 Q17 64 *)
+  0xce114e52;       (* arm_EOR3 Q18 Q18 Q17 Q19 *)
+  0x0ef0e23d;       (* arm_PMULL Q29 Q17 Q16 64 *)
+  0xce1d5652;       (* arm_EOR3 Q18 Q18 Q29 Q21 *)
+  0x0ef0e251;       (* arm_PMULL Q17 Q18 Q16 64 *)
+  0x6e124255;       (* arm_EXT Q21 Q18 Q18 64 *)
+  0xce115673;       (* arm_EOR3 Q19 Q19 Q17 Q21 *)
+  0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
+  0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
+  0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
+  0xaa0903e0;       (* arm_MOV X0 X9 *)
+  0x6d412fea;       (* arm_LDP D10 D11 SP (Immediate_Offset (iword (&16))) *)
+  0x6d4237ec;       (* arm_LDP D12 D13 SP (Immediate_Offset (iword (&32))) *)
+  0x6d433fee;       (* arm_LDP D14 D15 SP (Immediate_Offset (iword (&48))) *)
+  0x6cc527e8;       (* arm_LDP D8 D9 SP (Postimmediate_Offset (iword (&80))) *)
+  0xd65f03c0        (* arm_RET X30 *)
 ];;
 
 let SIX_BLOCKS_PRELOOP_TAIL_EXEC =
-  ARM_MK_EXEC_RULE six_blocks_prelooptail_mc;;
+  ARM_MK_EXEC_RULE aes256_gcm_six_block_mc;;
 
 (* ========================================================================= *)
 (* PER-BLOCK CIPHERTEXT CLOSURES                                              *)
@@ -309,120 +605,13 @@ let GCM_CT2_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 6 2;;
 
 (* CT3 for ivec_3 = gcm_ctr_inc² ivec — needs the second counter unfolding.
    Uses INSERT_IDEM/INSERT_SUBWORD to sidestep the polymorphic-type issue. *)
-let GCM_CT3_STEP_TAC =
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `ct3:(128)word` &&
-       aconv (lhs(concl th))
-             `word_xor pt3 (word_xor s13_3 rk14):(128)word`
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REWRITE_TAC[aes256_block_enc] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `s13_3:(128)word` &&
-       not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read"
-           with _ -> false)
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
-  REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN;
-              LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
-              CTR_WORD_INSERT] THEN
-  REWRITE_TAC[gcm_ctr_inc] THEN
-  ABBREV_TAC `ctr3:(32)word = word_subword (ivec:(128)word) (96,32)` THEN
-  ABBREV_TAC `br3:(32)word = word_bytereverse (ctr3:(32)word)` THEN
-  ABBREV_TAC `step1_3:(32)word = word_bytereverse (word_add (br3:(32)word) (word 1:(32)word))` THEN
-  REWRITE_TAC[BYTEREVERSE_JOIN_FOLD; INSERT_SUBWORD; INSERT_IDEM] THEN
-  AP_TERM_TAC THEN AP_TERM_TAC THEN
-  EXPAND_TAC "step1_3" THEN
-  REWRITE_TAC[WORD_BLAST `word_bytereverse (word_bytereverse (x:(32)word)) = x`] THEN
-  CONV_TAC WORD_RULE;;
+let GCM_CT3_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 6 3;;
 
-(* CT4 for ivec_4 = gcm_ctr_inc³ ivec — three-deep counter unfolding. *)
-let GCM_CT4_STEP_TAC =
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `ct4:(128)word` &&
-       aconv (lhs(concl th))
-             `word_xor pt4 (word_xor s13_4 rk14):(128)word`
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REWRITE_TAC[aes256_block_enc] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `s13_4:(128)word` &&
-       not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read"
-           with _ -> false)
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
-  REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN;
-              LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
-              CTR_WORD_INSERT] THEN
-  REWRITE_TAC[gcm_ctr_inc] THEN
-  ABBREV_TAC `ctr4:(32)word = word_subword (ivec:(128)word) (96,32)` THEN
-  ABBREV_TAC `br4:(32)word = word_bytereverse (ctr4:(32)word)` THEN
-  ABBREV_TAC `step1_4:(32)word = word_bytereverse (word_add (br4:(32)word) (word 1:(32)word))` THEN
-  REWRITE_TAC[BYTEREVERSE_JOIN_FOLD; INSERT_SUBWORD; INSERT_IDEM] THEN
-  AP_TERM_TAC THEN AP_TERM_TAC THEN
-  EXPAND_TAC "step1_4" THEN
-  REWRITE_TAC[WORD_BLAST `word_bytereverse (word_bytereverse (x:(32)word)) = x`] THEN
-  CONV_TAC WORD_RULE;;
+let GCM_CT4_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 6 4;;
 
-(* CT5 for ivec_5 = gcm_ctr_inc^4 ivec — four-deep counter unfolding. *)
-let GCM_CT5_STEP_TAC =
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `ct5:(128)word` &&
-       aconv (lhs(concl th))
-             `word_xor pt5 (word_xor s13_5 rk14):(128)word`
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REWRITE_TAC[aes256_block_enc] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `s13_5:(128)word` &&
-       not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read"
-           with _ -> false)
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
-  REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN;
-              LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
-              CTR_WORD_INSERT] THEN
-  REWRITE_TAC[gcm_ctr_inc] THEN
-  ABBREV_TAC `ctr5:(32)word = word_subword (ivec:(128)word) (96,32)` THEN
-  ABBREV_TAC `br5:(32)word = word_bytereverse (ctr5:(32)word)` THEN
-  ABBREV_TAC `step1_5:(32)word = word_bytereverse (word_add (br5:(32)word) (word 1:(32)word))` THEN
-  REWRITE_TAC[BYTEREVERSE_JOIN_FOLD; INSERT_SUBWORD; INSERT_IDEM] THEN
-  AP_TERM_TAC THEN AP_TERM_TAC THEN
-  EXPAND_TAC "step1_5" THEN
-  REWRITE_TAC[WORD_BLAST `word_bytereverse (word_bytereverse (x:(32)word)) = x`] THEN
-  CONV_TAC WORD_RULE;;
+let GCM_CT5_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 6 5;;
 
-(* CT6 for ivec_5 = gcm_ctr_inc^5 ivec — five-deep counter unfolding. *)
-let GCM_CT6_STEP_TAC =
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `ct6:(128)word` &&
-       aconv (lhs(concl th))
-             `word_xor pt6 (word_xor s13_6 rk14):(128)word`
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REWRITE_TAC[aes256_block_enc] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `s13_6:(128)word` &&
-       not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read"
-           with _ -> false)
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
-  REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN;
-              LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
-              CTR_WORD_INSERT] THEN
-  REWRITE_TAC[gcm_ctr_inc] THEN
-  ABBREV_TAC `ctr6:(32)word = word_subword (ivec:(128)word) (96,32)` THEN
-  ABBREV_TAC `br6:(32)word = word_bytereverse (ctr6:(32)word)` THEN
-  ABBREV_TAC `step1_6:(32)word = word_bytereverse (word_add (br6:(32)word) (word 1:(32)word))` THEN
-  REWRITE_TAC[BYTEREVERSE_JOIN_FOLD; INSERT_SUBWORD; INSERT_IDEM] THEN
-  AP_TERM_TAC THEN AP_TERM_TAC THEN
-  EXPAND_TAC "step1_6" THEN
-  REWRITE_TAC[WORD_BLAST `word_bytereverse (word_bytereverse (x:(32)word)) = x`] THEN
-  CONV_TAC WORD_RULE;;
+let GCM_CT6_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 6 6;;
 
 (* ========================================================================= *)
 (* BUBBLE-SORT CONVERSION FOR XOR CANONICAL FORM                              *)
@@ -826,7 +1015,7 @@ let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
     nonoverlapping (xi_ptr,16) (word pc,1600) /\
     nonoverlapping (out_ptr,96) (word pc,1600)
     ==> ensures arm
-      (\s. aligned_bytes_loaded s (word pc) six_blocks_prelooptail_mc /\
+      (\s. aligned_bytes_loaded s (word pc) aes256_gcm_six_block_mc /\
            read PC s = word pc /\
            C_ARGUMENTS [in_ptr; word 768; out_ptr; xi_ptr;
                         ivec_ptr; key_ptr; htable_ptr] s /\
@@ -1045,3 +1234,7 @@ let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
       ]
     ]
   ]);;
+
+
+
+

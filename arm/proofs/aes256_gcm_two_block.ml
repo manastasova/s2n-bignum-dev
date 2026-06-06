@@ -1,55 +1,29 @@
+(*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
+ *)
+
 (* ========================================================================= *)
-(* two_blocks_aes256_gcm_preloop_tail_nblock.ml                              *)
-(*                                                                           *)
-(* The 2-block AES-GCM preloop_tail proof — N=2 INSTANCE of the generic     *)
-(* N-block framework defined in arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml *)
-(*                                                                           *)
-(* Reuses (no duplication):                                                   *)
-(*   - All shared lemmas (LANE/CTR/BYTEREVERSE/gcm_ctr_inc, SHL_SUBWORD,    *)
-(*     ABBREV_SUBWORD_HALVES_TAC) — from nblock helpers                      *)
-(*   - Generic Karatsuba spec (ghash_Nblock_karatsuba, kara_acc,             *)
-(*     karatsuba_reduce_shared, karatsuba_block_pl/ph/pm) — from nblock      *)
-(*     helpers                                                                *)
-(*   - INDUCTIVE BRIDGE (proven once, reused at each N): the structural      *)
-(*     identities KARATSUBA_REDUCE_AS_PROP3_CLEAN,                            *)
-(*     KARATSUBA_BLOCK_PACKS_TO_PMUL_CLEAN, PACK_CORRECTED_XOR,                *)
-(*     KARA_ACC_FIRST/PACK_HELPER, GHASH_NBLOCK_KARATSUBA_EQ_PROP3 — from    *)
-(*     nblock helpers                                                          *)
-(*   - Per-block named tactics (ABBREV_FINAL_XI_TAC, GCM_NBLOCK_CT_STEP_TAC, *)
-(*     GCM_NBLOCK_POST_AES/TAIL_DISPATCH/POST_SIM_NORMALIZE_TAC) — from       *)
-(*     nblock helpers                                                          *)
-(*                                                                           *)
-(* PER-N CONTENT (only piece in this file):                                   *)
-(*   - Machine code blob (two_blocks_prelooptail_mc) and EXEC                *)
-(*   - Per-N derived bridge: the existing GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC *)
-(*     (or its derivation from GHASH_NBLOCK_KARATSUBA_EQ_PROP3 via            *)
-(*      GHASH_POLYVAL_ACC_2)                                                   *)
-(*   - GCM_GHASH_STEP_TAC (the N=2 closure: 10+6+13 ABBREVs for the          *)
-(*     cross-block pmul XOR-AC structure)                                      *)
-(*   - The main theorem TWO_BLOCKS_PRELOOP_TAIL_CORRECT                       *)
+(* aes256_gcm_two_block.ml                                                 *)
+(*                                                                         *)
+(* The 2-block AES-256-GCM separate-blocks encrypt proof — the N=2         *)
+(* instance of the generic N-block framework. STRUCTURALLY MIRRORS         *)
+(* aes256_gcm_three_block.ml, scaled down to N=2.                          *)
+(*                                                                         *)
+(* PER-N CONTENT (only piece in this file):                                *)
+(*   - Machine code blob (aes256_gcm_two_block_mc) and EXEC                *)
+(*   - ghash_2block_karatsuba (assembly-shape spec)                        *)
+(*   - GHASH_2BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)  *)
+(*   - GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC — derived from inductive bridge *)
+(*   - GCM_2BLOCK_GHASH_STEP_TAC + main theorem TWO_BLOCKS_PRELOOP_TAIL_CORRECT *)
 (* ========================================================================= *)
 
-needs "arm/proofs/base.ml";;
-needs "common/aes.ml";;
-needs "arm/proofs/aes.ml";;
-needs "arm/proofs/utils/new_instructions.ml";;
-needs "arm/proofs/utils/one_block_preloop_tail_spec.ml";;
-needs "common/ghash_spec.ml";;
-needs "arm/proofs/utils/gcm_aesgcm_helpers.ml";;
+(* All dependencies (base/AES/ghash_spec/aesgcm helpers) are pulled in       *)
+(* transitively by the N-block framework file below.                          *)
 needs "arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml";;
 
 (* ========================================================================= *)
 (*  PER-N: 2-block assembly-shape spec ghash_2block_karatsuba.               *)
-(*                                                                           *)
-(* This is the existing 2-block spec from gcm_aesgcm_helpers.ml /            *)
-(* two_blocks_aes256_gcm_preloop_tail_claude_4.7_simplified_new.ml. We       *)
-(* keep it here because the existing proven bridge lemma                      *)
-(* GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC uses it in its statement.            *)
-(*                                                                           *)
-(* Future work: rebase this onto ghash_Nblock_karatsuba (the N=2             *)
-(* instance via project_triples [(b1,htw,hk,h);(b2,h2tw,h2k,h2)]) and        *)
-(* derive the 2-block bridge directly from GHASH_NBLOCK_KARATSUBA_EQ_PROP3  *)
-(* + GHASH_POLYVAL_ACC_2.                                                     *)
 (* ========================================================================= *)
 
 let ghash_2block_karatsuba = new_definition
@@ -122,13 +96,10 @@ let GHASH_2BLOCK_AS_NBLOCK = prove
 (* ========================================================================= *)
 (* PER-N BRIDGE: ghash_2block_karatsuba ↔ polyval_reduce_prop3                *)
 (*                                                                           *)
-(* Derived from GHASH_NBLOCK_KARATSUBA_EQ_PROP3 (the inductive bridge)        *)
-(* + GHASH_2BLOCK_AS_NBLOCK + GHASH_POLYVAL_ACC_2.                           *)
-(*                                                                           *)
-(* For the actual GHASH closure we can use the existing                      *)
-(* GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC theorem (proven in the original     *)
-(* claude_4.7 file). Here we keep that proof for compatibility, and          *)
-(* provide GHASH_2BLOCK_KARATSUBA_VIA_NBLOCK as an alternative derivation.   *)
+(* The bridge GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC (proven below) is what    *)
+(* the GHASH closure applies. It corresponds to the generic inductive bridge  *)
+(* GHASH_NBLOCK_KARATSUBA_EQ_PROP3 specialised via GHASH_2BLOCK_AS_NBLOCK +    *)
+(* GHASH_POLYVAL_ACC_2.                                                        *)
 (* ========================================================================= *)
 
 let GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC = prove
@@ -164,42 +135,177 @@ let GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC = prove
 (*  PER-N: MACHINE CODE                                                      *)
 (* ========================================================================= *)
 
-let two_blocks_prelooptail_mc = define_assert_from_elf
-  "two_blocks_prelooptail_mc"
-  "/home/ubuntu/auto_proofs/s2n-bignum/arm/aes-gcm/two_blocks_aes256_gcm_preloop_tail.o"
+let aes256_gcm_two_block_mc = define_assert_from_elf
+  "aes256_gcm_two_block_mc"
+  "arm/aes-gcm/aes256_gcm_two_block.o"
 [
-  0x6dbb27e8; 0xd343fc29; 0xaa0403f0; 0xaa0503eb; 0x6d012fea; 0x6d0237ec;
-  0x6d033fee; 0xd2f84005; 0xa9047fe5; 0x910103ea; 0x4c407200; 0xaa0903e5;
-  0xd2c0002f; 0x4f00e41f; 0x4e181dff; 0xd10004a5; 0x9279e0a5; 0x8b0000a5;
-  0x6e20081e; 0x4ebf87de; 0x6e200bc1; 0x4ebf87de; 0xad406d7a; 0x4e284b40;
-  0x4e286800; 0x4e284b41; 0x4e286821; 0xad41697c; 0x4e284b61; 0x4e286821;
-  0x4e284b60; 0x4e286800; 0x4e284b80; 0x4e286800; 0x4e284b81; 0x4e286821;
-  0xad42717b; 0x4e284b41; 0x4e286821; 0x4e284b40; 0x4e286800; 0x4e284b61;
-  0x4e286821; 0x4e284b60; 0x4e286800; 0x4e284b80; 0x4e286800; 0xad436d7a;
-  0x4e284b81; 0x4e286821; 0x4e284b41; 0x4e286821; 0x4e284b40; 0x4e286800;
-  0xad44697c; 0x4e284b60; 0x4e286800; 0x4e284b61; 0x4e286821; 0x4e284b81;
-  0x4e286821; 0x4e284b80; 0x4e286800; 0x4c407073; 0x6e134273; 0x4e200a73;
-  0xad45717b; 0x4e284b41; 0x4e286821; 0x4e284b40; 0x4e286800; 0x4e284b61;
-  0x4e286821; 0x4e284b60; 0x4e286800; 0xad466d7a; 0x4e284b81; 0x4e286821;
-  0x4e284b80; 0x4e286800; 0x3dc0397c; 0x4e284b41; 0x4e286821; 0x4e284b40;
-  0x4e286800; 0x4e284b61; 0x4e284b60; 0x8b410c04; 0xcb000085; 0x3cc10408;
-  0x6e134270; 0x4ebc1f9d; 0xce007509; 0x0f00e413; 0x0f00e411; 0x0f00e412;
-  0x3dc004d5; 0x4ea11c27; 0xf10040bf; 0x5400006c; 0x6ebf87de; 0x14000011;
-  0x4c9f7049; 0x3dc008d6;
-  0x4e200928; 0x3cc10409; 0x6e301d08; 0x0f00e410; 0x6e08451b; 0x4ef6e11c;
-  0xce077529; 0x6e3c1e31; 0x0ef6e11a; 0x2e281f7b; 0x6e3a1e73; 0x6e18077b;
-  0x4ef5e37b; 0x6e3b1e52; 0x92401821; 0xd1020021; 0xcb0103e1; 0xaa3f03e7;
-  0x92401821; 0x9ac124e7; 0xf101003f; 0xaa3f03e8; 0x9a9fb0ee; 0x9a87b10d;
-  0x4e081da0; 0x3dc000d4; 0x4c40705a; 0x4e181dc0; 0x4e201d29; 0x4e200928;
-  0x6e200bde; 0x3d80021e; 0x6e301d08; 0x4c007049; 0x6e084510; 0x4ef4e11c;
-  0x0ef4e11a; 0x6e3c1e31; 0x6e3a1e73; 0x2e281e10; 0x0ef5e210; 0x6e301e52;
-  0xfd400150; 0x6e114235; 0xce114e52; 0x0ef0e23d; 0xce1d5652; 0x0ef0e251;
-  0x6e124255; 0xce115673; 0x6e134273; 0x4e200a73; 0x4c007073; 0xaa0903e0;
-  0x6d412fea; 0x6d4237ec; 0x6d433fee; 0x6cc527e8; 0xd65f03c0
+  0x6dbb27e8;       (* arm_STP D8 D9 SP (Preimmediate_Offset (iword (-- &80))) *)
+  0xd343fc29;       (* arm_LSR X9 X1 3 *)
+  0xaa0403f0;       (* arm_MOV X16 X4 *)
+  0xaa0503eb;       (* arm_MOV X11 X5 *)
+  0x6d012fea;       (* arm_STP D10 D11 SP (Immediate_Offset (iword (&16))) *)
+  0x6d0237ec;       (* arm_STP D12 D13 SP (Immediate_Offset (iword (&32))) *)
+  0x6d033fee;       (* arm_STP D14 D15 SP (Immediate_Offset (iword (&48))) *)
+  0xd2f84005;       (* arm_MOVZ X5 (word 49664) 48 *)
+  0xa9047fe5;       (* arm_STP X5 XZR SP (Immediate_Offset (iword (&64))) *)
+  0x910103ea;       (* arm_ADD X10 SP (rvalue (word 64)) *)
+  0x4c407200;       (* arm_LDR Q0 X16 No_Offset *)
+  0xaa0903e5;       (* arm_MOV X5 X9 *)
+  0xd2c0002f;       (* arm_MOVZ X15 (word 1) 32 *)
+  0x4f00e41f;       (* arm_MOVI Q31 (word 0) *)
+  0x4e181dff;       (* arm_INS_GEN Q31 X15 64 64 *)
+  0xd10004a5;       (* arm_SUB X5 X5 (rvalue (word 1)) *)
+  0x9279e0a5;       (* arm_AND X5 X5 (rvalue (word 18446744073709551488)) *)
+  0x8b0000a5;       (* arm_ADD X5 X5 X0 *)
+  0x6e20081e;       (* arm_REV32_VEC Q30 Q0 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200bc1;       (* arm_REV32_VEC Q1 Q30 8 128 *)
+  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0xad406d7a;       (* arm_LDP Q26 Q27 X11 (Immediate_Offset (iword (&0))) *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0xad41697c;       (* arm_LDP Q28 Q26 X11 (Immediate_Offset (iword (&32))) *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0xad42717b;       (* arm_LDP Q27 Q28 X11 (Immediate_Offset (iword (&64))) *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0xad436d7a;       (* arm_LDP Q26 Q27 X11 (Immediate_Offset (iword (&96))) *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0xad44697c;       (* arm_LDP Q28 Q26 X11 (Immediate_Offset (iword (&128))) *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4c407073;       (* arm_LDR Q19 X3 No_Offset *)
+  0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
+  0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
+  0xad45717b;       (* arm_LDP Q27 Q28 X11 (Immediate_Offset (iword (&160))) *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0xad466d7a;       (* arm_LDP Q26 Q27 X11 (Immediate_Offset (iword (&192))) *)
+  0x4e284b81;       (* arm_AESE Q1 Q28 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b80;       (* arm_AESE Q0 Q28 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x3dc0397c;       (* arm_LDR Q28 X11 (Immediate_Offset (word 224)) *)
+  0x4e284b41;       (* arm_AESE Q1 Q26 *)
+  0x4e286821;       (* arm_AESMC Q1 Q1 *)
+  0x4e284b40;       (* arm_AESE Q0 Q26 *)
+  0x4e286800;       (* arm_AESMC Q0 Q0 *)
+  0x4e284b61;       (* arm_AESE Q1 Q27 *)
+  0x4e284b60;       (* arm_AESE Q0 Q27 *)
+  0x8b410c04;       (* arm_ADD X4 X0 (Shiftedreg X1 LSR 3) *)
+  0xcb000085;       (* arm_SUB X5 X4 X0 *)
+  0x3cc10408;       (* arm_LDR Q8 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e134270;       (* arm_EXT Q16 Q19 Q19 64 *)
+  0x4ebc1f9d;       (* arm_MOV_VEC Q29 Q28 128 *)
+  0xce007509;       (* arm_EOR3 Q9 Q8 Q0 Q29 *)
+  0x0f00e413;       (* arm_MOVI D19 (word 0) *)
+  0x0f00e411;       (* arm_MOVI D17 (word 0) *)
+  0x0f00e412;       (* arm_MOVI D18 (word 0) *)
+  0x3dc004d5;       (* arm_LDR Q21 X6 (Immediate_Offset (word 16)) *)
+  0x4ea11c27;       (* arm_MOV_VEC Q7 Q1 128 *)
+  0xf10040bf;       (* arm_CMP X5 (rvalue (word 16)) *)
+  0x5400006c;       (* arm_BGT (word 12) *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x14000011;       (* arm_B (word 68) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc008d6;       (* arm_LDR Q22 X6 (Immediate_Offset (word 32)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x6e08451b;       (* arm_INS Q27 Q8 0 64 64 128 *)
+  0x4ef6e11c;       (* arm_PMULL2 Q28 Q8 Q22 64 *)
+  0xce077529;       (* arm_EOR3 Q9 Q9 Q7 Q29 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x0ef6e11a;       (* arm_PMULL Q26 Q8 Q22 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x6e18077b;       (* arm_INS Q27 Q27 64 0 64 64 *)
+  0x4ef5e37b;       (* arm_PMULL2 Q27 Q27 Q21 64 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x92401821;       (* arm_AND X1 X1 (rvalue (word 127)) *)
+  0xd1020021;       (* arm_SUB X1 X1 (rvalue (word 128)) *)
+  0xcb0103e1;       (* arm_NEG X1 X1 *)
+  0xaa3f03e7;       (* arm_MVN X7 XZR *)
+  0x92401821;       (* arm_AND X1 X1 (rvalue (word 127)) *)
+  0x9ac124e7;       (* arm_LSRV X7 X7 X1 *)
+  0xf101003f;       (* arm_CMP X1 (rvalue (word 64)) *)
+  0xaa3f03e8;       (* arm_MVN X8 XZR *)
+  0x9a9fb0ee;       (* arm_CSEL X14 X7 XZR Condition_LT *)
+  0x9a87b10d;       (* arm_CSEL X13 X8 X7 Condition_LT *)
+  0x4e081da0;       (* arm_INS_GEN Q0 X13 0 64 *)
+  0x3dc000d4;       (* arm_LDR Q20 X6 (Immediate_Offset (word 0)) *)
+  0x4c40705a;       (* arm_LDR Q26 X2 No_Offset *)
+  0x4e181dc0;       (* arm_INS_GEN Q0 X14 64 64 *)
+  0x4e201d29;       (* arm_AND_VEC Q9 Q9 Q0 128 *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 128 *)
+  0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
+  0x6e084510;       (* arm_INS Q16 Q8 0 64 64 128 *)
+  0x4ef4e11c;       (* arm_PMULL2 Q28 Q8 Q20 64 *)
+  0x0ef4e11a;       (* arm_PMULL Q26 Q8 Q20 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x2e281e10;       (* arm_EOR_VEC Q16 Q16 Q8 64 *)
+  0x0ef5e210;       (* arm_PMULL Q16 Q16 Q21 64 *)
+  0x6e301e52;       (* arm_EOR_VEC Q18 Q18 Q16 128 *)
+  0xfd400150;       (* arm_LDR D16 X10 (Immediate_Offset (word 0)) *)
+  0x6e114235;       (* arm_EXT Q21 Q17 Q17 64 *)
+  0xce114e52;       (* arm_EOR3 Q18 Q18 Q17 Q19 *)
+  0x0ef0e23d;       (* arm_PMULL Q29 Q17 Q16 64 *)
+  0xce1d5652;       (* arm_EOR3 Q18 Q18 Q29 Q21 *)
+  0x0ef0e251;       (* arm_PMULL Q17 Q18 Q16 64 *)
+  0x6e124255;       (* arm_EXT Q21 Q18 Q18 64 *)
+  0xce115673;       (* arm_EOR3 Q19 Q19 Q17 Q21 *)
+  0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
+  0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
+  0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
+  0xaa0903e0;       (* arm_MOV X0 X9 *)
+  0x6d412fea;       (* arm_LDP D10 D11 SP (Immediate_Offset (iword (&16))) *)
+  0x6d4237ec;       (* arm_LDP D12 D13 SP (Immediate_Offset (iword (&32))) *)
+  0x6d433fee;       (* arm_LDP D14 D15 SP (Immediate_Offset (iword (&48))) *)
+  0x6cc527e8;       (* arm_LDP D8 D9 SP (Postimmediate_Offset (iword (&80))) *)
+  0xd65f03c0        (* arm_RET X30 *)
 ];;
 
 let TWO_BLOCKS_PRELOOP_TAIL_EXEC =
-  ARM_MK_EXEC_RULE two_blocks_prelooptail_mc;;
+  ARM_MK_EXEC_RULE aes256_gcm_two_block_mc;;
 
 (* ========================================================================= *)
 (* PER-BLOCK CIPHERTEXT CLOSURES (instances of GCM_NBLOCK_CT_STEP_TAC for     *)
@@ -211,18 +317,9 @@ let GCM_CT1_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 2 1;;
 let GCM_CT2_STEP_TAC = GCM_NBLOCK_CT_STEP_TAC 2 2;;
 
 (* ========================================================================= *)
-(*  GHASH STEP TACTIC (N=2 instance)                                         *)
-(*                                                                           *)
-(* The closure recipe scales linearly with N. For N=2:                       *)
-(*   - 10 atomic ABBREVs:                                                     *)
-(*       uA0/uA1 (subwords of RF ct2), uB0/uB1 (subwords of RF ct1),         *)
-(*       uC0/uC1 (subwords of RF xi),  uD0/uD1 (subwords of h),               *)
-(*       uE0/uE1 (subwords of polyval_dot h h)                                *)
-(*   - 6 inner pmul ABBREVs (p1..p6)                                          *)
-(*   - 13 z-vars (z1..zC for subwords of pi, plus zD for subword(pmul z1 z3))*)
-(*   - 1 outer XOR-AC SUBGOAL_THEN (BIG pmul args)                            *)
-(*   - 5 outer ABBREVs (qBigP, qSmallP, qBigPL, qBigPH, qSmallPH)             *)
-(*   - BINOP_TAC THENL [WORD_RULE; WORD_RULE]                                 *)
+(*  GHASH STEP TACTIC (N=2 instance) -- same template as 4/5/6/7 blocks.      *)
+(*  Atoms (c?lo/c?hi, xilo/xihi, hd/he) -> inner pmuls (w?lo/w?hi/w?md) ->     *)
+(*  z-vars -> qS/qB Barrett pmuls -> bubble_sort_conv XOR-AC closure.         *)
 (* ========================================================================= *)
 
 let GCM_2BLOCK_GHASH_STEP_TAC =
@@ -235,9 +332,7 @@ let GCM_2BLOCK_GHASH_STEP_TAC =
     (fun th -> REWRITE_TAC[th]) THENL [
     EXPAND_TAC "ct1" THEN EXPAND_TAC "s13_1" THEN
     REWRITE_TAC[aes256_block_enc; LET_DEF; LET_END_DEF; WORD_XOR_ASSOC] THEN
-    ASM_REWRITE_TAC[];
-    ALL_TAC
-  ] THEN
+    ASM_REWRITE_TAC[]; ALL_TAC ] THEN
   SUBGOAL_THEN
     `word_xor pt2
        (aes256_block_enc (gcm_ctr_inc ivec) rk0 rk1 rk2 rk3 rk4 rk5 rk6
@@ -246,69 +341,53 @@ let GCM_2BLOCK_GHASH_STEP_TAC =
     (fun th -> REWRITE_TAC[th]) THENL [
     FIRST_ASSUM(fun th ->
       if is_eq(concl th) && rand(concl th) = `ct2:(128)word` &&
-         aconv (lhs(concl th))
-               `word_xor pt2 (word_xor s13_2 rk14):(128)word`
+         aconv (lhs(concl th)) `word_xor pt2 (word_xor s13_2 rk14):(128)word`
       then SUBST1_TAC(SYM th) else NO_TAC) THEN
-    REWRITE_TAC[aes256_block_enc] THEN
-    CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+    REWRITE_TAC[aes256_block_enc] THEN CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
     AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
     FIRST_ASSUM(fun th ->
       if is_eq(concl th) && rand(concl th) = `s13_2:(128)word` &&
-         not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read"
-             with _ -> false)
+         not(try fst(dest_const(rator(rator(lhs(concl th))))) = "read" with _ -> false)
       then SUBST1_TAC(SYM th) else NO_TAC) THEN
     REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
-    REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN;
-                LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
+    REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN; LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
                 CTR_WORD_INSERT; gcm_ctr_inc] THEN
-    AP_TERM_TAC THEN
-    REWRITE_TAC[BYTEREVERSE_JOIN_FOLD];
-    ALL_TAC
-  ] THEN
-  MP_TAC(SPECL [`word_reversefields 8 (word_xor xi ct1):int128`;
-                `word_reversefields 8 ct2:int128`;
-                `h:int128`; `h1k:int128`;
-                `word_join (word 0:(64)word)
-                   (word_subword (h1k:(128)word) (64,64):(64)word)
-                 :(128)word`]
-         GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC) THEN
+    AP_TERM_TAC THEN REWRITE_TAC[BYTEREVERSE_JOIN_FOLD]; ALL_TAC ] THEN
+  MP_TAC(SPECL
+    [`word_reversefields 8 (word_xor xi ct1):int128`;
+     `word_reversefields 8 ct2:int128`;
+     `h:int128`;
+     `h1k:int128`;
+     `word_join (word 0:(64)word) (word_subword (h1k:(128)word) (64,64):(64)word):(128)word`]
+    GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC) THEN
   SUBGOAL_THEN
-    `word_subword
-       (word_join (word 0:(64)word)
-                  (word_subword (h1k:(128)word) (64,64):(64)word)
-        :(128)word) (0,64):(64)word =
+    `word_subword (word_join (word 0:(64)word) (word_subword (h1k:(128)word) (64,64):(64)word):(128)word) (0,64):(64)word =
      karatsuba_mid (polyval_dot h h)`
     (fun th -> REWRITE_TAC[th]) THENL [
     SUBGOAL_THEN
-      `word_subword
-         (word_join (word 0:(64)word)
-                    (word_subword (h1k:(128)word) (64,64):(64)word)
-          :(128)word) (0,64):(64)word =
+      `word_subword (word_join (word 0:(64)word) (word_subword (h1k:(128)word) (64,64):(64)word):(128)word) (0,64):(64)word =
        word_subword (h1k:(128)word) (64,64):(64)word`
-      (fun th -> REWRITE_TAC[th]) THENL
-      [CONV_TAC WORD_BLAST; ASM_REWRITE_TAC[]];
-    ALL_TAC
-  ] THEN
-  ASM_REWRITE_TAC[] THEN
-  DISCH_THEN(fun th -> REWRITE_TAC[GSYM th]) THEN
+      (fun th -> REWRITE_TAC[th]) THENL [CONV_TAC WORD_BLAST; ASM_REWRITE_TAC[]]; ALL_TAC ] THEN
+  ASM_REWRITE_TAC[] THEN DISCH_THEN(fun th -> REWRITE_TAC[GSYM th]) THEN
   REWRITE_TAC[ghash_2block_karatsuba; LET_DEF; LET_END_DEF] THEN
   CONV_TAC(DEPTH_CONV BETA_CONV) THEN
   REWRITE_TAC[BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
   SUBGOAL_THEN
-    `word_subword (word_join (word 0:(64)word)
-                             (karatsuba_mid (polyval_dot h h):(64)word)
-                   :(128)word) (0,64):(64)word =
+    `word_subword (word_join (word 0:(64)word) (karatsuba_mid (polyval_dot h h):(64)word):(128)word) (0,64):(64)word =
      karatsuba_mid (polyval_dot h h)`
     (fun th -> REWRITE_TAC[th]) THENL [CONV_TAC WORD_BLAST; ALL_TAC] THEN
-  REWRITE_TAC[GSYM karatsuba_mid] THEN
-  ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[GSYM karatsuba_mid] THEN ASM_REWRITE_TAC[] THEN
   CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  CONV_TAC SYM_CONV THEN
+  FIRST_ASSUM(fun th ->
+    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word` &&
+       (try (let l = lhs(concl th) in is_comb l &&
+             (let r = rator l in not(is_comb r && (try fst(dest_const(rator r)) = "read" with _ -> false))))
+        with _ -> false)
+    then SUBST1_TAC(SYM th) else NO_TAC) THEN
   REWRITE_TAC[REV64_LOWER_LANE; REV64_UPPER_LANE; REV8_JOIN_FOLD] THEN
   MATCH_MP_TAC(MESON[]
     `x = y ==> word_reversefields 8 x = word_reversefields 8 y:(128)word`) THEN
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word`
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
   REWRITE_TAC[WORD_SWAP_HALVES_INVOLUTION] THEN
   CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   REWRITE_TAC[WORD_INSERT_AS_JOIN_1; WORD_INSERT_AS_JOIN_2;
@@ -318,115 +397,78 @@ let GCM_2BLOCK_GHASH_STEP_TAC =
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   REWRITE_TAC[HALFSWAP_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
               WORD_XOR_0; WORD_XOR_ASSOC;
-              REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO;
-              REVERSEFIELDS8_SUBWORD_HI] THEN
+              REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO; REVERSEFIELDS8_SUBWORD_HI] THEN
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
   REWRITE_TAC[WORD_XOR_ASSOC] THEN
   SUBGOAL_THEN
     `word_subword (word 0:(128)word) (0,64):(64)word = word 0 /\
      word_subword (word 0:(128)word) (64,64):(64)word = word 0`
-    (fun th -> REWRITE_TAC[th]) THENL
-    [CONJ_TAC THEN CONV_TAC WORD_BLAST; ALL_TAC] THEN
-  REWRITE_TAC[WORD_XOR_0; WORD_XOR_0_LEFT] THEN
-  REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  (* Common-pattern abbreviations: 10 atomic subwords *)
+    (fun th -> REWRITE_TAC[th]) THENL [CONJ_TAC THEN CONV_TAC WORD_BLAST; ALL_TAC] THEN
+  REWRITE_TAC[WORD_XOR_0; WORD_XOR_0_LEFT] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
   REWRITE_TAC[karatsuba_mid; WORD_REVERSEFIELDS_XOR_8_128; WORD_SUBWORD_XOR] THEN
-  ABBREV_TAC `(uA0:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uA1:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uB0:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uB1:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uC0:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (0,64)` THEN
-  ABBREV_TAC `(uC1:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (64,64)` THEN
-  ABBREV_TAC `(uD0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
-  ABBREV_TAC `(uD1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
-  ABBREV_TAC `(uE0:(64)word) = word_subword ((polyval_dot h h):(128)word) (0,64)` THEN
-  ABBREV_TAC `(uE1:(64)word) = word_subword ((polyval_dot h h):(128)word) (64,64)` THEN
-  (* Normalize XOR-AC of pmul args *)
-  SUBGOAL_THEN
-    `word_xor uA1 uA0 = word_xor uA0 uA1:(64)word /\
-     word_xor uC1 (word_xor uB1 (word_xor uC0 uB0)) =
-       word_xor (word_xor uC0 uB0) (word_xor uC1 uB1):(64)word`
-    (fun th -> REWRITE_TAC[th]) THENL
-    [CONJ_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
-  (* 6 inner pmul abbreviations *)
-  ABBREV_TAC `(p1:(128)word) = word_pmul (uA0:(64)word) (uD0:(64)word)` THEN
-  ABBREV_TAC `(p2:(128)word) = word_pmul (uA1:(64)word) (uD1:(64)word)` THEN
-  ABBREV_TAC `(p3:(128)word) =
-    word_pmul (word_xor (uA0:(64)word) (uA1:(64)word))
-              (word_xor (uD0:(64)word) (uD1:(64)word))` THEN
-  ABBREV_TAC `(p4:(128)word) =
-    word_pmul (word_xor (uC0:(64)word) (uB0:(64)word)) (uE0:(64)word)` THEN
-  ABBREV_TAC `(p5:(128)word) =
-    word_pmul (word_xor (uC1:(64)word) (uB1:(64)word)) (uE1:(64)word)` THEN
-  ABBREV_TAC `(p6:(128)word) =
-    word_pmul (word_xor (word_xor (uC0:(64)word) (uB0:(64)word))
-                       (word_xor (uC1:(64)word) (uB1:(64)word)))
-              (word_xor (uE0:(64)word) (uE1:(64)word))` THEN
-  (* Collapse subword-of-join-self via DOUBLE_SUBWORD_JOIN *)
+  (* 10 atomic ABBREVs *)
+  ABBREV_TAC `(c1lo:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(c1hi:(64)word) = word_subword (word_reversefields 8 (ct1:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(c2lo:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(c2hi:(64)word) = word_subword (word_reversefields 8 (ct2:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(xilo:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (0,64)` THEN
+  ABBREV_TAC `(xihi:(64)word) = word_subword (word_reversefields 8 (xi:(128)word)) (64,64)` THEN
+  ABBREV_TAC `(hd0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
+  ABBREV_TAC `(hd1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
+  ABBREV_TAC `(he0:(64)word) = word_subword ((polyval_dot h h):(128)word) (0,64)` THEN
+  ABBREV_TAC `(he1:(64)word) = word_subword ((polyval_dot h h):(128)word) (64,64)` THEN
+  ASM_REWRITE_TAC[] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
+  (* 6 inner pmul ABBREVs *)
+  ABBREV_TAC `(w1lo:(128)word) = word_pmul (word_xor (xilo:(64)word) (c1lo:(64)word)) (he0:(64)word)` THEN
+  ABBREV_TAC `(w1hi:(128)word) = word_pmul (word_xor (xihi:(64)word) (c1hi:(64)word)) (he1:(64)word)` THEN
+  ABBREV_TAC `(w1md:(128)word) = word_pmul (word_xor (word_xor (xihi:(64)word) (c1hi:(64)word)) (word_xor (xilo:(64)word) (c1lo:(64)word))) (word_xor (he0:(64)word) (he1:(64)word))` THEN
+  ABBREV_TAC `(w2lo:(128)word) = word_pmul (c2lo:(64)word) (hd0:(64)word)` THEN
+  ABBREV_TAC `(w2hi:(128)word) = word_pmul (c2hi:(64)word) (hd1:(64)word)` THEN
+  ABBREV_TAC `(w2md:(128)word) = word_pmul (word_xor (c2hi:(64)word) (c2lo:(64)word)) (word_xor (hd0:(64)word) (hd1:(64)word))` THEN
   REWRITE_TAC[DOUBLE_SUBWORD_JOIN; DOUBLE_SUBWORD_JOIN_HI; WORD_SUBWORD_XOR] THEN
-  (* 13 atomic z-vars for subwords of pmul outputs *)
-  ABBREV_TAC `(z1:(64)word) = word_subword (p1:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z2:(64)word) = word_subword (p1:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z3:(64)word) = word_subword (p4:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z4:(64)word) = word_subword (p4:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z5:(64)word) = word_subword (p2:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z6:(64)word) = word_subword (p2:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z7:(64)word) = word_subword (p3:(128)word) (0,64)` THEN
-  ABBREV_TAC `(z8:(64)word) = word_subword (p3:(128)word) (64,64)` THEN
-  ABBREV_TAC `(z9:(64)word) = word_subword (p5:(128)word) (0,64)` THEN
-  ABBREV_TAC `(zA:(64)word) = word_subword (p5:(128)word) (64,64)` THEN
-  ABBREV_TAC `(zB:(64)word) = word_subword (p6:(128)word) (0,64)` THEN
-  ABBREV_TAC `(zC:(64)word) = word_subword (p6:(128)word) (64,64)` THEN
-  ABBREV_TAC `(zD:(64)word) =
-    word_subword (word_pmul (word_xor (z1:(64)word) (z3:(64)word))
-                            (word 13979173243358019584:(64)word):(128)word)
-                 (0,64)` THEN
-  ASM_REWRITE_TAC[] THEN
-  (* Normalize the second pmul arg to share form with LHS *)
   SUBGOAL_THEN
-    `word_pmul (word_xor (z3:(64)word) z1) (word 13979173243358019584:(64)word):(128)word
-     = word_pmul (word_xor (z1:(64)word) z3) (word 13979173243358019584:(64)word):(128)word`
+    `word_pmul (word_xor (xihi:(64)word) (word_xor (c1hi:(64)word) (word_xor (xilo:(64)word) (c1lo:(64)word)))) (word_xor (he0:(64)word) (he1:(64)word)):(128)word = w1md`
     (fun th -> REWRITE_TAC[th]) THENL
-    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+    [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  (* 12 z-vars *)
+  ABBREV_TAC `(w1lo_l:(64)word) = word_subword (w1lo:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w1lo_h:(64)word) = word_subword (w1lo:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w1hi_l:(64)word) = word_subword (w1hi:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w1hi_h:(64)word) = word_subword (w1hi:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w1md_l:(64)word) = word_subword (w1md:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w1md_h:(64)word) = word_subword (w1md:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w2lo_l:(64)word) = word_subword (w2lo:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w2lo_h:(64)word) = word_subword (w2lo:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w2hi_l:(64)word) = word_subword (w2hi:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w2hi_h:(64)word) = word_subword (w2hi:(128)word) (64,64)` THEN
+  ABBREV_TAC `(w2md_l:(64)word) = word_subword (w2md:(128)word) (0,64)` THEN
+  ABBREV_TAC `(w2md_h:(64)word) = word_subword (w2md:(128)word) (64,64)` THEN
+  ASM_REWRITE_TAC[] THEN REWRITE_TAC[WORD_XOR_ASSOC] THEN
+  (* Normalize LHS mid-pmuls to abbreviated w?md. *)
+  SUBGOAL_THEN `word_pmul (word_xor (c2lo:(64)word) (c2hi:(64)word)) (word_xor (hd0:(64)word) (hd1:(64)word)):(128)word = w2md`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w2md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  SUBGOAL_THEN `word_pmul (word_xor (xilo:(64)word) (word_xor (c1lo:(64)word) (word_xor (xihi:(64)word) (c1hi:(64)word)))) (word_xor (he0:(64)word) (he1:(64)word)):(128)word = w1md`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "w1md" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  (* qS. *)
+  ABBREV_TAC `(qS:(128)word) = word_pmul (word_xor (w2lo_l:(64)word) (w1lo_l)) (word 13979173243358019584:(64)word)` THEN
+  SUBGOAL_THEN `word_pmul (word_xor (w1lo_l:(64)word) (w2lo_l)) (word 13979173243358019584:(64)word):(128)word = qS`
+    (fun th -> REWRITE_TAC[th]) THENL [EXPAND_TAC "qS" THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
   ASM_REWRITE_TAC[] THEN
-  (* Normalize the BIG pmul arg (XOR-AC) *)
+  (* qB. *)
+  ABBREV_TAC `(qB:(128)word) = word_pmul
+    (word_xor (w2md_l:(64)word) (word_xor w1md_l (word_xor w2lo_l (word_xor w1lo_l (word_xor w2hi_l (word_xor w1hi_l (word_xor (word_subword (qS:(128)word) (0,64)) (word_xor w2lo_h (w1lo_h))))))))) (word 13979173243358019584:(64)word)` THEN
   SUBGOAL_THEN
-    `word_pmul (word_xor (z4:(64)word)
-                (word_xor (z2:(64)word)
-                (word_xor (zB:(64)word)
-                (word_xor (z7:(64)word)
-                (word_xor (z9:(64)word)
-                (word_xor (z5:(64)word)
-                (word_xor (z3:(64)word)
-                (word_xor (z1:(64)word) (zD:(64)word)))))))))
-              (word 13979173243358019584:(64)word):(128)word =
-     word_pmul (word_xor (z7:(64)word)
-                (word_xor (zB:(64)word)
-                (word_xor (z1:(64)word)
-                (word_xor (z3:(64)word)
-                (word_xor (z5:(64)word)
-                (word_xor (z9:(64)word)
-                (word_xor (zD:(64)word)
-                (word_xor (z2:(64)word) (z4:(64)word)))))))))
-              (word 13979173243358019584:(64)word):(128)word` ASSUME_TAC THENL
-    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
-  ASM_REWRITE_TAC[] THEN
-  ABBREV_TAC
-    `qBigP = word_pmul
-       (word_xor (z7:(64)word) (word_xor zB (word_xor z1 (word_xor z3
-        (word_xor z5 (word_xor z9 (word_xor zD (word_xor z2 z4))))))))
-       (word 13979173243358019584:(64)word):(128)word` THEN
-  ABBREV_TAC
-    `qSmallP = word_pmul (word_xor (z1:(64)word) z3)
-                        (word 13979173243358019584:(64)word):(128)word` THEN
-  ABBREV_TAC `qBigPL = word_subword (qBigP:(128)word) (0,64):(64)word` THEN
-  ABBREV_TAC `qBigPH = word_subword (qBigP:(128)word) (64,64):(64)word` THEN
-  ABBREV_TAC `qSmallPH = word_subword (qSmallP:(128)word) (64,64):(64)word` THEN
-  BINOP_TAC THENL [CONV_TAC WORD_RULE; CONV_TAC WORD_RULE];;
+    `word_pmul (word_xor (w1lo_h:(64)word) (word_xor w2lo_h (word_xor w1md_l (word_xor w2md_l (word_xor w1hi_l (word_xor w2hi_l (word_xor w1lo_l (word_xor w2lo_l ((word_subword (qS:(128)word) (0,64))))))))))) (word 13979173243358019584:(64)word):(128)word = qB`
+    (fun th -> REWRITE_TAC[th]) THENL
+    [EXPAND_TAC "qB" THEN AP_THM_TAC THEN AP_TERM_TAC THEN
+     CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC; ALL_TAC] THEN
+  BINOP_TAC THENL
+   [CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC;
+    CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC];;
 
 (* ========================================================================= *)
-(*                         THE PROOF                                         *)
+(*                         THE MAIN THEOREM                                  *)
 (* ========================================================================= *)
 
 let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
@@ -468,7 +510,7 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
     nonoverlapping (xi_ptr,16) (word pc,652) /\
     nonoverlapping (out_ptr,32) (word pc,652)
     ==> ensures arm
-      (\s. aligned_bytes_loaded s (word pc) two_blocks_prelooptail_mc /\
+      (\s. aligned_bytes_loaded s (word pc) aes256_gcm_two_block_mc /\
            read PC s = word pc /\
            C_ARGUMENTS [in_ptr; word 256; out_ptr; xi_ptr;
                         ivec_ptr; key_ptr; htable_ptr] s /\
@@ -609,3 +651,6 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
       GCM_2BLOCK_GHASH_STEP_TAC
     ]
   ]);;
+
+
+

@@ -141,10 +141,13 @@ POINT_OBJ = curve25519/curve25519_ladderstep.o \
 BIGNUM_OBJ = aes-gcm/aesv8_gcm_1block_enc_256.o \
              aes-gcm/aesv8_gcm_1block_dec_256.o \
              aes-gcm/gcm_gmult_v8.o \
-             aes-gcm/one_block_aes256_gcm_preloop_tail.o \
-             aes-gcm/two_blocks_aes256_gcm_preloop_tail.o \
-             aes-gcm/three_blocks_aes256_gcm_preloop_tail.o \
-             aes-gcm/four_blocks_aes256_gcm_preloop_tail.o \
+             aes-gcm/aes256_gcm_one_block.o \
+             aes-gcm/aes256_gcm_two_block.o \
+             aes-gcm/aes256_gcm_three_block.o \
+             aes-gcm/aes256_gcm_four_block.o \
+             aes-gcm/aes256_gcm_five_block.o \
+             aes-gcm/aes256_gcm_six_block.o \
+             aes-gcm/aes256_gcm_seven_block.o \
              curve25519/bignum_add_p25519.o \
              curve25519/bignum_cmul_p25519.o \
              curve25519/bignum_double_p25519.o \

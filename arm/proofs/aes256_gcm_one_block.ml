@@ -1,46 +1,35 @@
+(*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
+ *)
+
 (* ========================================================================= *)
-(* one_block_aes256_gcm_preloop_tail_nblock.ml                                *)
-(*                                                                           *)
-(* The 1-block AES-GCM preloop_tail proof, restructured to use the GENERIC  *)
-(* N-block framework defined in arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml *)
-(* This file is meant to be a TEMPLATE for the 2/3/4/5/6/7/8-block proofs:   *)
-(* their main theorems will share this exact structure, differing only in    *)
-(* (a) the machine code blob, (b) the simulation step ranges, and             *)
-(* (c) the post-condition list of ciphertexts.                                *)
-(*                                                                           *)
-(* Reusable pieces live in TWO helpers files:                                 *)
-(*   - arm/proofs/utils/gcm_aesgcm_helpers.ml (shared with the original 1-   *)
-(*     and 2-block proofs)                                                    *)
-(*   - arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml (this framework's       *)
-(*     parameterized N-block specs and tactic generators)                     *)
-(*                                                                           *)
-(* THIS FILE'S ONLY PER-N CONTENT:                                            *)
-(*   - one_block_prelooptail_2_mc (the assembly code blob)                   *)
-(*   - ONE_BLOCK_PRELOOP_TAIL_EXEC                                            *)
-(*   - GCM_GHASH_STEP_TAC (built from ghash_Nblock_karatsuba [(b1, h_tw,hk)]) *)
-(*   - The main theorem ONE_BLOCK_PRELOOP_TAIL_CORRECT                        *)
-(*                                                                           *)
-(* The 2/3/4/.../8-block files will only need to vary the MC + EXEC, the     *)
-(* `MAP_EVERY (start--end)` step ranges, and the `final_xi` ABBREV position. *)
-(* The GHASH closure scales linearly via GCM_NBLOCK_GHASH_STEP_TAC k.        *)
+(* aes256_gcm_one_block.ml                                                 *)
+(*                                                                         *)
+(* The 1-block AES-256-GCM separate-blocks encrypt proof — the N=1         *)
+(* instance of the generic N-block framework. Shared lemmas and the        *)
+(* framework live in arm/proofs/utils/gcm_aesgcm_helpers.ml and            *)
+(* arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml.                          *)
+(*                                                                         *)
+(* PER-N CONTENT (only piece in this file):                                *)
+(*   - aes256_gcm_one_block_mc (the machine code blob) and EXEC            *)
+(*   - GCM_GHASH_STEP_TAC: the GHASH closure for N=1, via the              *)
+(*     ghash_1block_karatsuba spec and its bridge to polyval_dot           *)
+(*   - GCM_CT_STEP_TAC: the single-block ciphertext closure                *)
+(*   - The main theorem ONE_BLOCK_PRELOOP_TAIL_CORRECT                     *)
 (* ========================================================================= *)
 
-needs "arm/proofs/base.ml";;
-needs "common/aes.ml";;
-needs "arm/proofs/aes.ml";;
-needs "arm/proofs/utils/new_instructions.ml";;
-needs "arm/proofs/utils/one_block_preloop_tail_spec.ml";;
-needs "common/ghash_spec.ml";;
-needs "arm/proofs/utils/gcm_aesgcm_helpers.ml";;
+(* All dependencies (base/AES/ghash_spec/aesgcm helpers) are pulled in       *)
+(* transitively by the N-block framework file below.                          *)
 needs "arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml";;
 
 (* ========================================================================= *)
 (*  PER-N MACHINE CODE                                                       *)
 (* ========================================================================= *)
 
-let one_block_prelooptail_2_mc = define_assert_from_elf
-  "one_block_prelooptail_2_mc"
-  "/home/ubuntu/auto_proofs/s2n-bignum/arm/aes-gcm/one_block_aes256_gcm_preloop_tail.o"
+let aes256_gcm_one_block_mc = define_assert_from_elf
+  "aes256_gcm_one_block_mc"
+  "arm/aes-gcm/aes256_gcm_one_block.o"
 [
   0x6dbb27e8;       (* arm_STP D8 D9 SP (Preimmediate_Offset (iword (-- &80))) *)
   0xd343fc29;       (* arm_LSR X9 X1 3 *)
@@ -157,17 +146,15 @@ let one_block_prelooptail_2_mc = define_assert_from_elf
 ];;
 
 let ONE_BLOCK_PRELOOP_TAIL_EXEC =
-  ARM_MK_EXEC_RULE one_block_prelooptail_2_mc;;
+  ARM_MK_EXEC_RULE aes256_gcm_one_block_mc;;
 
 (* ========================================================================= *)
-(* GHASH STEP TACTIC (1-block instance of GCM_NBLOCK_GHASH_STEP_TAC k=1)     *)
+(* GHASH STEP TACTIC (N=1)                                                    *)
 (*                                                                           *)
-(* This is the proven-fast common-pattern recipe (89.4s file load), now     *)
-(* presented as the N=1 specialization of the framework. The same recipe   *)
-(* scales to N=2..8 by adjusting the atom count: each block adds 2 input    *)
-(* atoms (uA{2(k-1)+0}, uA{2(k-1)+1}), 1 cross-block H power (uD/uE/...),  *)
-(* 3 inner pmuls (p_{3(k-1)+1..3k}), 6 z-vars, and contributes 2 atoms to   *)
-(* the BIG outer pmul.                                                       *)
+(* Closes the GHASH conjunct by rewriting the single-block ghash_polyval_acc *)
+(* via the ghash_1block_karatsuba spec and its bridge to polyval_dot         *)
+(* (GHASH_1BLOCK_KARATSUBA_EQ_POLYVAL_DOT), then the byte-level subword/      *)
+(* halfswap normalization, atom/pmul ABBREVs and a final WORD_RULE closure.  *)
 (* ========================================================================= *)
 
 let GCM_GHASH_STEP_TAC =
@@ -325,7 +312,7 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
     nonoverlapping (xi_ptr,16) (word pc,448) /\
     nonoverlapping (out_ptr,16) (word pc,448)
     ==> ensures arm
-      (\s. aligned_bytes_loaded s (word pc) one_block_prelooptail_2_mc /\
+      (\s. aligned_bytes_loaded s (word pc) aes256_gcm_one_block_mc /\
            read PC s = word pc /\
            C_ARGUMENTS [in_ptr; word 128; out_ptr; xi_ptr;
                         ivec_ptr; key_ptr; htable_ptr] s /\
@@ -416,16 +403,20 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
   (* Post-simulation normalization, lifted into a named tactic. *)
   GCM_NBLOCK_POST_SIM_NORMALIZE_TAC THEN
 
-  (* ABBREV Q19 as `final_xi` BEFORE step 104's EXT/REV64. This is the
-     8.3x-speedup trick borrowed from the 2-block proof. *)
+  (* ABBREV Q19 as `final_xi` BEFORE step 104's EXT/REV64, to avoid the
+     byte-level term explosion the epilogue would otherwise cause. *)
   ABBREV_FINAL_XI_TAC THEN
 
   (* Steps 104-111: EXT, REV64, ST1, MOV, LDP*4, RET — Q19 now opaque. *)
   ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC (104--111) THEN
 
-  CONV_TAC(ONCE_DEPTH_CONV let_CONV) THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL [
     GCM_CT_STEP_TAC;
     GCM_GHASH_STEP_TAC
   ]);;
+
+
+
+

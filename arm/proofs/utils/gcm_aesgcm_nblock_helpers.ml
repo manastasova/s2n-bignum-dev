@@ -4,19 +4,21 @@
 (* Generic N-block AES-GCM proof framework. Provides:                        *)
 (*   - ghash_Nblock_karatsuba: the assembly-shape Karatsuba spec             *)
 (*       parameterized over a list of (input, h_tw, hk) triples.             *)
-(*   - GHASH_NBLOCK_KARATSUBA_EQ_POLYVAL_ACC_BATCHED: inductive bridge       *)
-(*       from the assembly-shape spec to polyval_reduce_prop3 of the         *)
-(*       batched form (which equals ghash_polyval_acc by                      *)
-(*       GHASH_POLYVAL_ACC_BATCHED).                                          *)
-(*   - GCM_NBLOCK_GHASH_STEP_TAC : int -> tactic — closure recipe            *)
-(*       parameterized over the block count N.                                *)
-(*   - Per-block named tactics (AES_BLOCK_TAC k, COUNTER_INC_BLOCK_TAC k,    *)
-(*     ABBREV_CT_BLOCK_TAC k, ABBREV_FINAL_XI_TAC).                           *)
-(*   - Shared LANE/CTR/BYTEREVERSE/gcm_ctr_inc lemmas (lifted from           *)
-(*     two_blocks_aes256_gcm_preloop_tail_claude_4.7_simplified_new.ml).     *)
+(*   - GHASH_NBLOCK_KARATSUBA_EQ_PROP3: inductive bridge from the            *)
+(*       assembly-shape spec to polyval_reduce_prop3 of the batched form     *)
+(*       (which equals ghash_polyval_acc by GHASH_POLYVAL_ACC_BATCHED). Each *)
+(*       per-N proof file derives its own GHASH_kBLOCK_..._EQ_POLYVAL_ACC    *)
+(*       bridge from this.                                                     *)
+(*   - GHASH_POLYVAL_ACC_5/6/7 and the symmetric h-power normalizers         *)
+(*       POLYVAL_DOT_H4_EQ_LOCAL..H8_EQ.                                       *)
+(*   - Per-block named tactics: ABBREV_FINAL_XI_TAC, GCM_NBLOCK_CT_STEP_TAC, *)
+(*     GCM_NBLOCK_POST_AES/TAIL_DISPATCH/POST_SIM_NORMALIZE_TAC.              *)
+(*   - bubble_sort_conv (XOR-AC canonicaliser for the GHASH closure).        *)
+(*   - Shared LANE/CTR/BYTEREVERSE/gcm_ctr_inc lemmas.                       *)
 (*                                                                           *)
-(* All single-block proof artifacts are re-derived here as N=1 instances     *)
-(* so the 1-block file becomes a thin wrapper over this framework.            *)
+(* Each per-N proof file hand-writes its own GHASH closure                    *)
+(* (GCM_kBLOCK_GHASH_STEP_TAC) using the atoms/pmuls/qS/qB/bubble_sort        *)
+(* pattern; there is intentionally no single generic GHASH-closure tactic.   *)
 (*                                                                           *)
 (* The key inductive step:                                                    *)
 (*   ghash_Nblock_karatsuba (CONS triple rest) acc =                          *)
@@ -225,18 +227,6 @@ let ghash_Nblock_karatsuba = new_definition
   let pl,ph,pm = kara_acc triples (word 0) (word 0) (word 0) in
   karatsuba_reduce_shared pl ph pm`;;
 
-(* The 1-block instance recovers the existing `ghash_1block_karatsuba`. *)
-let GHASH_NBLOCK_KARATSUBA_1 = prove
- (`!(input:int128) (h_tw:int128) (hk:int128).
-    ghash_Nblock_karatsuba [(input, h_tw, hk)] =
-    ghash_1block_karatsuba input h_tw hk`,
-  REPEAT GEN_TAC THEN
-  REWRITE_TAC[ghash_Nblock_karatsuba; ghash_1block_karatsuba;
-              kara_acc; karatsuba_block_pl; karatsuba_block_ph;
-              karatsuba_block_pm; karatsuba_reduce_shared;
-              LET_DEF; LET_END_DEF; WORD_XOR_0; WORD_XOR_0_LEFT] THEN
-  CONV_TAC(DEPTH_CONV BETA_CONV) THEN
-  REWRITE_TAC[]);;
 
 (* ========================================================================= *)
 (* INDUCTIVE BRIDGE                                                           *)
@@ -515,59 +505,6 @@ let GHASH_NBLOCK_KARATSUBA_EQ_PROP3 = prove
   DISCH_THEN SUBST1_TAC THEN
   REWRITE_TAC[WORD_XOR_0_LEFT]);;
 
-(* ------------------------------------------------------------------------- *)
-(* Per-N specializations of the inductive bridge.                             *)
-(*                                                                           *)
-(* For N=1: ghash_Nblock_karatsuba [(b1, byteswap128 h, hk)] =                 *)
-(*          word_reversefields 8 (polyval_dot b1 h)                          *)
-(* Recovered from existing 1-block bridge.                                    *)
-(* ------------------------------------------------------------------------- *)
-let GHASH_NBLOCK_KARATSUBA_EQ_POLYVAL_DOT_1 = prove
- (`!(input:int128) (h:int128) (hk:int128).
-    word_subword hk (0,64):(64)word = karatsuba_mid h
-    ==> ghash_Nblock_karatsuba [(input, byteswap128 h, hk)] =
-        word_reversefields 8 (polyval_dot input h)`,
-  REPEAT GEN_TAC THEN DISCH_TAC THEN
-  REWRITE_TAC[GHASH_NBLOCK_KARATSUBA_1] THEN
-  ASM_SIMP_TAC[GHASH_1BLOCK_KARATSUBA_EQ_POLYVAL_DOT]);;
-
-(* For N=1 via the inductive bridge: ghash_Nblock_karatsuba [(b1,htw,hk)] =
-   word_reversefields 8 (polyval_reduce_prop3 (pmul b1 h)) = word_reversefields 8 (polyval_dot b1 h).
-   This is consistent with the existing 1-block bridge — both prove the same equation. *)
-let GHASH_NBLOCK_INDUCTIVE_1 = prove
- (`!(input:int128) (h:int128) (hk:int128).
-    word_subword hk (0,64):(64)word = karatsuba_mid h
-    ==> ghash_Nblock_karatsuba (project_triples [input,byteswap128 h,hk,h]) =
-        word_reversefields 8 (polyval_dot input h)`,
-  REPEAT GEN_TAC THEN DISCH_TAC THEN
-  MP_TAC(SPEC `[(input:int128, byteswap128 h:int128, hk:int128, h:int128)]:(int128#int128#int128#int128)list` GHASH_NBLOCK_KARATSUBA_EQ_PROP3) THEN
-  REWRITE_TAC[kara_quad_ok; kara_quad_pmul; WORD_XOR_0_LEFT] THEN
-  ASM_REWRITE_TAC[polyval_dot]);;
-
-(* ========================================================================= *)
-(* GENERIC GHASH STEP TACTIC: GCM_NBLOCK_GHASH_STEP_TAC                      *)
-(*                                                                           *)
-(* Builds a closure tactic for the N-block GHASH equation:                  *)
-(*   word_reversefields 8 (polyval_dot ... | polyval_reduce_prop3 ...) = LHS *)
-(*                                                                           *)
-(* The recipe parameterizes the proven 1-block / 2-block recipes:           *)
-(*   - Apply GHASH_POLYVAL_ACC_N or polyval_dot definition + bridge          *)
-(*   - Unfold ghash_Nblock_karatsuba (or ghash_1block_karatsuba for N=1)    *)
-(*   - Fold xi ⊕ pt_k ⊕ aes(...) into ct_k for each block                  *)
-(*   - Apply MATCH_MP_TAC reversefields-eq + SUBST(SYM final_xi)             *)
-(*   - WORD_SWAP_HALVES_INVOLUTION + subword normalization chain             *)
-(*   - ABBREV the 4N atoms (uA0_k/uA1_k for k=1..N), uD0/uD1, uE0/uE1 ...    *)
-(*   - ABBREV the 3N inner pmuls per block + 3 cross-block pmuls            *)
-(*   - DOUBLE_SUBWORD_JOIN unfold                                             *)
-(*   - ABBREV the ~6N+1 z-vars                                                *)
-(*   - SUBGOAL_THEN equate the BIG outer pmul forms via XOR-AC               *)
-(*   - ABBREV qBigP, qSmallP and their subword extractions                   *)
-(*   - BINOP_TAC THENL [WORD_RULE; WORD_RULE]                                 *)
-(*                                                                           *)
-(* For N=1 we instantiate this against `ghash_polyval_acc h xi [ct]`.        *)
-(* For N≥2 we use `GHASH_POLYVAL_ACC_<N>`.                                    *)
-(* ========================================================================= *)
-
 (* Per-block prefix tactic for the AES round simulation + s13 abbreviation. *)
 (* In the actual proof body, this expands to:                                *)
 (*   ARM_STEPS_TAC EXEC (start--end) THEN                                    *)
@@ -674,27 +611,52 @@ let GCM_NBLOCK_CT1_STEP_TAC (n:int) : tactic =
   REWRITE_TAC[aes256_block_enc; LET_DEF; LET_END_DEF; WORD_XOR_ASSOC] THEN
   ASM_REWRITE_TAC[];;
 
-(* For block k≥2: ivec_k = gcm_ctr_inc^{k-1} ivec — needs LANE/CTR chain.   *)
-(* This mirrors GCM_CT2_STEP_TAC from the 2-block file. The ivec-rebuild    *)
-(* applies LANE0..3 + CTR_WORD_INSERT + gcm_ctr_inc + BYTEREVERSE_JOIN_FOLD. *)
+(* --- Counter-insert lemmas (used by the ct>=3 folds in the GHASH step) ----- *)
+
+let INSERT_IDEM = prove
+ (`!(x:(128)word) (y:(32)word) (z:(32)word).
+     (word_insert:(128)word->num#num->(32)word->(128)word)
+     (word_insert x (96,32) y) (96,32) z = word_insert x (96,32) z`,
+  REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+let INSERT_SUBWORD = prove
+ (`!(x:(128)word) (y:(32)word).
+     word_subword
+     ((word_insert:(128)word->num#num->(32)word->(128)word) x (96,32) y)
+     (96,32):(32)word = y`,
+  REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* For block k≥2: ivec_k = gcm_ctr_inc^{k-1} ivec — needs the LANE/CTR chain. *)
+(* The shared front-half (substitute ct_k / s13_k, unfold aes256_block_enc,   *)
+(* peel to the ivec argument, apply LANE0..3 + CTR_WORD_INSERT) is identical   *)
+(* for all k. The TAIL then differs by counter depth:                          *)
+(*   k=2 (ivec_2 = gcm_ctr_inc ivec): one unfold, fold via BYTEREVERSE_JOIN.   *)
+(*   k≥3 (ivec_k = gcm_ctr_inc^{k-1} ivec): abbreviate ctr_k/br_k/step1_k, then *)
+(*     INSERT_SUBWORD/INSERT_IDEM collapse the nested word_inserts and the      *)
+(*     double-byte-reverse cancels.                                            *)
+(* This generalizes the per-file GCM_CT3..CTk_STEP_TAC so each proof just      *)
+(* calls GCM_NBLOCK_CT_STEP_TAC n k (one line per block, like CT1/CT2).        *)
 let GCM_NBLOCK_CT_LATER_STEP_TAC (n:int) (k:int) : tactic =
   if k <= 1 then failwith "GCM_NBLOCK_CT_LATER_STEP_TAC: k must be ≥ 2"
   else
   let ct = mk_ct_name n k and s13 = mk_s13_name n k in
   let ct_tm = mk_var(ct, `:(128)word`)
   and s13_tm = mk_var(s13, `:(128)word`) in
-  let ct_match = mk_eq(mk_var("ct_match", `:(128)word`), ct_tm) in
-  let s13_match = mk_eq(mk_var("s13_match", `:(128)word`), s13_tm) in
-  let _ = ct_match and _ = s13_match in (* parsed for type-check; not used directly *)
+  (* k≥3 fresh abbreviation variables, named by block index *)
+  let ctr = mk_var("ctr"^string_of_int k, `:(32)word`)
+  and br = mk_var("br"^string_of_int k, `:(32)word`)
+  and step1 = mk_var("step1_"^string_of_int k, `:(32)word`) in
+  let ctr_def   = mk_eq(ctr, `word_subword (ivec:(128)word) (96,32):(32)word`) in
+  let br_def    = mk_eq(br, mk_comb(`word_bytereverse:(32)word->(32)word`, ctr)) in
+  let step1_def = mk_eq(step1,
+    `word_bytereverse (word_add (word_bytereverse (word_subword (ivec:(128)word) (96,32):(32)word)) (word 1:(32)word)):(32)word`) in
+  (* the shared front-half: substitute ct_k, unfold AES, peel to ivec arg *)
   FIRST_ASSUM(fun th ->
     if is_eq(concl th) && rand(concl th) = ct_tm &&
        (try
-         let lhs_tm = lhs(concl th) in
-         (* Heuristic: lhs is `word_xor pt_k (word_xor s13_k rk14)`. *)
-         match lhs_tm with
+         match lhs(concl th) with
          | Comb(Comb(Const("word_xor",_), _),
-                Comb(Comb(Const("word_xor",_), s13_arg), _)) ->
-              s13_arg = s13_tm
+                Comb(Comb(Const("word_xor",_), s13_arg), _)) -> s13_arg = s13_tm
          | _ -> false
         with _ -> false)
     then SUBST1_TAC(SYM th) else NO_TAC) THEN
@@ -709,205 +671,24 @@ let GCM_NBLOCK_CT_LATER_STEP_TAC (n:int) (k:int) : tactic =
   REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
   REWRITE_TAC[LANE0_BYTES_JOIN; LANE1_BYTES_JOIN;
               LANE2_BYTES_JOIN; LANE3_BYTES_JOIN_BE;
-              CTR_WORD_INSERT; gcm_ctr_inc] THEN
-  AP_TERM_TAC THEN
-  REWRITE_TAC[BYTEREVERSE_JOIN_FOLD];;
+              CTR_WORD_INSERT] THEN
+  REWRITE_TAC[gcm_ctr_inc] THEN
+  (if k = 2 then
+     AP_TERM_TAC THEN REWRITE_TAC[BYTEREVERSE_JOIN_FOLD]
+   else
+     (* k≥3: collapse the gcm_ctr_inc^{k-1} nest. *)
+     ABBREV_TAC ctr_def THEN ABBREV_TAC br_def THEN ABBREV_TAC step1_def THEN
+     REWRITE_TAC[BYTEREVERSE_JOIN_FOLD; INSERT_SUBWORD; INSERT_IDEM] THEN
+     AP_TERM_TAC THEN AP_TERM_TAC THEN
+     EXPAND_TAC ("step1_"^string_of_int k) THEN
+     REWRITE_TAC[WORD_BLAST `word_bytereverse (word_bytereverse (x:(32)word)) = x`] THEN
+     CONV_TAC WORD_RULE);;
 
 (* Top-level entry: closes the kth ciphertext subgoal. *)
 let GCM_NBLOCK_CT_STEP_TAC (n:int) (k:int) : tactic =
   if k = 1 then GCM_NBLOCK_CT1_STEP_TAC n
   else GCM_NBLOCK_CT_LATER_STEP_TAC n k;;
 
-(* ========================================================================= *)
-(* PARAMETERIZED GHASH STEP TACTIC                                            *)
-(*                                                                           *)
-(* GCM_NBLOCK_GHASH_STEP_TAC : int -> tactic                                 *)
-(*                                                                           *)
-(* Generates the closure recipe for the N-block GHASH equation.              *)
-(* Atoms scale linearly with N:                                               *)
-(*   - 2 input atoms per block (uA0_k, uA1_k for k=1..N) = 2N                *)
-(*   - 2 H-power atoms per distinct H power (uD0/uD1 for h^1,                *)
-(*     uE0/uE1 for h^2, etc.) = 2N for N distinct powers                      *)
-(*   - 3 inner pmul atoms per block (p1_k, p2_k, p3_k) = 3N                  *)
-(*   - 2 z-vars per inner pmul (lo and hi subwords) = 6N                     *)
-(*   - 1 z-var for the small outer pmul subword                              *)
-(*   - 2 outer abbrev (qBigP and qSmallP) + 3 subword extractions             *)
-(*                                                                           *)
-(* Helper functions to build the right names:                                 *)
-(* ========================================================================= *)
-
-(* Helper: generate ABBREV_TAC's for the 4 atomic input/H subwords for N=1.  *)
-(* These functions are EXPLICITLY built per N in the actual *_nblock.ml      *)
-(* file's tactic definition, because each N has block-specific input names   *)
-(* (xi/ct for N=1, xi/ct1/ct2 for N=2, etc.) and H-power binding names.       *)
-(*                                                                           *)
-(* The generic skeleton is captured in GCM_NBLOCK_GHASH_PRE_BRIDGE_TAC and   *)
-(* GCM_NBLOCK_GHASH_POST_BRIDGE_TAC below. The bridge application itself     *)
-(* differs only in WHICH per-N theorem is invoked                              *)
-(* (GHASH_NBLOCK_KARATSUBA_EQ_POLYVAL_DOT_1 for N=1, the corresponding         *)
-(* derived theorem for N≥2). *)
-
-(* GCM_NBLOCK_GHASH_PRE_BRIDGE_TAC: the standard pre-bridge normalization
-   chain (subword/halfswap/PMUL_NORM/karatsuba_mid). This is identical
-   across all N. *)
-let GCM_NBLOCK_GHASH_PRE_BRIDGE_TAC =
-  CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
-  REWRITE_TAC[REV64_LOWER_LANE; REV64_UPPER_LANE; REV8_JOIN_FOLD] THEN
-  MATCH_MP_TAC(MESON[]
-    `x = y ==> word_reversefields 8 x = word_reversefields 8 y:(128)word`) THEN
-  FIRST_ASSUM(fun th ->
-    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word`
-    then SUBST1_TAC(SYM th) else NO_TAC) THEN
-  REWRITE_TAC[WORD_SWAP_HALVES_INVOLUTION] THEN
-  CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
-  REWRITE_TAC[WORD_INSERT_AS_JOIN_1; WORD_INSERT_AS_JOIN_2;
-              KAR_SUBWORD_LEMMA; WORD_SWAP_HALVES_INVOLUTION;
-              WORD_OR_REFL; WORD_XOR_ASSOC; WORD_SUBWORD_XOR;
-              BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
-  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-  REWRITE_TAC[HALFSWAP_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
-              WORD_XOR_0; WORD_XOR_ASSOC;
-              REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO;
-              REVERSEFIELDS8_SUBWORD_HI] THEN
-  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-  CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
-  REWRITE_TAC[WORD_XOR_ASSOC] THEN
-  REWRITE_TAC[BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
-  ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[karatsuba_mid];;
-
-(* GCM_NBLOCK_GHASH_ATOMIC_ABBREVS n input_atoms h_atoms : tactic
-   Generates ABBREV_TAC for each (var_name, term) pair in the input/H lists. *)
-let GCM_NBLOCK_GHASH_ATOMIC_ABBREVS (atoms : (string * term) list) : tactic =
-  let abbrevs = List.map (fun (name, body) ->
-    let v = mk_var(name, type_of body) in
-    ABBREV_TAC(mk_eq(v, body))) atoms in
-  EVERY abbrevs;;
-
-(* GCM_NBLOCK_GHASH_PMUL_ABBREVS pmul_specs : tactic
-   pmul_specs = [(name, arg1_term, arg2_term)] where each pmul is `word_pmul arg1 arg2 :(128)word`.
-   Generates ABBREV_TAC for each. *)
-let GCM_NBLOCK_GHASH_PMUL_ABBREVS (pmul_specs : (string * term * term) list) : tactic =
-  let abbrevs = List.map (fun (name, a, b) ->
-    let body = mk_comb(mk_comb(`word_pmul:64 word -> 64 word -> 128 word`, a), b) in
-    let v = mk_var(name, `:(128)word`) in
-    ABBREV_TAC(mk_eq(v, body))) pmul_specs in
-  EVERY abbrevs;;
-
-(* GCM_NBLOCK_GHASH_Z_ABBREVS z_specs : tactic
-   z_specs = [(name, body, (offset, length))] for word_subword extractions.
-   Generates ABBREV_TAC `(name:(64)word) = word_subword body (offset,length)` *)
-let GCM_NBLOCK_GHASH_Z_ABBREVS (z_specs : (string * term * (int*int)) list) : tactic =
-  let abbrevs = List.map (fun (name, body, (off, len)) ->
-    let off_tm = mk_small_numeral off
-    and len_tm = mk_small_numeral len in
-    let pair = mk_pair (off_tm, len_tm) in
-    let subword_tm =
-      mk_comb(mk_comb(`word_subword:128 word -> num#num -> 64 word`, body), pair) in
-    let v = mk_var(name, `:(64)word`) in
-    ABBREV_TAC(mk_eq(v, subword_tm))) z_specs in
-  EVERY abbrevs;;
-
-(* GCM_NBLOCK_GHASH_FINAL_TAC : tactic
-   The final closure: BINOP_TAC THENL [WORD_RULE; WORD_RULE].
-   Identical across all N. *)
-let GCM_NBLOCK_GHASH_FINAL_TAC =
-  BINOP_TAC THENL [CONV_TAC WORD_RULE; CONV_TAC WORD_RULE];;
-
-(* mk_atom_name n k base : build atom variable name with block index *)
-let mk_atom_name (n:int) (k:int) (base:string) : string =
-  if n = 1 then base else base ^ "_" ^ string_of_int k;;
-
-(* GCM_NBLOCK_GHASH_STEP_GENERATOR n input_terms h_powers_terms hk_term :
-                                              the parts of the GHASH closure
-                                              that scale linearly with N.
-
-   The generator returns a TACTIC that does:
-     1. ABBREV uA0_k, uA1_k for each block input k=1..N
-     2. ABBREV uD_lo_j, uD_hi_j for each H power j=1..N
-     3. SUBGOAL_THEN to normalize XOR-AC of small pmul args
-     4. ABBREV inner pmuls p1_k, p2_k, p3_k for each block
-     5. REWRITE DOUBLE_SUBWORD_JOIN
-     6. ABBREV z-vars for each inner pmul subword + the small outer pmul subword
-     7. ASM_REWRITE
-     8. SUBGOAL_THEN equating BIG outer pmul forms via XOR-AC
-     9. ASM_REWRITE
-    10. ABBREV qBigP, qSmallP, qBigPL, qBigPH, qSmallPH
-    11. BINOP_TAC THENL [WORD_RULE; WORD_RULE]
-
-   Inputs:
-     n                    : block count (1..8)
-     input_terms          : list [t_1; ...; t_N] of input cleartext-XOR terms
-                            for each block (term type `:(128)word`).
-                            For N=1: [`word_xor xi ct`].
-                            For N=2: [`word_xor xi ct1`; `ct2`].
-     h_powers_terms       : list of distinct H-power terms (length N).
-                            For N=1: [`h:(128)word`].
-                            For N=2: [`h:(128)word`; `polyval_dot h h`].
-     hk_terms             : list [`h1k:(128)word`; ...] of Htable hk values
-                            paired with each h power (one per block).
-
-   This is a SKETCH generator. The actual closing of the BIG pmul SUBGOAL_THEN
-   requires the precise atom list for that N — which depends on the specific
-   shape produced by GHASH_POLYVAL_ACC_<N> + bridge unfolding. The N=1 case
-   has the simple `xor z2 (xor z5 (xor z3 (xor z1 zD)))` form, but N≥2 cases
-   have additional cross-block atoms. The generator builds the linear
-   abbreviations; the BIG pmul SUBGOAL_THEN must be supplied per N.
-*)
-let GCM_NBLOCK_GHASH_STEP_GENERATOR (n:int)
-                                    (input_terms : term list)
-                                    (h_powers_terms : term list)
-                                    (hk_terms : term list) : tactic =
-  if List.length input_terms <> n then
-    failwith ("GCM_NBLOCK_GHASH_STEP_GENERATOR: expected " ^ string_of_int n ^
-              " input terms but got " ^ string_of_int (List.length input_terms))
-  else if List.length h_powers_terms <> n then
-    failwith ("GCM_NBLOCK_GHASH_STEP_GENERATOR: expected " ^ string_of_int n ^
-              " H-power terms but got " ^ string_of_int (List.length h_powers_terms))
-  else
-  (* Build atomic ABBREVs: 2 per block input, 2 per H-power. *)
-  let rfields_8 = `word_reversefields 8 :(128)word -> (128)word` in
-  let mk_subword body off =
-    let off_tm = mk_small_numeral off in
-    let pair = mk_pair (off_tm, `64`) in
-    mk_comb(mk_comb(`word_subword:128 word -> num#num -> 64 word`, body), pair) in
-  let input_atoms = List.concat (List.mapi (fun i t ->
-    let k = i + 1 in
-    let body = mk_comb(rfields_8, t) in
-    [(mk_atom_name n k "uA0", mk_subword body 0);
-     (mk_atom_name n k "uA1", mk_subword body 64)]) input_terms) in
-  let h_letters = ["uD"; "uE"; "uF"; "uG"; "uH"; "uI"; "uJ"; "uK"] in
-  let h_atoms = List.concat (List.mapi (fun i t ->
-    let prefix = List.nth h_letters i in
-    [(prefix ^ "0", mk_subword t 0);
-     (prefix ^ "1", mk_subword t 64)]) h_powers_terms) in
-  GCM_NBLOCK_GHASH_ATOMIC_ABBREVS (input_atoms @ h_atoms);;
-
-(* GCM_NBLOCK_GHASH_STEP_TAC : int -> tactic                                  *)
-(* For now, a thin wrapper that builds the atomic ABBREVs and leaves the    *)
-(* user to apply the rest of the recipe. The full closure for each N is     *)
-(* encoded in the per-N proof file; this generator handles the mechanical    *)
-(* atomic-naming portion which scales linearly. Future enhancement: extend  *)
-(* to drive the entire closure including the BIG pmul SUBGOAL_THEN.          *)
-let GCM_NBLOCK_GHASH_STEP_TAC (n:int) : tactic =
-  match n with
-  | 1 ->
-      (* For N=1: input = `word_xor xi ct`, h_power = `h`, hk = `h1k`. *)
-      GCM_NBLOCK_GHASH_PRE_BRIDGE_TAC THEN
-      GCM_NBLOCK_GHASH_STEP_GENERATOR 1
-        [`word_xor (xi:(128)word) ct`]
-        [`h:(128)word`]
-        [`h1k:(128)word`]
-  | 2 ->
-      (* For N=2: inputs = [xor xi ct1; ct2], h_powers = [h, polyval_dot h h]. *)
-      GCM_NBLOCK_GHASH_PRE_BRIDGE_TAC THEN
-      GCM_NBLOCK_GHASH_STEP_GENERATOR 2
-        [`word_xor (xi:(128)word) ct1`; `ct2:(128)word`]
-        [`h:(128)word`; `polyval_dot (h:(128)word) h`]
-        [`h1k:(128)word`; `h1k:(128)word`]
-  | _ -> failwith ("GCM_NBLOCK_GHASH_STEP_TAC: N=" ^ string_of_int n ^
-                   " not yet supported (only N=1, 2 wired up; extend " ^
-                   "this generator for N=3..8 by adding the per-N input/H-power lists)");;
 
 (* ========================================================================= *)
 (*  SHARED PER-N PROOF HELPERS (hoisted here so the N-block proof files do    *)
@@ -1101,21 +882,8 @@ let POLYVAL_DOT_H8_EQ = prove
   GEN_TAC THEN REWRITE_TAC[POLYVAL_DOT_H7_EQ]);;
 
 
-(* --- Counter-insert lemmas (used by the ct>=3 folds in the GHASH step) ----- *)
-
-let INSERT_IDEM = prove
- (`!(x:(128)word) (y:(32)word) (z:(32)word).
-     (word_insert:(128)word->num#num->(32)word->(128)word)
-     (word_insert x (96,32) y) (96,32) z = word_insert x (96,32) z`,
-  REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
 
 
-let INSERT_SUBWORD = prove
- (`!(x:(128)word) (y:(32)word).
-     word_subword
-     ((word_insert:(128)word->num#num->(32)word->(128)word) x (96,32) y)
-     (96,32):(32)word = y`,
-  REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
 
 
 (* --- Bubble-sort conversion for XOR canonical form ------------------------ *)
@@ -1158,4 +926,7 @@ let rec bubble_sort_conv tm =
       let th = bubble_conv (rhs(concl acc)) in
       apply_n_times (k-1) (TRANS acc th) in
   apply_n_times n (REFL tm);;
+
+
+
 

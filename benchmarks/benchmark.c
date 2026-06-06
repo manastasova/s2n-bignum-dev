@@ -1097,6 +1097,14 @@ void call_sm2_montjscalarmul_alt(void) repeatfewer(10,sm2_montjscalarmul_alt(b1,
 
 void call_gcm_gmult_v8(void) {}
 
+void call_one_block_aes256_gcm_preloop_tail(void) {}
+void call_two_blocks_aes256_gcm_preloop_tail(void) {}
+void call_three_blocks_aes256_gcm_preloop_tail(void) {}
+void call_four_blocks_aes256_gcm_preloop_tail(void) {}
+void call_five_blocks_aes256_gcm_preloop_tail(void) {}
+void call_six_blocks_aes256_gcm_preloop_tail(void) {}
+void call_seven_blocks_aes256_gcm_preloop_tail(void) {}
+
 void call_mldsa_intt(void) repeat(mldsa_intt((int32_t*)b0,(const int32_t*)b1))
 void call_mldsa_ntt(void) repeat(mldsa_ntt((int32_t*)b0,(const int32_t*)b1))
 void call_mldsa_pointwise(void) repeat(mldsa_pointwise_x86((int32_t*)b0,(int32_t*)b1,(int32_t*)b2,(int32_t*)b3))
@@ -1124,6 +1132,24 @@ void call_sha3_keccak4_f1600_alt2(void) {}
 #else
 
 void call_gcm_gmult_v8(void) repeat(gcm_gmult_v8((uint8_t *)b0,(u128 *)b1))
+
+// AES-256-GCM separate-blocks encrypt + GHASH (N = 1..7).
+// b0=in, b1=out, b2=Xi, b3=ivec, b4=key(round keys); Htable is a dedicated buf.
+static u128 bench_gcm_Htable[16];
+void call_one_block_aes256_gcm_preloop_tail(void)
+  repeat(aes256_gcm_one_block((uint8_t*)b0,128,(uint8_t*)b1,(uint8_t*)b2,(uint8_t*)b3,(void*)b4,bench_gcm_Htable))
+void call_two_blocks_aes256_gcm_preloop_tail(void)
+  repeat(aes256_gcm_two_block((uint8_t*)b0,256,(uint8_t*)b1,(uint8_t*)b2,(uint8_t*)b3,(void*)b4,bench_gcm_Htable))
+void call_three_blocks_aes256_gcm_preloop_tail(void)
+  repeat(aes256_gcm_three_block((uint8_t*)b0,384,(uint8_t*)b1,(uint8_t*)b2,(uint8_t*)b3,(void*)b4,bench_gcm_Htable))
+void call_four_blocks_aes256_gcm_preloop_tail(void)
+  repeat(aes256_gcm_four_block((uint8_t*)b0,512,(uint8_t*)b1,(uint8_t*)b2,(uint8_t*)b3,(void*)b4,bench_gcm_Htable))
+void call_five_blocks_aes256_gcm_preloop_tail(void)
+  repeat(aes256_gcm_five_block((uint8_t*)b0,640,(uint8_t*)b1,(uint8_t*)b2,(uint8_t*)b3,(void*)b4,bench_gcm_Htable))
+void call_six_blocks_aes256_gcm_preloop_tail(void)
+  repeat(aes256_gcm_six_block((uint8_t*)b0,768,(uint8_t*)b1,(uint8_t*)b2,(uint8_t*)b3,(void*)b4,bench_gcm_Htable))
+void call_seven_blocks_aes256_gcm_preloop_tail(void)
+  repeat(aes256_gcm_seven_block((uint8_t*)b0,896,(uint8_t*)b1,(uint8_t*)b2,(uint8_t*)b3,(void*)b4,bench_gcm_Htable))
 
 void call_mldsa_intt(void) {}
 void call_mldsa_ntt(void) {}
@@ -1615,6 +1641,13 @@ int main(int argc, char *argv[])
   timingtest(all,"word_popcount",call_word_popcount);
   timingtest(all,"word_recip",call_word_recip);
   timingtest(arm,"gcm_gmult_v8",call_gcm_gmult_v8);
+  timingtest(arm,"aes256_gcm_one_block",call_one_block_aes256_gcm_preloop_tail);
+  timingtest(arm,"aes256_gcm_two_block",call_two_blocks_aes256_gcm_preloop_tail);
+  timingtest(arm,"aes256_gcm_three_block",call_three_blocks_aes256_gcm_preloop_tail);
+  timingtest(arm,"aes256_gcm_four_block",call_four_blocks_aes256_gcm_preloop_tail);
+  timingtest(arm,"aes256_gcm_five_block",call_five_blocks_aes256_gcm_preloop_tail);
+  timingtest(arm,"aes256_gcm_six_block",call_six_blocks_aes256_gcm_preloop_tail);
+  timingtest(arm,"aes256_gcm_seven_block",call_seven_blocks_aes256_gcm_preloop_tail);
 
   // Summarize performance in arithmetic and geometric means
 

@@ -21,7 +21,7 @@
 //   - Prepretail (lines 6143–6522)
 //   - Tail cascade bodies for >1 blocks (lines 6602–6779)
 //
-//    extern size_t five_blocks_aes256_gcm_preloop_tail
+//    extern size_t aes256_gcm_four_block
 //      (const uint8_t *in, size_t bit_len, uint8_t *out,
 //       uint8_t *Xi, uint8_t ivec[16], const void *key,
 //       const u128 Htable[16]);
@@ -38,13 +38,17 @@
 // Returns: x0 = byte_length (16)
 // ----------------------------------------------------------------------------
 
+#include "_internal_s2n_bignum_arm.h"
+
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(aes256_gcm_four_block)
+        S2N_BN_FUNCTION_TYPE_DIRECTIVE(aes256_gcm_four_block)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(aes256_gcm_four_block)
         .arch armv8.2-a+crypto+sha3
         .text
+        .balign 4
 
-.globl	five_blocks_aes256_gcm_preloop_tail
-.type	five_blocks_aes256_gcm_preloop_tail,%function
-.align	4
-five_blocks_aes256_gcm_preloop_tail:
+S2N_BN_SYMBOL(aes256_gcm_four_block):
+        CFI_START
 
 	//cbz	x1, .L256_enc_ret
 	stp	d8, d9, [sp, #-80]!
@@ -98,8 +102,8 @@ five_blocks_aes256_gcm_preloop_tail:
 
 	aese	v3.16b, v26.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 0
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 0
+	// aese	v4.16b, v26.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 0
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 0
 
@@ -116,8 +120,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	// aesmc	v7.16b, v7.16b			//AES block 7 - round 0
 	ldp	q28, q26, [x11, #32]				//load rk2, rk3
 
-	aese	v4.16b, v27.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 1
+	// aese	v4.16b, v27.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 1
 	aese	v1.16b, v27.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 1
 	aese	v3.16b, v27.16b
@@ -148,8 +152,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	// aese	v5.16b, v28.16b
 	// aesmc	v5.16b, v5.16b			//AES block 5 - round 2
 
-	aese	v4.16b, v28.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 2
+	// aese	v4.16b, v28.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 2
 	aese	v0.16b, v28.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 2
 	aese	v1.16b, v28.16b
@@ -161,8 +165,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 3
 	ldp	q27, q28, [x11, #64]				//load rk4, rk5
 
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 3
+	// aese	v4.16b, v26.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 3
 
 	aese	v1.16b, v26.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 3
@@ -176,8 +180,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 3
 
-	aese	v4.16b, v27.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 4
+	// aese	v4.16b, v27.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 4
 	// aese	v6.16b, v27.16b
 	// aesmc	v6.16b, v6.16b			//AES block 6 - round 4
 	aese	v1.16b, v27.16b
@@ -203,8 +207,8 @@ five_blocks_aes256_gcm_preloop_tail:
 
 	aese	v1.16b, v28.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 5
-	aese	v4.16b, v28.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 5
+	// aese	v4.16b, v28.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 5
 	// aese	v5.16b, v28.16b
 	// aesmc	v5.16b, v5.16b			//AES block 5 - round 5
 
@@ -219,8 +223,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 6
 	// aese	v5.16b, v26.16b
 	// aesmc	v5.16b, v5.16b			//AES block 5 - round 6
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 6
+	// aese	v4.16b, v26.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 6
 
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 6
@@ -252,8 +256,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	aese	v3.16b, v27.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 7
 
-	aese	v4.16b, v27.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 7
+	// aese	v4.16b, v27.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 7
 
 	// aese	v6.16b, v28.16b
 	// aesmc	v6.16b, v6.16b			//AES block 6 - round 8
@@ -269,8 +273,8 @@ five_blocks_aes256_gcm_preloop_tail:
 
 	// aese	v5.16b, v28.16b
 	// aesmc	v5.16b, v5.16b			//AES block 5 - round 8
-	aese	v4.16b, v28.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 8
+	// aese	v4.16b, v28.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 8
 	aese	v2.16b, v28.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 8
 
@@ -286,8 +290,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	aese	v3.16b, v26.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 9
 
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 9
+	// aese	v4.16b, v26.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 9
 	// aese	v5.16b, v26.16b
 	// aesmc	v5.16b, v5.16b			//AES block 5 - round 9
 	aese	v2.16b, v26.16b
@@ -298,8 +302,8 @@ five_blocks_aes256_gcm_preloop_tail:
 
 	// aese	v7.16b, v27.16b
 	// aesmc	v7.16b, v7.16b			//AES block 7 - round 10
-	aese	v4.16b, v27.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 10
+	// aese	v4.16b, v27.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 10
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 9
 
@@ -317,8 +321,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	// aese	v6.16b, v27.16b
 	// aesmc	v6.16b, v6.16b			//AES block 6 - round 10
 
-	aese	v4.16b, v28.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 11
+	// aese	v4.16b, v28.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 11
 	ldp	q26, q27, [x11, #192]				//load rk12, rk13
 	// aese	v5.16b, v28.16b
 	// aesmc	v5.16b, v5.16b			//AES block 5 - round 11
@@ -340,8 +344,8 @@ five_blocks_aes256_gcm_preloop_tail:
 	add	v30.4s, v30.4s, v31.4s		//CTR block 7
 	ldr	q28, [x11, #224]					//load rk14
 
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 12
+	// aese	v4.16b, v26.16b
+	// aesmc	v4.16b, v4.16b			//AES block 4 - round 12
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 12
 	aese	v1.16b, v26.16b
@@ -356,7 +360,7 @@ five_blocks_aes256_gcm_preloop_tail:
 
 	aese	v2.16b, v27.16b						//AES block 2 - round 13
 	aese	v1.16b, v27.16b						//AES block 1 - round 13
-	aese	v4.16b, v27.16b						//AES block 4 - round 13
+	// aese	v4.16b, v27.16b						//AES block 4 - round 13
 
 	// aese	v6.16b, v26.16b
 	// aesmc	v6.16b, v6.16b			//AES block 6 - round 12
@@ -402,7 +406,7 @@ five_blocks_aes256_gcm_preloop_tail:
 	// rev32	v3.16b, v30.16b				//CTR block 11
 	// add	v30.4s, v30.4s, v31.4s		//CTR block 11
 
-.inst	0xce04718c	//eor3 v12.16b, v12.16b, v4.16b, v28.16b				//AES block 4 - result
+// .inst	0xce04718c	//eor3 v12.16b, v12.16b, v4.16b, v28.16b				//AES block 4 - result
 
 // .inst	0xce0771ef	//eor3 v15.16b, v15.16b, v7.16b, v28.16b				//AES block 7 - result
 // .inst	0xce0671ce	//eor3 v14.16b, v14.16b, v6.16b, v28.16b				//AES block 6 - result
@@ -1237,7 +1241,7 @@ five_blocks_aes256_gcm_preloop_tail:
 	movi	v19.8b, #0
 	movi	v17.8b, #0
 	movi	v18.8b, #0
-	ldp	q20, q21, [x6, #96]			//5-block: load h^5_tw | h5k|h6k
+	ldr	q21, [x6, #16]				//load h2k | h1k
 
 	// --- Dead for 1-block: entire cascade (register shuffles + b.gt) ---
 	mov	v7.16b, v6.16b
@@ -1374,29 +1378,29 @@ five_blocks_aes256_gcm_preloop_tail:
 // .inst	0xce037529	//eor3 v9.16b, v9.16b, v3.16b, v29.16b			//AES final-4 block - result
 .L256_enc_blocks_more_than_4:	//blocks	left >  4
 
-	st1	{ v9.16b}, [x2], #16				//AES final-4 block - store result
+	// st1	{ v9.16b}, [x2], #16				//AES final-4 block - store result
 
-	rev64	v8.16b, v9.16b						//GHASH final-4 block
+	// rev64	v8.16b, v9.16b						//GHASH final-4 block
 
-	ldr	q9, [x0], #16				//AES final-3 block - load plaintext
+	// ldr	q9, [x0], #16				//AES final-3 block - load plaintext
 
-	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
+	// eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
 
-	ins	v27.d[0], v8.d[1]					//GHASH final-4 block - mid
-	pmull2	v28.1q, v8.2d, v20.2d				//GHASH final-4 block - high
+	// ins	v27.d[0], v8.d[1]					//GHASH final-4 block - mid
+	// pmull2	v28.1q, v8.2d, v20.2d				//GHASH final-4 block - high
 
-.inst	0xce047529	//eor3 v9.16b, v9.16b, v4.16b, v29.16b			//AES final-3 block - result
-	pmull	v26.1q, v8.1d, v20.1d				//GHASH final-4 block - low
+// .inst	0xce047529	//eor3 v9.16b, v9.16b, v4.16b, v29.16b			//AES final-3 block - result
+	// pmull	v26.1q, v8.1d, v20.1d				//GHASH final-4 block - low
 
-	eor	v27.8b, v27.8b, v8.8b				//GHASH final-4 block - mid
-	eor	v19.16b, v19.16b, v26.16b					//GHASH final-4 block - low
+	// eor	v27.8b, v27.8b, v8.8b				//GHASH final-4 block - mid
+	// eor	v19.16b, v19.16b, v26.16b					//GHASH final-4 block - low
 
-	pmull	v27.1q, v27.1d, v21.1d				//GHASH final-4 block - mid
+	// pmull	v27.1q, v27.1d, v21.1d				//GHASH final-4 block - mid
 
-	movi	v16.8b, #0						//supress further partial tag feed in
+	// movi	v16.8b, #0						//supress further partial tag feed in
 
-	eor	v18.16b, v18.16b, v27.16b				//GHASH final-4 block - mid
-	eor	v17.16b, v17.16b, v28.16b					//GHASH final-4 block - high
+	// eor	v18.16b, v18.16b, v27.16b				//GHASH final-4 block - mid
+	// eor	v17.16b, v17.16b, v28.16b					//GHASH final-4 block - high
 .L256_enc_blocks_more_than_3:	//blocks	left >  3
 
 	st1	{ v9.16b}, [x2], #16				//AES final-3 block - store result
@@ -1471,7 +1475,7 @@ five_blocks_aes256_gcm_preloop_tail:
 	pmull	v26.1q, v8.1d, v22.1d				//GHASH final-1 block - low
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-1 block - mid
 
-	ldr	q21, [x6, #16]				//5-block: refresh h2k|h1k (was clobbered by h5k load)
+	// ldr	q21, [x6, #16]				//load h2k | h1k (already loaded earlier)
 
 	eor	v19.16b, v19.16b, v26.16b					//GHASH final-1 block - low
 	ins	v27.d[1], v27.d[0]					//GHASH final-1 block - mid
@@ -1548,14 +1552,13 @@ five_blocks_aes256_gcm_preloop_tail:
 	ldp	d12, d13, [sp, #32]
 	ldp	d14, d15, [sp, #48]
 	ldp	d8, d9, [sp], #80
-	ret
+	CFI_RET
 
 //.L256_enc_ret:
 	//mov	w0, #0x0
 	//ret
-.size	five_blocks_aes256_gcm_preloop_tail,.-five_blocks_aes256_gcm_preloop_tail
+S2N_BN_SIZE_DIRECTIVE(aes256_gcm_four_block)
 
 #if defined(__linux__) && defined(__ELF__)
-.section .note.GNU-stack,"",@progbits
+.section .note.GNU-stack,"",%progbits
 #endif
-
