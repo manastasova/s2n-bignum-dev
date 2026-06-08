@@ -138,9 +138,7 @@ POINT_OBJ = curve25519/curve25519_ladderstep.o \
             sm2/sm2_montjscalarmul.o \
             sm2/sm2_montjscalarmul_alt.o
 
-BIGNUM_OBJ = aes-gcm/aesv8_gcm_1block_enc_256.o \
-             aes-gcm/aesv8_gcm_1block_dec_256.o \
-             aes-gcm/gcm_gmult_v8.o \
+BIGNUM_OBJ = aes-gcm/gcm_gmult_v8.o \
              aes-gcm/aes256_gcm_one_block.o \
              aes-gcm/aes256_gcm_two_block.o \
              aes-gcm/aes256_gcm_three_block.o \

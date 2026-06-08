@@ -11,7 +11,8 @@
 (* Reuses aes256_block_enc and gcm_gmult_spec from existing specs.           *)
 (* ========================================================================= *)
 
-needs "arm/proofs/utils/aesv8_gcm_1block_enc_256_spec.ml";;
+needs "arm/proofs/utils/aes256_gcm_block_enc_spec.ml";;
+needs "arm/proofs/utils/gcm_gmult_v8_spec.ml";;
 
 (* ----------------------------------------------------------------------- *)
 (* The spec is the same as aesv8_gcm_1block_enc_spec since the 8x kernel   *)

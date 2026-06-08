@@ -1231,14 +1231,6 @@ typedef struct { uint64_t hi, lo; } u128;
 // GHASH polynomial multiply: Xi = H * Xi (mod x^128 + x^7 + x^2 + x + 1)
 // Inputs Xi[16], Htable[16] (precomputed by gcm_init_v8); output Xi[16]
 extern void gcm_gmult_v8 (uint8_t Xi[16], const u128 Htable[16]);
-// AES-256-GCM single-block encrypt + GHASH
-extern size_t aesv8_gcm_1block_enc_256
-  (const uint8_t *in, size_t bit_len, uint8_t *out,
-   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
-// AES-256-GCM single-block decrypt + GHASH
-extern size_t aesv8_gcm_1block_dec_256
-  (const uint8_t *in, size_t bit_len, uint8_t *out,
-   uint8_t *Xi, uint8_t ivec[16], const void *key, const u128 Htable[16]);
 // AES-256-GCM two-block (32 byte) encrypt + GHASH accumulation
 extern size_t aes256_gcm_two_block
   (const uint8_t *in, size_t bit_len, uint8_t *out,
