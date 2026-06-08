@@ -1,5 +1,5 @@
 (* ========================================================================= *)
-(* Specification for one_block_aes256_gcm_preloop_tail:                      *)
+(* Specification for aes256_gcm_one_block:                      *)
 (* AES-256 CTR encryption of one block + GHASH accumulation.                 *)
 (*                                                                           *)
 (* This is the 1-block path through aws-lc's aesv8_gcm_8x_enc_256 kernel.   *)
@@ -21,8 +21,8 @@ needs "arm/proofs/utils/aesv8_gcm_1block_enc_256_spec.ml";;
 (* Returns (ciphertext, updated_Xi).                                        *)
 (* ----------------------------------------------------------------------- *)
 
-let one_block_preloop_tail_enc_spec = new_definition
-  `one_block_preloop_tail_enc_spec
+let aes256_gcm_one_block_enc_spec = new_definition
+  `aes256_gcm_one_block_enc_spec
     (pt:(128)word) (ivec:(128)word)
     (rk0:(128)word) (rk1:(128)word) (rk2:(128)word) (rk3:(128)word)
     (rk4:(128)word) (rk5:(128)word) (rk6:(128)word) (rk7:(128)word)

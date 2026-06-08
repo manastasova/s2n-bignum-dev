@@ -15,7 +15,7 @@
 (*   - ghash_2block_karatsuba (assembly-shape spec)                        *)
 (*   - GHASH_2BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)  *)
 (*   - GHASH_2BLOCK_KARATSUBA_EQ_POLYVAL_ACC — derived from inductive bridge *)
-(*   - GCM_2BLOCK_GHASH_STEP_TAC + main theorem TWO_BLOCKS_PRELOOP_TAIL_CORRECT *)
+(*   - GCM_2BLOCK_GHASH_STEP_TAC + main theorem AES256_GCM_TWO_BLOCK_CORRECT *)
 (* ========================================================================= *)
 
 (* All dependencies (base/AES/ghash_spec/aesgcm helpers) are pulled in       *)
@@ -305,7 +305,7 @@ let aes256_gcm_two_block_mc = define_assert_from_elf
   0xd65f03c0        (* arm_RET X30 *)
 ];;
 
-let TWO_BLOCKS_PRELOOP_TAIL_EXEC =
+let AES256_GCM_TWO_BLOCK_EXEC =
   ARM_MK_EXEC_RULE aes256_gcm_two_block_mc;;
 
 (* ========================================================================= *)
@@ -685,7 +685,7 @@ let TWOBLOCK_MASK_REG = prove
 (*                         THE MAIN THEOREM                                  *)
 (* ========================================================================= *)
 
-let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
+let AES256_GCM_TWO_BLOCK_CORRECT = prove
  (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
     (pt1:(128)word) (pt2:(128)word) (out0:(128)word) (ivec:(128)word)
     (rk0:(128)word) (rk1:(128)word) (rk2:(128)word) (rk3:(128)word)
@@ -797,19 +797,19 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
 
   REWRITE_TAC[C_ARGUMENTS; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
               SOME_FLAGS; NONOVERLAPPING_CLAUSES;
-              fst TWO_BLOCKS_PRELOOP_TAIL_EXEC] THEN
+              fst AES256_GCM_TWO_BLOCK_EXEC] THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
 
   (* Steps 1-19: prologue *)
-  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC (1--19) THEN
+  ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC (1--19) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[STACK_PTR_CANCEL; WORD_ADD_ASSOC_CONSTS]) THEN
   RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(DEPTH_CONV NUM_ADD_CONV))) THEN
   GCM_ENC_SIMPLIFY_TAC THEN
 
   (* Steps 20-92: AES rounds for both blocks *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (20--92) THEN
 
   (* Abbreviate s13_1 (Q0) and s13_2 (Q1) *)
@@ -825,14 +825,14 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
     else NO_TAC) THEN
 
   (* Step 93 + ABBREV ct1 + post-AES normalization *)
-  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [93] THEN
+  ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC [93] THEN
   GCM_ENC_SIMPLIFY_TAC THEN
   ABBREV_TAC `ct1 = word_xor (word_xor pt1 s13_1) rk14:(128)word` THEN
   GCM_NBLOCK_POST_AES_NORMALIZE_TAC THEN
 
   (* Steps 94-99 + tail-dispatch normalization *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (94--99) THEN
   GCM_NBLOCK_TAIL_DISPATCH_NORMALIZE_TAC THEN
 
@@ -840,7 +840,7 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
      if-then-else on byte_len; resolve it: for a partial final block
      (1 <= byte_len <= 16) the total length 16+byte_len exceeds 16, so the
      branch is taken and the PC becomes the definite in-cascade target. *)
-  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [100] THEN
+  ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC [100] THEN
   SUBGOAL_THEN `1 <= byte_len /\ byte_len <= 16` MP_TAC THENL
    [ASM_REWRITE_TAC[]; ALL_TAC] THEN
   DISCH_THEN(fun th -> RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP TWOBLOCK_BRANCH th])) THEN
@@ -848,13 +848,13 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
 
   (* Steps 101-110 + ABBREV ct2 *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (101--110) THEN
   ABBREV_TAC `ct2 = word_xor (word_xor pt2 s13_2) rk14:(128)word` THEN
 
   (* Steps 111-135: 2-block Karatsuba up to the partial-block mask build. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (111--135) THEN
 
   (* Collapse the data-dependent partial-block mask register to
@@ -865,7 +865,7 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
 
   (* Steps 136-154: bif (masked store fixup), masked-block GHASH + reduction. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (136--154) THEN
 
   GCM_NBLOCK_POST_SIM_NORMALIZE_TAC THEN
@@ -874,7 +874,7 @@ let TWO_BLOCKS_PRELOOP_TAIL_CORRECT = prove
   ABBREV_FINAL_XI_TAC THEN
 
   (* Steps 155-161: rev64 v19, st1, epilogue (stop before the RET). *)
-  ARM_STEPS_TAC TWO_BLOCKS_PRELOOP_TAIL_EXEC (155--161) THEN
+  ARM_STEPS_TAC AES256_GCM_TWO_BLOCK_EXEC (155--161) THEN
 
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   ENSURES_FINAL_STATE_TAC THEN

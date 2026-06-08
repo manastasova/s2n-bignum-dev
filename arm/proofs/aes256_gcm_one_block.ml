@@ -24,7 +24,7 @@
 (*   - GCM_GHASH_STEP_MASKED_TAC: the GHASH closure over the masked block,  *)
 (*     via ghash_1block_karatsuba and its bridge to polyval_dot             *)
 (*   - GCM_CT_STEP_TAC: the single-block ciphertext closure                *)
-(*   - The main theorem ONE_BLOCK_PRELOOP_TAIL_CORRECT                     *)
+(*   - The main theorem AES256_GCM_ONE_BLOCK_CORRECT                     *)
 (* ========================================================================= *)
 
 (* All dependencies (base/AES/ghash_spec/aesgcm helpers) are pulled in       *)
@@ -154,7 +154,7 @@ let aes256_gcm_one_block_mc = define_assert_from_elf
   0xd65f03c0        (* arm_RET X30 *)
 ];;
 
-let ONE_BLOCK_PRELOOP_TAIL_EXEC =
+let AES256_GCM_ONE_BLOCK_EXEC =
   ARM_MK_EXEC_RULE aes256_gcm_one_block_mc;;
 
 (* ========================================================================= *)
@@ -489,7 +489,7 @@ let GCM_GHASH_STEP_MASKED_TAC =
 (*                         THE PROOF                                         *)
 (* ========================================================================= *)
 
-let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
+let AES256_GCM_ONE_BLOCK_CORRECT = prove
  (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
     (pt:(128)word) (out0:(128)word) (ivec:(128)word)
     (rk0:(128)word) (rk1:(128)word) (rk2:(128)word) (rk3:(128)word)
@@ -586,19 +586,19 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
 
   REWRITE_TAC[C_ARGUMENTS; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
               SOME_FLAGS; NONOVERLAPPING_CLAUSES;
-              fst ONE_BLOCK_PRELOOP_TAIL_EXEC] THEN
+              fst AES256_GCM_ONE_BLOCK_EXEC] THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
 
   (* Steps 1-19: prologue (shared across all N). *)
-  ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC (1--19) THEN
+  ARM_STEPS_TAC AES256_GCM_ONE_BLOCK_EXEC (1--19) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[STACK_PTR_CANCEL; WORD_ADD_ASSOC_CONSTS]) THEN
   RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(DEPTH_CONV NUM_ADD_CONV))) THEN
   GCM_ENC_SIMPLIFY_TAC THEN
 
   (* Steps 20-84: AES rounds for the single block. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_ONE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (20--84) THEN
 
   (* Abbreviate the AES output (`ct` = full-block ciphertext, `s13` = round-13
@@ -617,7 +617,7 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
   (* Steps 85-104: bif (partial store fixup), counter store, masked-block
      store, GHASH Karatsuba up to the final EOR3 in Q19. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_ONE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (85--104) THEN
 
   (* Post-simulation normalization, lifted into a named tactic. *)
@@ -628,7 +628,7 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
 
   (* Steps 105-112: EXT, REV64, ST1, MOV, LDP*4 — Q19 now opaque.  Stop just
      before the RET (#113); the postcondition PC is the RET's address (pc+448). *)
-  ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC (105--112) THEN
+  ARM_STEPS_TAC AES256_GCM_ONE_BLOCK_EXEC (105--112) THEN
 
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   ENSURES_FINAL_STATE_TAC THEN

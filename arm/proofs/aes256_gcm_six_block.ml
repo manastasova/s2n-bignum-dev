@@ -15,7 +15,7 @@
 (*   - ghash_6block_karatsuba (assembly-shape spec)                        *)
 (*   - GHASH_6BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)  *)
 (*   - GHASH_6BLOCK_KARATSUBA_EQ_POLYVAL_ACC — derived from inductive bridge *)
-(*   - GCM_6BLOCK_GHASH_STEP_TAC + main theorem SIX_BLOCKS_PRELOOP_TAIL_CORRECT *)
+(*   - GCM_6BLOCK_GHASH_STEP_TAC + main theorem AES256_GCM_SIX_BLOCK_CORRECT *)
 (* ========================================================================= *)
 
 (* All dependencies (base/AES/ghash_spec/aesgcm helpers) are pulled in       *)
@@ -594,7 +594,7 @@ let aes256_gcm_six_block_mc = define_assert_from_elf
   0xd65f03c0        (* arm_RET X30 *)
 ];;
 
-let SIX_BLOCKS_PRELOOP_TAIL_EXEC =
+let AES256_GCM_SIX_BLOCK_EXEC =
   ARM_MK_EXEC_RULE aes256_gcm_six_block_mc;;
 
 (* ========================================================================= *)
@@ -1453,7 +1453,7 @@ let GCM_6BLOCK_GHASH_STEP_TAC =
    [CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC;
     CONV_TAC(BINOP_CONV bubble_sort_conv) THEN REFL_TAC];;
 
-let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
+let AES256_GCM_SIX_BLOCK_CORRECT = prove
  (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
     (pt1:(128)word) (pt2:(128)word) (pt3:(128)word) (pt4:(128)word) (pt5:(128)word) (pt6:(128)word)
     (out0:(128)word)
@@ -1617,11 +1617,11 @@ let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
 
   REWRITE_TAC[C_ARGUMENTS; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
               SOME_FLAGS; NONOVERLAPPING_CLAUSES;
-              fst SIX_BLOCKS_PRELOOP_TAIL_EXEC] THEN
+              fst AES256_GCM_SIX_BLOCK_EXEC] THEN
   REPEAT STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN
 
   (* Prologue *)
-  ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC (1--19) THEN
+  ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC (1--19) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[STACK_PTR_CANCEL; WORD_ADD_ASSOC_CONSTS]) THEN
   RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(DEPTH_CONV NUM_ADD_CONV))) THEN
   GCM_ENC_SIMPLIFY_TAC THEN
@@ -1629,7 +1629,7 @@ let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
   (* AES rounds for all 6 blocks, up to just after the block-result eor3s
      (PC = pc+868), BEFORE the dispatch register-shuffle cascade. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (20--217) THEN
 
   (* Abbreviate s13_1..s13_6 from Q0..Q5 (clean sequential pre-shuffle order). *)
@@ -1662,30 +1662,30 @@ let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
      after every step (fall-through at 96 then the taken branch at 80).
      Restore 2 EXP 64 after each step (the stores need it). *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`]) THEN
     SIXBLOCK_CASCADE_TAC) (218--255) THEN
   ABBREV_TAC `ct2 = word_xor (word_xor pt2 s13_2) rk14:(128)word` THEN
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`])) (256--262) THEN
   ABBREV_TAC `ct3 = word_xor (word_xor pt3 s13_3) rk14:(128)word` THEN
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`])) (263--283) THEN
   ABBREV_TAC `ct4 = word_xor (word_xor pt4 s13_4) rk14:(128)word` THEN
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`])) (284--295) THEN
   ABBREV_TAC `ct5 = word_xor (word_xor pt5 s13_5) rk14:(128)word` THEN
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`])) (296--310) THEN
   ABBREV_TAC `ct6 = word_xor (word_xor pt6 s13_6) rk14:(128)word` THEN
 
   (* Steps 311-332: finish building the partial-block mask register (Q0). *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`])) (311--332) THEN
 
   (* Collapse the data-dependent mask register Q0 to word (2^(8*byte_len) - 1)
@@ -1697,7 +1697,7 @@ let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
   (* Steps 333-355: AND_VEC, bif (partial store fixup), GHASH karatsuba +
      Barrett reduction (up to the final EOR3 in Q19). *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
+    ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC [n] THEN GCM_ENC_SIMPLIFY_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`])) (333--355) THEN
 
   GCM_NBLOCK_POST_SIM_NORMALIZE_TAC THEN
@@ -1707,7 +1707,7 @@ let SIX_BLOCKS_PRELOOP_TAIL_CORRECT = prove
 
   (* Epilogue (ext, rev64, str, mov, ldp x4): plain stepping.  Stop at s363
      (PC = pc+1548, just before the RET at pc+1548). *)
-  ARM_STEPS_TAC SIX_BLOCKS_PRELOOP_TAIL_EXEC (356--363) THEN
+  ARM_STEPS_TAC AES256_GCM_SIX_BLOCK_EXEC (356--363) THEN
 
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   ENSURES_FINAL_STATE_TAC THEN

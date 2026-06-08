@@ -14,7 +14,7 @@ needs "arm/proofs/base.ml";;
 needs "common/aes.ml";;
 needs "arm/proofs/aes.ml";;
 needs "arm/proofs/utils/new_instructions.ml";;
-needs "arm/proofs/utils/one_block_preloop_tail_spec.ml";;
+needs "arm/proofs/utils/aes256_gcm_one_block_spec.ml";;
 needs "common/ghash_spec.ml";;
 
 (* ---- Karatsuba limb extraction lemmas (256-bit word_pmul layout) --------- *)

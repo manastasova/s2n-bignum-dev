@@ -15,7 +15,7 @@
 (*   - ghash_3block_karatsuba (assembly-shape spec)                        *)
 (*   - GHASH_3BLOCK_AS_NBLOCK (compatibility with ghash_Nblock_karatsuba)  *)
 (*   - GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC — derived from inductive bridge *)
-(*   - GCM_3BLOCK_GHASH_STEP_TAC + main theorem THREE_BLOCKS_PRELOOP_TAIL_CORRECT *)
+(*   - GCM_3BLOCK_GHASH_STEP_TAC + main theorem AES256_GCM_THREE_BLOCK_CORRECT *)
 (*                                                                         *)
 (* PERFORMANCE: the GF Barrett reduce funnels the whole accumulator into   *)
 (* one register (Q19, ~38k nodes), so the eor3 mid-reduce explodes if      *)
@@ -415,7 +415,7 @@ let aes256_gcm_three_block_mc = define_assert_from_elf
   0xd65f03c0        (* arm_RET X30 *)
 ];;
 
-let THREE_BLOCKS_PRELOOP_TAIL_EXEC =
+let AES256_GCM_THREE_BLOCK_EXEC =
   ARM_MK_EXEC_RULE aes256_gcm_three_block_mc;;
 
 (* The half-swap lemmas used by this file's only-Q19 fast reduce
@@ -1023,7 +1023,7 @@ let THREEBLOCK_CASCADE_TAC : tactic =
 (* ========================================================================= *)
 (*                         THE MAIN THEOREM                                  *)
 (*                                                                           *)
-(* STRUCTURALLY MIRRORS FOUR_BLOCKS_PRELOOP_TAIL_CORRECT, scaled down to     *)
+(* STRUCTURALLY MIRRORS AES256_GCM_FOUR_BLOCK_CORRECT, scaled down to     *)
 (* N=3: pt1/pt2/pt3 inputs; ct1/ct2/ct3 outputs; htable holds h, h^2, h^3    *)
 (* (h1k = karatsuba_mid h | karatsuba_mid h^2; h3k = karatsuba_mid h^3 lo);   *)
 (* word pc range 1024 (mc length); in_ptr/out_ptr range 48 (3×16B); X0 post  *)
@@ -1031,7 +1031,7 @@ let THREEBLOCK_CASCADE_TAC : tactic =
 (* simulation steps then the four-way (ct1,ct2,ct3,GHASH) conjunction.        *)
 (* ========================================================================= *)
 
-let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
+let AES256_GCM_THREE_BLOCK_CORRECT = prove
  (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
     (pt1:(128)word) (pt2:(128)word) (pt3:(128)word) (out0:(128)word)
     (ivec:(128)word)
@@ -1157,19 +1157,19 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
 
   REWRITE_TAC[C_ARGUMENTS; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
               SOME_FLAGS; NONOVERLAPPING_CLAUSES;
-              fst THREE_BLOCKS_PRELOOP_TAIL_EXEC] THEN
+              fst AES256_GCM_THREE_BLOCK_EXEC] THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
 
   (* Steps 1-19: prologue *)
-  ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC (1--19) THEN
+  ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC (1--19) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[STACK_PTR_CANCEL; WORD_ADD_ASSOC_CONSTS]) THEN
   RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(DEPTH_CONV NUM_ADD_CONV))) THEN
   GCM_ENC_SIMPLIFY_TAC THEN
 
   (* Steps 20-138: AES rounds for all 3 blocks *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (20--138) THEN
 
   (* Abbreviate s13_1 (Q0), s13_2 (Q1), s13_3 (Q2) *)
@@ -1190,14 +1190,14 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
     else NO_TAC) THEN
 
   (* Step 139 + ABBREV ct1 + post-AES normalization *)
-  ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [139] THEN
+  ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [139] THEN
   GCM_ENC_SIMPLIFY_TAC THEN
   ABBREV_TAC `ct1 = word_xor (word_xor pt1 s13_1) rk14:(128)word` THEN
   GCM_NBLOCK_POST_AES_NORMALIZE_TAC THEN
 
   (* Steps 140-148: tail dispatch prologue *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (140--148) THEN
   GCM_NBLOCK_TAIL_DISPATCH_NORMALIZE_TAC THEN
 
@@ -1210,27 +1210,27 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
      THREEBLOCK_CASCADE_TAC (the fall-throughs at 96/80/64/48 then the taken
      branch at 32).  Then normalise the 2^64 literal. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC THEN THREEBLOCK_CASCADE_TAC) (149--172) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`]) THEN
 
   (* Steps 173-188 + ABBREV ct2.  The cmp #32 / b.gt taken branch sits at
      trace step 175 (just inside this range), so keep resolving conditionals. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC THEN THREEBLOCK_CASCADE_TAC) (173--188) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[ARITH_RULE `18446744073709551616 = 2 EXP 64`]) THEN
   ABBREV_TAC `ct2 = word_xor (word_xor pt2 s13_2) rk14:(128)word` THEN
 
   (* Steps 189-211 + ABBREV ct3 *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (189--211) THEN
   ABBREV_TAC `ct3 = word_xor (word_xor pt3 s13_3) rk14:(128)word` THEN
 
   (* Steps 212-221: build the partial-block mask register (Q0). *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (212--221) THEN
 
   (* Collapse the data-dependent mask register Q0 to word (2^(8*byte_len) - 1)
@@ -1242,7 +1242,7 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
   (* Steps 222-243: AND_VEC, bif (partial store fixup), then build the
      Karatsuba accumulator.  Q17/Q18 concrete; Q19 ~38k nodes at s243. *)
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (222--243) THEN
 
   (* SPEED FIX (only-Q19).  The eor3 distributes word_subword over the
@@ -1255,7 +1255,7 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
     then ABBREV_TAC(mk_eq(mk_var("acc19",`:int128`), rand(concl th)))
     else NO_TAC) THEN
   MAP_EVERY (fun n ->
-    ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC [n] THEN
+    ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (244--246) THEN
 
   GCM_NBLOCK_POST_SIM_NORMALIZE_TAC THEN
@@ -1288,7 +1288,7 @@ let THREE_BLOCKS_PRELOOP_TAIL_CORRECT = prove
 
   (* Epilogue: ext, rev64, str, mov, ldp x4.  Stop at s251 (PC = pc+1024,
      just before the RET at pc+1024). *)
-  ARM_STEPS_TAC THREE_BLOCKS_PRELOOP_TAIL_EXEC (247--251) THEN
+  ARM_STEPS_TAC AES256_GCM_THREE_BLOCK_EXEC (247--251) THEN
 
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   ENSURES_FINAL_STATE_TAC THEN
