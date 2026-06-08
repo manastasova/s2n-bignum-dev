@@ -930,3 +930,99 @@ let rec bubble_sort_conv tm =
 
 
 
+
+(* ========================================================================= *)
+(* PARTIAL-BLOCK MASK CONSTRUCTION (shared across all N-block proofs)         *)
+(*                                                                           *)
+(* In an N-block encrypt the final block may be partial: byte_len in 1..16   *)
+(* bytes.  The routine builds a 128-bit mask in Q0 from the (mod-128) bit    *)
+(* length via  and #127 ; sub #128 ; neg ; and #127 ; lsrv (all-ones >> n) ; *)
+(* cmp #64 ; csel ; csel ; ins d0/d1, masks the last ciphertext block to its *)
+(* low 8*byte_len bits, and (via bif) keeps the untouched output bytes above  *)
+(* the message end.  NBLOCK_MASK_REG shows the constructed register, in the   *)
+(* exact ival/flag form the symbolic simulator produces, equals              *)
+(* word (2^(8*byte_len) - 1).  The proof peels byte_len into its 16 values    *)
+(* (a single 16-way ARITH_RULE disjunction is intractable).                   *)
+(* ========================================================================= *)
+
+let nblock_mask_red_tac =
+  CONV_TAC(DEPTH_CONV(WORD_RED_CONV ORELSEC NUM_RED_CONV ORELSEC INT_RED_CONV) THENC
+           WORD_REDUCE_CONV THENC NUM_REDUCE_CONV);;
+
+let nblock_cases16 lo =
+  if lo = 16 then
+    ARITH_RULE(Printf.sprintf "%d <= b /\\ b <= 16 ==> b = 16" lo |> parse_term)
+  else
+    ARITH_RULE(Printf.sprintf
+      "%d <= b /\\ b <= 16 <=> b = %d \\/ (%d <= b /\\ b <= 16)" lo lo (lo+1)
+      |> parse_term);;
+
+let rec NBLOCK_MASK_PEEL_TAC lo =
+  if lo = 16 then
+    DISCH_THEN(fun th -> SUBST1_TAC(MATCH_MP (nblock_cases16 16) th)) THEN
+    nblock_mask_red_tac
+  else
+    REWRITE_TAC[nblock_cases16 lo] THEN
+    DISCH_THEN(DISJ_CASES_THEN (fun th ->
+      (SUBST1_TAC th THEN nblock_mask_red_tac)
+      ORELSE (MP_TAC th THEN NBLOCK_MASK_PEEL_TAC (lo+1))));;
+
+(* Inserting both 64-bit lanes of a 128-bit register discards the original base. *)
+let NBLOCK_WORD_INSERT_BOTH_LANES = prove
+ (`!(b0:int128) (a:int64) (c:int64).
+     word_insert ((word_insert b0 (0,64) a):int128) (64,64) c : int128 =
+     word_join c a`,
+  REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* The mask register built in Q0 (base b0 = whatever previously occupied Q0;
+   both lanes are overwritten by the two csel results) equals
+   word (2^(8*byte_len) - 1). *)
+let NBLOCK_MASK_REG = prove
+ (`!byte_len (b0:int128). 1 <= byte_len /\ byte_len <= 16 ==>
+    (word_insert
+     ((word_insert (b0:int128)
+        (0,64)
+        (if ~(ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64)) < &0 <=>
+              ~(ival (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) - &64 =
+                ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64))))
+         then word 18446744073709551615:int64
+         else word_jushr (word 18446744073709551615:int64) (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)))):int128)
+     (64,64)
+     (if ~(ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64)) < &0 <=>
+           ~(ival (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) - &64 =
+             ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64))))
+        then word_jushr (word 18446744073709551615:int64) (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127))
+        else word 0:int64)
+    : int128)
+    = word (2 EXP (8 * byte_len) - 1)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[NBLOCK_WORD_INSERT_BOTH_LANES] THEN
+  SPEC_TAC(`byte_len:num`,`byte_len:num`) THEN GEN_TAC THEN
+  NBLOCK_MASK_PEEL_TAC 1);;
+
+(* Masking an already-masked block again with the same mask is idempotent. *)
+let NBLOCK_MASK_IDEM = prove
+ (`!(ct:int128) (mask:int128).
+     word_and (word_and mask ct) mask = word_and ct mask`,
+  REPEAT GEN_TAC THEN CONV_TAC WORD_BITWISE_RULE);;
+
+(* The returned byte length: x9 = total_bits >> 3 = total_bytes when
+   total_bytes < 2^61 (always true here: total_bytes <= 112). *)
+let NBLOCK_USHR_BYTELEN = prove
+ (`!total_bytes. total_bytes <= 127
+     ==> word_ushr (word (8 * total_bytes):int64) 3 = word total_bytes`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[word_ushr] THEN AP_TERM_TAC THEN
+  SUBGOAL_THEN `val (word (8 * total_bytes):int64) = 8 * total_bytes` SUBST1_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  REWRITE_TAC[EXP; ARITH] THEN ARITH_TAC);;
+
+(* ival of a small nonnegative word literal (used to resolve the cascade
+   block-count comparison with a symbolic partial byte_len). *)
+let NBLOCK_IVAL_WORD_SMALL = prove
+ (`!n. n < 2 EXP 63 ==> ival(word n:int64) = &n`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(word n:int64) = n` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `ival(word n:int64) = &(val(word n:int64))` SUBST1_TAC THENL
+   [MATCH_MP_TAC IVAL_EQ_VAL THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+    ASM_REWRITE_TAC[]]);;

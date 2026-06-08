@@ -1512,7 +1512,7 @@ S2N_BN_SYMBOL(aes256_gcm_two_block):
 	rev64	v8.16b, v9.16b						//GHASH final block
 
 	rev32	v30.16b, v30.16b
-	//bif	v9.16b, v26.16b, v0.16b					//insert existing bytes in top end of result before storing (commented out: no-op for full 16B block)
+	bif	v9.16b, v26.16b, v0.16b					//insert existing bytes in top end of result before storing (so a partial last block does not clobber bytes past the message end)
 	str	q30, [x16]					//store the updated counter
 
 	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag

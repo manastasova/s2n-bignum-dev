@@ -7,14 +7,22 @@
 (* aes256_gcm_one_block.ml                                                 *)
 (*                                                                         *)
 (* The 1-block AES-256-GCM separate-blocks encrypt proof — the N=1         *)
-(* instance of the generic N-block framework. Shared lemmas and the        *)
-(* framework live in arm/proofs/utils/gcm_aesgcm_helpers.ml and            *)
-(* arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml.                          *)
+(* instance of the generic N-block framework, handling a final block of    *)
+(* ANY length from 1 to 16 bytes (a possibly-partial block).  Shared        *)
+(* lemmas and the framework live in arm/proofs/utils/gcm_aesgcm_helpers.ml  *)
+(* and arm/proofs/utils/gcm_aesgcm_nblock_helpers.ml.                       *)
+(*                                                                         *)
+(* The routine masks the ciphertext to the low 8*byte_len bits, inserts the *)
+(* untouched original output bytes above the message end (the `bif`), and   *)
+(* feeds the masked block into GHASH.  The proof models this with a         *)
+(* data-dependent mask word (2^(8*byte_len) - 1) built from the variable    *)
+(* shift / conditional-select sequence (see ONE_BLOCK_MASK_REG).            *)
 (*                                                                         *)
 (* PER-N CONTENT (only piece in this file):                                *)
 (*   - aes256_gcm_one_block_mc (the machine code blob) and EXEC            *)
-(*   - GCM_GHASH_STEP_TAC: the GHASH closure for N=1, via the              *)
-(*     ghash_1block_karatsuba spec and its bridge to polyval_dot           *)
+(*   - ONE_BLOCK_MASK_REG etc.: the partial-block mask-construction lemmas  *)
+(*   - GCM_GHASH_STEP_MASKED_TAC: the GHASH closure over the masked block,  *)
+(*     via ghash_1block_karatsuba and its bridge to polyval_dot             *)
 (*   - GCM_CT_STEP_TAC: the single-block ciphertext closure                *)
 (*   - The main theorem ONE_BLOCK_PRELOOP_TAIL_CORRECT                     *)
 (* ========================================================================= *)
@@ -115,6 +123,7 @@ let aes256_gcm_one_block_mc = define_assert_from_elf
   0x4e201d29;       (* arm_AND_VEC Q9 Q9 Q0 128 *)
   0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
   0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 128 *)
+  0x6ee01f49;       (* arm_BIF Q9 Q26 Q0 128 *)
   0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
   0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
   0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
@@ -147,6 +156,93 @@ let aes256_gcm_one_block_mc = define_assert_from_elf
 
 let ONE_BLOCK_PRELOOP_TAIL_EXEC =
   ARM_MK_EXEC_RULE aes256_gcm_one_block_mc;;
+
+(* ========================================================================= *)
+(* PARTIAL-BLOCK MASK CONSTRUCTION                                            *)
+(*                                                                           *)
+(* For an input of byte_len bytes (1 <= byte_len <= 16), the routine builds a *)
+(* 128-bit mask register in Q0 from byte_len via the sequence                 *)
+(*   and x1,#127 ; sub #128 ; neg ; and #127 ; lsrv (all-ones >> n) ;         *)
+(*   cmp #64 ; csel ; csel ; ins d0/d1.                                       *)
+(* The lemma below shows that this register, in the exact ival/flag form the  *)
+(* symbolic simulator produces, equals word (2^(8*byte_len) - 1): a mask with *)
+(* the low 8*byte_len bits set.  The proof peels byte_len into its 16 values  *)
+(* (a single 16-way ARITH_RULE disjunction is intractable) and reduces each   *)
+(* concrete case by word/num/int arithmetic.                                  *)
+(* ========================================================================= *)
+
+let mask_red_tac =
+  CONV_TAC(DEPTH_CONV(WORD_RED_CONV ORELSEC NUM_RED_CONV ORELSEC INT_RED_CONV) THENC
+           WORD_REDUCE_CONV THENC NUM_REDUCE_CONV);;
+
+(* Peel `lo <= b /\ b <= 16` one value at a time; each rule is cheap, whereas
+   a single 16-way ARITH_RULE disjunction does not terminate in reasonable time. *)
+let one_block_cases16 lo =
+  if lo = 16 then
+    ARITH_RULE(Printf.sprintf "%d <= b /\\ b <= 16 ==> b = 16" lo |> parse_term)
+  else
+    ARITH_RULE(Printf.sprintf
+      "%d <= b /\\ b <= 16 <=> b = %d \\/ (%d <= b /\\ b <= 16)" lo lo (lo+1)
+      |> parse_term);;
+
+let rec MASK_PEEL_TAC lo =
+  if lo = 16 then
+    DISCH_THEN(fun th -> SUBST1_TAC(MATCH_MP (one_block_cases16 16) th)) THEN
+    mask_red_tac
+  else
+    REWRITE_TAC[one_block_cases16 lo] THEN
+    DISCH_THEN(DISJ_CASES_THEN (fun th ->
+      (SUBST1_TAC th THEN mask_red_tac)
+      ORELSE (MP_TAC th THEN MASK_PEEL_TAC (lo+1))));;
+
+(* Inserting both 64-bit lanes of a 128-bit register discards the original base. *)
+let WORD_INSERT_BOTH_LANES = prove
+ (`!(b0:int128) (a:int64) (c:int64).
+     word_insert ((word_insert b0 (0,64) a):int128) (64,64) c : int128 =
+     word_join c a`,
+  REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* The mask register the routine builds in Q0 (base b0 = the AES ciphertext that
+   previously occupied Q0; both its lanes are overwritten by the two csel results)
+   equals word (2^(8*byte_len) - 1). *)
+let ONE_BLOCK_MASK_REG = prove
+ (`!byte_len (b0:int128). 1 <= byte_len /\ byte_len <= 16 ==>
+    (word_insert
+     ((word_insert (b0:int128)
+        (0,64)
+        (if ~(ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64)) < &0 <=>
+              ~(ival (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) - &64 =
+                ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64))))
+         then word 18446744073709551615:int64
+         else word_jushr (word 18446744073709551615:int64) (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)))):int128)
+     (64,64)
+     (if ~(ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64)) < &0 <=>
+           ~(ival (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) - &64 =
+             ival (word_sub (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127)) (word 64))))
+        then word_jushr (word 18446744073709551615:int64) (word_and (word_sub (word 0) (word_sub (word_and (word (8*byte_len):int64) (word 127)) (word 128))) (word 127))
+        else word 0:int64)
+    : int128)
+    = word (2 EXP (8 * byte_len) - 1)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[WORD_INSERT_BOTH_LANES] THEN
+  SPEC_TAC(`byte_len:num`,`byte_len:num`) THEN GEN_TAC THEN
+  MASK_PEEL_TAC 1);;
+
+(* The returned byte length: x9 = (8*byte_len) >> 3 = byte_len for byte_len <= 16. *)
+let ONE_BLOCK_USHR_BYTELEN = prove
+ (`!byte_len. byte_len <= 16
+     ==> word_ushr (word (8 * byte_len):int64) 3 = word byte_len`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[word_ushr] THEN AP_TERM_TAC THEN
+  SUBGOAL_THEN `val (word (8 * byte_len):int64) = 8 * byte_len` SUBST1_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  REWRITE_TAC[EXP; ARITH] THEN ARITH_TAC);;
+
+(* The masked ciphertext written by the bif store: masking the already-masked
+   block again with the same mask is idempotent. *)
+let ONE_BLOCK_MASK_IDEM = prove
+ (`!(ct:int128) (mask:int128).
+     word_and (word_and mask ct) mask = word_and ct mask`,
+  REPEAT GEN_TAC THEN CONV_TAC WORD_BITWISE_RULE);;
 
 (* ========================================================================= *)
 (* GHASH STEP TACTIC (N=1)                                                    *)
@@ -271,25 +367,145 @@ let GCM_GHASH_STEP_TAC =
 let GCM_CT_STEP_TAC = GCM_NBLOCK_CT1_STEP_TAC 1;;
 
 (* ========================================================================= *)
+(* GHASH STEP TACTIC (N=1, partial block)                                     *)
+(*                                                                           *)
+(* As GCM_GHASH_STEP_TAC, but the GHASH input is the MASKED block            *)
+(* ctm = word_and ct mask (mask = word (2^(8*byte_len) - 1)).  The symbolic   *)
+(* state carries the block as word_and mask ct; the spec uses word_and ct    *)
+(* mask, so the opening SUBGOAL bridges the two via commutativity, and the    *)
+(* atomic abbreviations are taken over ctm.                                   *)
+(* ========================================================================= *)
+
+let GCM_GHASH_STEP_MASKED_TAC =
+  REWRITE_TAC[ghash_polyval_acc; GSYM WORD_REVERSEFIELDS_XOR_8_128] THEN
+  FIRST_ASSUM(fun th ->
+    REWRITE_TAC[GSYM(MATCH_MP GHASH_1BLOCK_KARATSUBA_EQ_POLYVAL_DOT th)]) THEN
+  REWRITE_TAC[ghash_1block_karatsuba; LET_DEF; LET_END_DEF] THEN
+  CONV_TAC(DEPTH_CONV BETA_CONV) THEN
+  ABBREV_TAC `mask = word (2 EXP (8 * byte_len) - 1):(128)word` THEN
+  ABBREV_TAC `ctm = word_and (ct:(128)word) mask` THEN
+  (* Fold the spec-side AES expression to the abbreviated ciphertext `ct`, so
+     the postcondition's masked block word_and (word_xor pt aes) mask matches
+     ctm = word_and ct mask. *)
+  SUBGOAL_THEN
+    `word_xor pt (aes256_block_enc ivec rk0 rk1 rk2 rk3 rk4 rk5 rk6 rk7
+                                   rk8 rk9 rk10 rk11 rk12 rk13 rk14) = ct`
+    (fun th -> REWRITE_TAC[th]) THENL [
+    MAP_EVERY EXPAND_TAC ["ct"; "s13"] THEN
+    REWRITE_TAC[aes256_block_enc; LET_DEF; LET_END_DEF; WORD_XOR_ASSOC];
+    ALL_TAC
+  ] THEN
+  (* The symbolic GHASH input is word_and mask ct; the spec uses word_and ct
+     mask = ctm.  Bridge the two via commutativity of word_and. *)
+  SUBGOAL_THEN `word_and (mask:(128)word) (ct:(128)word) = ctm`
+    (fun th -> RULE_ASSUM_TAC(REWRITE_RULE[th]) THEN REWRITE_TAC[th]) THENL [
+    EXPAND_TAC "ctm" THEN CONV_TAC WORD_BITWISE_RULE;
+    ALL_TAC
+  ] THEN
+  ASM_REWRITE_TAC[] THEN
+  CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  REWRITE_TAC[REV64_LOWER_LANE; REV64_UPPER_LANE; REV8_JOIN_FOLD] THEN
+  MATCH_MP_TAC(MESON[]
+    `x = y ==> word_reversefields 8 x = word_reversefields 8 y:(128)word`) THEN
+  FIRST_ASSUM(fun th ->
+    if is_eq(concl th) && rand(concl th) = `final_xi:(128)word`
+    then SUBST1_TAC(SYM th) else NO_TAC) THEN
+  REWRITE_TAC[WORD_SWAP_HALVES_INVOLUTION] THEN
+  CONV_TAC(LAND_CONV(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  REWRITE_TAC[WORD_INSERT_AS_JOIN_1; WORD_INSERT_AS_JOIN_2;
+              KAR_SUBWORD_LEMMA; WORD_SWAP_HALVES_INVOLUTION;
+              WORD_OR_REFL; WORD_XOR_ASSOC; WORD_SUBWORD_XOR;
+              BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[HALFSWAP_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
+              WORD_XOR_0; WORD_XOR_ASSOC;
+              REV8_JOIN_FOLD; REVERSEFIELDS8_SUBWORD_LO;
+              REVERSEFIELDS8_SUBWORD_HI] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
+  REWRITE_TAC[WORD_XOR_ASSOC] THEN
+  REWRITE_TAC[WORD_XOR_ASSOC; KAR_MID_BRIDGE; WORD_SUBWORD_0;
+              WORD_XOR_0; WORD_XOR_0_LEFT] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
+  REWRITE_TAC[GSYM WORD_SUBWORD_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
+              WORD_XOR_ASSOC; WORD_XOR_0; WORD_XOR_0_LEFT] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[KAR_MID_BRIDGE; WORD_XOR_ASSOC] THEN
+  CONV_TAC(TOP_DEPTH_CONV PMUL_NORM_CONV) THEN
+  REWRITE_TAC[WORD_XOR_ASSOC] THEN
+  REWRITE_TAC[BYTESWAP128_SUBWORD_LO; BYTESWAP128_SUBWORD_HI] THEN
+  ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[karatsuba_mid] THEN
+  ABBREV_TAC `(uA0:(64)word) =
+    word_subword (word_reversefields 8 (word_xor (xi:(128)word) ctm)) (0,64)` THEN
+  ABBREV_TAC `(uA1:(64)word) =
+    word_subword (word_reversefields 8 (word_xor (xi:(128)word) ctm)) (64,64)` THEN
+  ABBREV_TAC `(uD0:(64)word) = word_subword (h:(128)word) (0,64)` THEN
+  ABBREV_TAC `(uD1:(64)word) = word_subword (h:(128)word) (64,64)` THEN
+  ABBREV_TAC `(p1:(128)word) = word_pmul (uA0:(64)word) (uD0:(64)word)` THEN
+  ABBREV_TAC `(p2:(128)word) = word_pmul (uA1:(64)word) (uD1:(64)word)` THEN
+  ABBREV_TAC `(p3:(128)word) =
+    word_pmul (word_xor (uA0:(64)word) (uA1:(64)word))
+              (word_xor (uD0:(64)word) (uD1:(64)word))` THEN
+  REWRITE_TAC[DOUBLE_SUBWORD_JOIN; DOUBLE_SUBWORD_JOIN_HI; WORD_SUBWORD_XOR] THEN
+  ABBREV_TAC `(z1:(64)word) = word_subword (p1:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z2:(64)word) = word_subword (p1:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z3:(64)word) = word_subword (p2:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z4:(64)word) = word_subword (p2:(128)word) (64,64)` THEN
+  ABBREV_TAC `(z5:(64)word) = word_subword (p3:(128)word) (0,64)` THEN
+  ABBREV_TAC `(z6:(64)word) = word_subword (p3:(128)word) (64,64)` THEN
+  ABBREV_TAC `(zD:(64)word) =
+    word_subword (word_pmul (z1:(64)word) (word 13979173243358019584:(64)word):(128)word)
+                 (0,64)` THEN
+  ASM_REWRITE_TAC[] THEN
+  SUBGOAL_THEN
+    `word_pmul (word_xor (z2:(64)word)
+                (word_xor z5
+                (word_xor z3
+                (word_xor z1 zD))))
+               (word 13979173243358019584:(64)word):(128)word =
+     word_pmul (word_xor (z5:(64)word)
+                (word_xor z1
+                (word_xor z3
+                (word_xor zD z2))))
+               (word 13979173243358019584:(64)word):(128)word`
+    ASSUME_TAC THENL
+    [AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC WORD_RULE; ALL_TAC] THEN
+  ASM_REWRITE_TAC[] THEN
+  ABBREV_TAC
+    `qBigP = word_pmul
+       (word_xor (z5:(64)word) (word_xor z1 (word_xor z3 (word_xor zD z2))))
+       (word 13979173243358019584:(64)word):(128)word` THEN
+  ABBREV_TAC
+    `qSmallP = word_pmul (z1:(64)word)
+                        (word 13979173243358019584:(64)word):(128)word` THEN
+  ABBREV_TAC `qBigPL = word_subword (qBigP:(128)word) (0,64):(64)word` THEN
+  ABBREV_TAC `qBigPH = word_subword (qBigP:(128)word) (64,64):(64)word` THEN
+  ABBREV_TAC `qSmallPH = word_subword (qSmallP:(128)word) (64,64):(64)word` THEN
+  BINOP_TAC THENL [CONV_TAC WORD_RULE; CONV_TAC WORD_RULE];;
+
+(* ========================================================================= *)
 (*                         THE PROOF                                         *)
 (* ========================================================================= *)
 
 let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
  (`!in_ptr out_ptr xi_ptr ivec_ptr key_ptr htable_ptr
-    (pt:(128)word) (ivec:(128)word)
+    (pt:(128)word) (out0:(128)word) (ivec:(128)word)
     (rk0:(128)word) (rk1:(128)word) (rk2:(128)word) (rk3:(128)word)
     (rk4:(128)word) (rk5:(128)word) (rk6:(128)word) (rk7:(128)word)
     (rk8:(128)word) (rk9:(128)word) (rk10:(128)word) (rk11:(128)word)
     (rk12:(128)word) (rk13:(128)word) (rk14:(128)word)
-    (xi:(128)word) (h:(128)word) (h1k:(128)word) stackptr pc.
+    (xi:(128)word) (h:(128)word) (h1k:(128)word) byte_len stackptr pc.
+    1 <= byte_len /\ byte_len <= 16 /\
     aligned 16 stackptr /\
-    nonoverlapping (word pc,448) (in_ptr:int64,16) /\
-    nonoverlapping (word pc,448) (out_ptr:int64,16) /\
-    nonoverlapping (word pc,448) (xi_ptr:int64,16) /\
-    nonoverlapping (word pc,448) (ivec_ptr:int64,16) /\
-    nonoverlapping (word pc,448) (key_ptr:int64,240) /\
-    nonoverlapping (word pc,448) (htable_ptr:int64,256) /\
-    nonoverlapping (word pc,448) (stackptr:int64,80) /\
+    nonoverlapping (word pc,452) (in_ptr:int64,16) /\
+    nonoverlapping (word pc,452) (out_ptr:int64,16) /\
+    nonoverlapping (word pc,452) (xi_ptr:int64,16) /\
+    nonoverlapping (word pc,452) (ivec_ptr:int64,16) /\
+    nonoverlapping (word pc,452) (key_ptr:int64,240) /\
+    nonoverlapping (word pc,452) (htable_ptr:int64,256) /\
+    nonoverlapping (word pc,452) (stackptr:int64,80) /\
     nonoverlapping (in_ptr,16) (out_ptr,16) /\
     nonoverlapping (in_ptr,16) (xi_ptr,16) /\
     nonoverlapping (in_ptr,16) (ivec_ptr,16) /\
@@ -308,16 +524,17 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
     nonoverlapping (stackptr,80) (in_ptr,16) /\
     nonoverlapping (stackptr,80) (key_ptr,240) /\
     nonoverlapping (stackptr,80) (htable_ptr,256) /\
-    nonoverlapping (ivec_ptr,16) (word pc,448) /\
-    nonoverlapping (xi_ptr,16) (word pc,448) /\
-    nonoverlapping (out_ptr,16) (word pc,448)
+    nonoverlapping (ivec_ptr,16) (word pc,452) /\
+    nonoverlapping (xi_ptr,16) (word pc,452) /\
+    nonoverlapping (out_ptr,16) (word pc,452)
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aes256_gcm_one_block_mc /\
            read PC s = word pc /\
-           C_ARGUMENTS [in_ptr; word 128; out_ptr; xi_ptr;
+           C_ARGUMENTS [in_ptr; word (8 * byte_len); out_ptr; xi_ptr;
                         ivec_ptr; key_ptr; htable_ptr] s /\
            read SP s = word_add stackptr (word 80) /\
            read (memory :> bytes128 in_ptr) s = pt /\
+           read (memory :> bytes128 out_ptr) s = out0 /\
            read (memory :> bytes128 ivec_ptr) s = ivec /\
            read (memory :> bytes128 (word_add key_ptr (word 0))) s = rk0 /\
            read (memory :> bytes128 (word_add key_ptr (word 16))) s = rk1 /\
@@ -340,13 +557,16 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
            word_subword h1k (0,64):(64)word = karatsuba_mid h)
       (\s. let ct = word_xor pt (aes256_block_enc ivec rk0 rk1 rk2 rk3
                      rk4 rk5 rk6 rk7 rk8 rk9 rk10 rk11 rk12 rk13 rk14) in
-           read PC s = word(pc + 444) /\
-           read X0 s = word 16 /\
-           read (memory :> bytes128 out_ptr) s = ct /\
+           let mask = word (2 EXP (8 * byte_len) - 1):(128)word in
+           let ctm = word_and ct mask in
+           read PC s = word(pc + 448) /\
+           read X0 s = word byte_len /\
+           read (memory :> bytes128 out_ptr) s =
+             word_or ctm (word_and out0 (word_not mask)) /\
            read (memory :> bytes128 xi_ptr) s =
              word_reversefields 8
                (ghash_polyval_acc h (word_reversefields 8 xi)
-                                    [word_reversefields 8 ct]))
+                                    [word_reversefields 8 ctm]))
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
        MAYCHANGE [memory :> bytes(out_ptr,16);
                   memory :> bytes(xi_ptr,16);
@@ -381,42 +601,39 @@ let ONE_BLOCK_PRELOOP_TAIL_CORRECT = prove
     ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC [n] THEN
     GCM_ENC_SIMPLIFY_TAC) (20--84) THEN
 
-  (* Abbreviate AES output (`ct` and `s13` for 1-block; ct_k/s13_k for N≥2). *)
+  (* Abbreviate the AES output (`ct` = full-block ciphertext, `s13` = round-13
+     intermediate) so the shared CT/GHASH closure tactics can fold them back. *)
   ABBREV_TAC `ct = word_xor (word_xor pt (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese ivec rk0)) rk1)) rk2)) rk3)) rk4)) rk5)) rk6)) rk7)) rk8)) rk9)) rk10)) rk11)) rk12)) rk13)) rk14:(128)word` THEN
   ABBREV_TAC `s13 = aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese (aesmc (aese ivec rk0)) rk1)) rk2)) rk3)) rk4)) rk5)) rk6)) rk7)) rk8)) rk9)) rk10)) rk11)) rk12)) rk13:(128)word` THEN
 
-  (* Steps 85-93: EOR that combines reversed xi and ct. *)
-  MAP_EVERY (fun n ->
-    ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC [n] THEN
-    GCM_ENC_SIMPLIFY_TAC) (85--93) THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[WORD_SWAP_HALVES_INVOLUTION;
-    REVERSEFIELDS8_SUBWORD_LO; REVERSEFIELDS8_SUBWORD_HI;
-    GSYM WORD_SUBWORD_XOR; GSYM WORD_REVERSEFIELDS_XOR_8_128;
-    WORD_XOR_0; WORD_XOR_ASSOC]) THEN
+  (* Collapse the data-dependent partial-block mask register (Q0/Q8/Q9) to
+     word (2^(8*byte_len) - 1) via the mask-construction lemma. *)
+  SUBGOAL_THEN `1 <= byte_len /\ byte_len <= 16` MP_TAC THENL
+   [ASM_REWRITE_TAC[]; ALL_TAC] THEN
+  DISCH_THEN(fun th ->
+    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP ONE_BLOCK_MASK_REG th])) THEN
+  DISCARD_OLDSTATE_TAC "s84" THEN
 
-  (* Steps 94-103: GHASH Karatsuba up to final EOR3 in Q19.
-     Stop BEFORE the EXT/REV64 byte-level explosion of Q19. *)
+  (* Steps 85-104: bif (partial store fixup), counter store, masked-block
+     store, GHASH Karatsuba up to the final EOR3 in Q19. *)
   MAP_EVERY (fun n ->
     ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC [n] THEN
-    GCM_ENC_SIMPLIFY_TAC) (94--103) THEN
+    GCM_ENC_SIMPLIFY_TAC) (85--104) THEN
 
   (* Post-simulation normalization, lifted into a named tactic. *)
   GCM_NBLOCK_POST_SIM_NORMALIZE_TAC THEN
 
-  (* ABBREV Q19 as `final_xi` BEFORE step 104's EXT/REV64, to avoid the
-     byte-level term explosion the epilogue would otherwise cause. *)
+  (* ABBREV Q19 as `final_xi` BEFORE the EXT/REV64 byte-level explosion. *)
   ABBREV_FINAL_XI_TAC THEN
 
-  (* Steps 104-111: EXT, REV64, ST1, MOV, LDP*4, RET — Q19 now opaque. *)
-  ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC (104--111) THEN
+  (* Steps 105-112: EXT, REV64, ST1, MOV, LDP*4 — Q19 now opaque.  Stop just
+     before the RET (#113); the postcondition PC is the RET's address (pc+448). *)
+  ARM_STEPS_TAC ONE_BLOCK_PRELOOP_TAIL_EXEC (105--112) THEN
 
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_SIMP_TAC[ONE_BLOCK_USHR_BYTELEN; ONE_BLOCK_MASK_IDEM] THEN
   CONJ_TAC THENL [
     GCM_CT_STEP_TAC;
-    GCM_GHASH_STEP_TAC
+    GCM_GHASH_STEP_MASKED_TAC
   ]);;
-
-
-
-
