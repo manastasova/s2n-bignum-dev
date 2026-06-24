@@ -1,0 +1,105 @@
+
+
+
+
+
+GCM_3BLOCK_GHASH_STEP_TAC
+
+
+
+
+
+AES256_GCM_ENCRYPT_CORRECT (aes256_gcm.ml)
+
+    - AES256_GCM_ENCRYPT_LT_3BLOCK_ABS (aes256_gcm.ml)
+
+        - AES256_GCM_ENCRYPT_LT_3BLOCK_CONCRETE (aes256_gcm.ml)
+
+        - GCM_3BLOCK_GHASH_STEP_MASKED_TAC (gcm_three_block_closers.ml)
+            (word_xor xi (word_xor pt1 aes256_block_enc ...) = word_xor xi ct1)
+
+            -GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC (gcm_three_block_closers.ml)
+                (ghash_3block_karatsuba == ... polyval_reduce_prop3 .. polyval_dot ... word_pmul ..)
+
+                - GHASH_3BLOCK_AS_NBLOCK (gcm_three_block_closers.ml)
+                        (ghash_Nblock_karatsuba == ghash_3block_karatsuba)
+
+
+
+
+  - AES256_GCM_ENCRYPT_CORRECT (aes256_gcm.ml)
+     (byte_list_at (aes256_gcm_encrypt (val len) pt_in ivec rks) out_ptr len
+     /\ read xi_ptr = gcm_final_xi (val len) pt_in ivec rks xi h)
+             e.g., the binary meets the GCM spec for EVERY length 0..128, via ASM_CASES dispatch)
+
+      - AES256_GCM_ENCRYPT_LT_3BLOCK_ABS (aes256_gcm.ml)
+          (byte_list_at (aes256_gcm_encrypt ...) /\ read xi_ptr = gcm_final_xi ...)
+                   e.g., the 3-block band, stated in SPEC vocabulary
+
+          - AES256_GCM_ENCRYPT_LT_3BLOCK_CONCRETE (aes256_gcm.ml)
+              (read xi_ptr = ... ghash_polyval_acc h (rev8 xi) [rev8 ct1;...])
+               where ct_k = word_xor pt_k (aes256_block_enc ...)  — a faithful HW transcript)
+                        e.g., simulating the instructions on the 3-block path gives the RAW-WORD result
+
+          - GCM_3BLOCK_GHASH_STEP_MASKED_TAC (gcm_three_block_closers.ml)
+              (word_xor xi (word_xor pt1 aes256_block_enc ...) = word_xor xi ct1
+               — closes the GHASH conjunct: simulated final_xi = gcm_final_xi for 3 blocks)
+
+              - GHASH_3BLOCK_KARATSUBA_EQ_POLYVAL_ACC (gcm_three_block_closers.ml)
+                  (ghash_3block_karatsuba == ... polyval_reduce_prop3 .. polyval_dot ... word_pmul ..)
+
+                  - GHASH_3BLOCK_AS_NBLOCK (gcm_three_block_closers.ml)
+                          (ghash_Nblock_karatsuba == ghash_3block_karatsuba)
+
+
+
+
+
+AES-256-GCM Tail Verification — Status Update
+
+  Since the last update (per-band tail equivalence machine code == karatsuba_Nblocks == ghash_polyval_acc), the work has been
+  assembled into a single top-level theorem, AES256_GCM_ENCRYPT_CORRECT, which proves the one binary aes256_gcm_mc correct for
+  every input length val len ≤ 128 against the GCM spec — byte_list_at (aes256_gcm_encrypt (val len) pt_in ivec rks) out_ptr len
+  for the ciphertext and read xi_ptr = gcm_final_xi (val len) pt_in ivec rks xi h for the tag. It is structured as a three-layer
+  call chain. 
+    - Top (dispatch): AES256_GCM_ENCRYPT_CORRECT's own proof is just a nested ASM_CASES_TAC cascade on val len at 16, 32,
+  …, 112, with one XTS-style one-liner per band — MP_TAC AES256_GCM_ENCRYPT_LT_NBLOCK_ABS THEN DISCH_THEN MATCH_MP_TAC THEN
+  ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC — routing each length to its band lemma (9 bands, 0–8 blocks). 
+    - Middle (abstract band): each
+  AES256_GCM_ENCRYPT_LT_NBLOCK_ABS restates the band in spec vocabulary under one uniform 8-block precondition (so the dispatch
+  is uniform), and its proof MP_TACs the concrete band lemma and lifts the raw-word result to spec form via OUT_BRIDGE_GEN
+  (per-block 128-bit stores ⟹ byte-level byte_list_at (aes256_gcm_encrypt …)), GHASH_BLOCKS_N (the block list for that length
+  range), and GCM_FINAL_XI_UNFOLD (fold into gcm_final_xi), with the frame/precondition reshaped by the sandwich lemmas
+  ENSURES_FRAME_SUBSUMED / ENSURES_POSTCONDITION_THM / ENSURES_PRECONDITION_THM. 
+    - Bottom (concrete band):
+  AES256_GCM_ENCRYPT_LT_NBLOCK_CONCRETE is the only place the instructions actually run — proved by symbolic simulation
+  (GCM_INIT_TAC → GCM_PROLOGUE_TAC → GCM_RUN → length-cascade → NBLOCK_MASK_REG collapsing the runtime mask-build →
+  ABBREV_FINAL_XI_TAC freezing the GHASH accumulator to dodge byte-explosion → ENSURES_FINAL_STATE_TAC) — and its GHASH conjunct
+  is discharged by the per-band closer that strings the tail equivalence together (e.g. GCM_2BLOCK_GHASH_VIA_BRANCH_TAC: reach
+  ghash_Nblock_karatsuba via GHASH_NBLOCK_AS_NBLOCK, apply the per-N bridge GHASH_NBLOCK_KARATSUBA_EQ_POLYVAL_ACC, finish XOR-AC
+  with bubble_sort_conv). The whole file loads clean end-to-end — AES256_GCM_ENCRYPT_CORRECT proves with hyps=0 and no added
+  axioms/cheats.
+
+
+
+  Since the last update (per-block machine code chunks == karatsuba_Nblocks == ghash_polyval_acc), the work is now
+  assembled into one top-level theorem, AES256_GCM_ENCRYPT_CORRECT, proving the single binary aes256_gcm_mc correct for every val 
+  len ≤ 128 against the GCM spec — byte_list_at (aes256_gcm_encrypt …) out_ptr len (ciphertext) and read xi_ptr = gcm_final_xi …
+  (tag). It's a three-layer call chain:
+
+  - Top (dispatch): the theorem's own proof is just a nested ASM_CASES_TAC on val len at 16, 32, …, 112, with one XTS-style
+  one-liner per length routing each length to its length-specific lemma (9 lengths, 0–8 blocks).
+  - Middle (abstract length): each …_LT_NBLOCK_ABS carries the same guarantee as its concrete band but rewritten two ways that make
+  all 9 bands look identical (keeping dispatch uniform): 
+      - First, its conclusion is stated in spec vocabulary — the spec functions aes256_gcm_encrypt / gcm_final_xi — instead of the concrete band's raw bit-arithmetic (word_xor/word_pmul/word_reversefields). 
+      - Second, all 9 bands share one uniform precondition sized for the largest (8-block) case — input as byte_list_at pt_in in_ptr (word 128), all 8
+  output slots, all H-powers, etc. 
+  - Bottom (concrete length): …_LT_NBLOCK_CONCRETE is where symbolic simulation happens — with the GHASH
+  conjunct is discharged by a per-length closer tactic (e.g. GCM_2BLOCK_GHASH_VIA_BRANCH_TAC) that strings the tail equivalence together: it fires the
+  equivalence lemmas in sequence to walk the goal from the simulator's raw Karatsuba bit-form down to ghash_polyval_acc — reach
+  the assembly-shaped ghash_Nblock_karatsuba via GHASH_NBLOCK_AS_NBLOCK, convert that Karatsuba form to the field polynomial via
+  the per-N bridge GHASH_NBLOCK_KARATSUBA_EQ_POLYVAL_ACC, then finish the XOR commutativity/associativity rearrangement with the
+  custom conversion bubble_sort_conv until both sides are syntactically equal and the subgoal closes.
+
+  The whole file loads clean end-to-end: Parametrization principle holds — only per-N pieces are regenerated per block count; the hard inductive bridge GHASH_NBLOCK_KARATSUBA_EQ_PROP3
+  is proven once and reused for all N.
