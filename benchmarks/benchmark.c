@@ -1154,6 +1154,7 @@ void call_bignum_copy_row_from_table_16__32(void) {}
 void call_bignum_copy_row_from_table_32__32(void) {}
 
 void call_bignum_emontredc_8n_cdiff__32(void) {}
+void call_md5_block(void) {}
 void call_sha3_keccak_f1600_alt(void) {}
 void call_sha3_keccak_f1600_alt2(void) {}
 void call_sha3_keccak2_f1600(void) {}
@@ -1202,6 +1203,8 @@ void call_bignum_copy_row_from_table_32__32(void) \
     repeat(bignum_copy_row_from_table_32(b0,b1,32,0))
 
 void call_bignum_emontredc_8n_cdiff__32(void) repeat(bignum_emontredc_8n_cdiff(32,b0,b1,b2[0],b3))
+
+void call_md5_block(void) repeat(md5_block((uint32_t*)b0,(uint8_t*)b1,8))
 
 void call_mlkem_intt(void) repeat(mlkem_intt((int16_t*)b0,(int16_t*)b1,(int16_t*)b2))
 void call_mlkem_mulcache_compute(void) repeat(mlkem_mulcache_compute((int16_t*)b0,(int16_t*)b1,(int16_t*)b2,(int16_t*)b3))
@@ -1647,6 +1650,7 @@ int main(int argc, char *argv[])
   timingtest(all,"edwards25519_scalarmulbase_alt",call_edwards25519_scalarmulbase_alt);
   timingtest(bmi,"edwards25519_scalarmuldouble",call_edwards25519_scalarmuldouble);
   timingtest(all,"edwards25519_scalarmuldouble_alt",call_edwards25519_scalarmuldouble_alt);
+  timingtest(arm,"md5_block (8 blocks)",call_md5_block);
   timingtest(all,"mlkem_basemul_k2",call_mlkem_basemul_k2);
   timingtest(all,"mlkem_basemul_k3",call_mlkem_basemul_k3);
   timingtest(all,"mlkem_basemul_k4",call_mlkem_basemul_k4);

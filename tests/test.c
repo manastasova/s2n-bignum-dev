@@ -3506,6 +3506,126 @@ void reference_keccak_f1600(uint64_t r[25],uint64_t a[25])
         r[5*y+x] = A[x][y];
 }
 
+// MD5 (RFC 1321) compression-function reference. Mirrors the simple C
+// fallback md5_block_data_order in aws-lc crypto/fipsmodule/md5/md5.c:
+// it absorbs "num" 64-byte blocks (message words read little-endian) into
+// the 4-word state and adds the result back. No padding is performed.
+
+static uint32_t md5_rotl(uint32_t x,unsigned int s)
+{ return (x << s) | (x >> (32 - s)); }
+
+static uint32_t md5_load_le(const uint8_t *p)
+{ return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+         ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24); }
+
+#define MD5F(b,c,d) ((((c) ^ (d)) & (b)) ^ (d))
+#define MD5G(b,c,d) ((((b) ^ (c)) & (d)) ^ (c))
+#define MD5H(b,c,d) ((b) ^ (c) ^ (d))
+#define MD5I(b,c,d) (((~(d)) | (b)) ^ (c))
+
+#define MD5R0(a,b,c,d,k,s,t) \
+  do { (a) += ((k) + (t) + MD5F((b),(c),(d))); (a) = md5_rotl(a,s); (a) += (b); } while (0)
+#define MD5R1(a,b,c,d,k,s,t) \
+  do { (a) += ((k) + (t) + MD5G((b),(c),(d))); (a) = md5_rotl(a,s); (a) += (b); } while (0)
+#define MD5R2(a,b,c,d,k,s,t) \
+  do { (a) += ((k) + (t) + MD5H((b),(c),(d))); (a) = md5_rotl(a,s); (a) += (b); } while (0)
+#define MD5R3(a,b,c,d,k,s,t) \
+  do { (a) += ((k) + (t) + MD5I((b),(c),(d))); (a) = md5_rotl(a,s); (a) += (b); } while (0)
+
+void reference_md5_block(uint32_t *state,const uint8_t *data,size_t num)
+{ uint32_t A = state[0], B = state[1], C = state[2], D = state[3];
+  uint32_t X[16];
+  size_t i;
+
+  for (; num--; )
+   { for (i = 0; i < 16; ++i) X[i] = md5_load_le(data + 4*i);
+     data += 64;
+
+     // Round 0
+     MD5R0(A,B,C,D,X[0],7,0xd76aa478L);
+     MD5R0(D,A,B,C,X[1],12,0xe8c7b756L);
+     MD5R0(C,D,A,B,X[2],17,0x242070dbL);
+     MD5R0(B,C,D,A,X[3],22,0xc1bdceeeL);
+     MD5R0(A,B,C,D,X[4],7,0xf57c0fafL);
+     MD5R0(D,A,B,C,X[5],12,0x4787c62aL);
+     MD5R0(C,D,A,B,X[6],17,0xa8304613L);
+     MD5R0(B,C,D,A,X[7],22,0xfd469501L);
+     MD5R0(A,B,C,D,X[8],7,0x698098d8L);
+     MD5R0(D,A,B,C,X[9],12,0x8b44f7afL);
+     MD5R0(C,D,A,B,X[10],17,0xffff5bb1L);
+     MD5R0(B,C,D,A,X[11],22,0x895cd7beL);
+     MD5R0(A,B,C,D,X[12],7,0x6b901122L);
+     MD5R0(D,A,B,C,X[13],12,0xfd987193L);
+     MD5R0(C,D,A,B,X[14],17,0xa679438eL);
+     MD5R0(B,C,D,A,X[15],22,0x49b40821L);
+     // Round 1
+     MD5R1(A,B,C,D,X[1],5,0xf61e2562L);
+     MD5R1(D,A,B,C,X[6],9,0xc040b340L);
+     MD5R1(C,D,A,B,X[11],14,0x265e5a51L);
+     MD5R1(B,C,D,A,X[0],20,0xe9b6c7aaL);
+     MD5R1(A,B,C,D,X[5],5,0xd62f105dL);
+     MD5R1(D,A,B,C,X[10],9,0x02441453L);
+     MD5R1(C,D,A,B,X[15],14,0xd8a1e681L);
+     MD5R1(B,C,D,A,X[4],20,0xe7d3fbc8L);
+     MD5R1(A,B,C,D,X[9],5,0x21e1cde6L);
+     MD5R1(D,A,B,C,X[14],9,0xc33707d6L);
+     MD5R1(C,D,A,B,X[3],14,0xf4d50d87L);
+     MD5R1(B,C,D,A,X[8],20,0x455a14edL);
+     MD5R1(A,B,C,D,X[13],5,0xa9e3e905L);
+     MD5R1(D,A,B,C,X[2],9,0xfcefa3f8L);
+     MD5R1(C,D,A,B,X[7],14,0x676f02d9L);
+     MD5R1(B,C,D,A,X[12],20,0x8d2a4c8aL);
+     // Round 2
+     MD5R2(A,B,C,D,X[5],4,0xfffa3942L);
+     MD5R2(D,A,B,C,X[8],11,0x8771f681L);
+     MD5R2(C,D,A,B,X[11],16,0x6d9d6122L);
+     MD5R2(B,C,D,A,X[14],23,0xfde5380cL);
+     MD5R2(A,B,C,D,X[1],4,0xa4beea44L);
+     MD5R2(D,A,B,C,X[4],11,0x4bdecfa9L);
+     MD5R2(C,D,A,B,X[7],16,0xf6bb4b60L);
+     MD5R2(B,C,D,A,X[10],23,0xbebfbc70L);
+     MD5R2(A,B,C,D,X[13],4,0x289b7ec6L);
+     MD5R2(D,A,B,C,X[0],11,0xeaa127faL);
+     MD5R2(C,D,A,B,X[3],16,0xd4ef3085L);
+     MD5R2(B,C,D,A,X[6],23,0x04881d05L);
+     MD5R2(A,B,C,D,X[9],4,0xd9d4d039L);
+     MD5R2(D,A,B,C,X[12],11,0xe6db99e5L);
+     MD5R2(C,D,A,B,X[15],16,0x1fa27cf8L);
+     MD5R2(B,C,D,A,X[2],23,0xc4ac5665L);
+     // Round 3
+     MD5R3(A,B,C,D,X[0],6,0xf4292244L);
+     MD5R3(D,A,B,C,X[7],10,0x432aff97L);
+     MD5R3(C,D,A,B,X[14],15,0xab9423a7L);
+     MD5R3(B,C,D,A,X[5],21,0xfc93a039L);
+     MD5R3(A,B,C,D,X[12],6,0x655b59c3L);
+     MD5R3(D,A,B,C,X[3],10,0x8f0ccc92L);
+     MD5R3(C,D,A,B,X[10],15,0xffeff47dL);
+     MD5R3(B,C,D,A,X[1],21,0x85845dd1L);
+     MD5R3(A,B,C,D,X[8],6,0x6fa87e4fL);
+     MD5R3(D,A,B,C,X[15],10,0xfe2ce6e0L);
+     MD5R3(C,D,A,B,X[6],15,0xa3014314L);
+     MD5R3(B,C,D,A,X[13],21,0x4e0811a1L);
+     MD5R3(A,B,C,D,X[4],6,0xf7537e82L);
+     MD5R3(D,A,B,C,X[11],10,0xbd3af235L);
+     MD5R3(C,D,A,B,X[2],15,0x2ad7d2bbL);
+     MD5R3(B,C,D,A,X[9],21,0xeb86d391L);
+
+     A = state[0] += A;
+     B = state[1] += B;
+     C = state[2] += C;
+     D = state[3] += D;
+   }
+}
+
+#undef MD5F
+#undef MD5G
+#undef MD5H
+#undef MD5I
+#undef MD5R0
+#undef MD5R1
+#undef MD5R2
+#undef MD5R3
+
 // Rejection sampling reference
 
 uint64_t reference_rej_uniform(int16_t r[256],uint8_t *buf,uint64_t buflen)
@@ -15692,6 +15812,129 @@ int test_sha3_keccak_f1600_alt2(void)
 #endif
 }
 
+#define MD5_MAXBLOCKS 10
+
+int test_md5_block(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  int t, i;
+  uint64_t num;
+  uint32_t state_init[4], state_ref[4], state_asm[4];
+  uint64_t stw[2];
+  uint64_t words[8*MD5_MAXBLOCKS];
+  uint8_t data[64*MD5_MAXBLOCKS];
+  printf("Testing md5_block with %d cases\n",tests);
+
+  for (t = 0; t < tests; ++t)
+   { // Span block counts 1..MD5_MAXBLOCKS (the routine requires num >= 1);
+     // alternate dense and sparse message data, randomize the initial state.
+     num = 1 + (uint64_t)(t % MD5_MAXBLOCKS);
+     random_bignum(2,stw);
+     memcpy(state_init,stw,16);
+     if (t & 1) random_sparse_bignum(8*num,words);
+     else random_bignum(8*num,words);
+     memcpy(data,words,64*num);
+
+     for (i = 0; i < 4; ++i) state_ref[i] = state_asm[i] = state_init[i];
+     reference_md5_block(state_ref,data,(size_t)num);
+     md5_block(state_asm,data,(size_t)num);
+
+     for (i = 0; i < 4; ++i)
+      { if (state_ref[i] != state_asm[i])
+         { printf("### Disparity: [num %4"PRIu64", word %d] "
+                  "init 0x%08"PRIx32" -> code 0x%08"PRIx32" not reference 0x%08"PRIx32"\n",
+                  num,i,state_init[i],state_asm[i],state_ref[i]);
+           return 1;
+         }
+      }
+     if (VERBOSE)
+      { printf("OK: md5_block(num=%"PRIu64") A=0x%08"PRIx32" B=0x%08"PRIx32
+               " C=0x%08"PRIx32" D=0x%08"PRIx32"\n",
+               num,state_asm[0],state_asm[1],state_asm[2],state_asm[3]);
+      }
+   }
+  printf("All OK\n");
+  return 0;
+#endif
+}
+
+// Known-answer test for md5_block using the seven test vectors from
+// RFC 1321 "The MD5 Message-Digest Algorithm", Appendix A.5 (the same
+// vectors aws-lc ships in crypto/digest_extra/digest_test.cc). Each
+// message is MD5-padded by hand (append 0x80, zero-fill to 56 mod 64,
+// then the 64-bit little-endian bit length), the standard IV is seeded,
+// md5_block compresses the resulting whole blocks, and the little-endian
+// serialization of the final state is compared to the published digest.
+// This validates the assembly against published digests independently of
+// the C reference above.
+
+int test_md5_block_kat(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  static const char *const kat_msg[7] =
+   { "",
+     "a",
+     "abc",
+     "message digest",
+     "abcdefghijklmnopqrstuvwxyz",
+     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+     "12345678901234567890123456789012345678901234567890123456789012345678901234567890" };
+  static const char *const kat_digest[7] =
+   { "d41d8cd98f00b204e9800998ecf8427e",
+     "0cc175b9c0f1b6a831c399e269772661",
+     "900150983cd24fb0d6963f7d28e17f72",
+     "f96b697d7cb7938d525a2f31aaf161d0",
+     "c3fcd3d76192e4007dfb496cca67e13b",
+     "d174ab98d277d9f5a5611c2c9f419d9f",
+     "57edf4a22be3c955ac49da2e2107b67a" };
+  int v, i;
+  printf("Testing md5_block (RFC 1321 known values) with 7 vectors\n");
+
+  for (v = 0; v < 7; ++v)
+   { uint8_t buf[128];
+     char got[33];
+     uint32_t state[4];
+     uint64_t msglen = (uint64_t)strlen(kat_msg[v]);
+     uint64_t bitlen = msglen * 8;
+     uint64_t padlen, nblocks;
+
+     // Padded length: message, 0x80, zeros to 56 mod 64, then 8-byte length.
+     padlen = msglen + 1;
+     while (padlen % 64 != 56) ++padlen;
+     padlen += 8;
+     nblocks = padlen / 64;
+     if (padlen > sizeof(buf)) { printf("### Internal KAT buffer too small\n"); return 1; }
+
+     memset(buf,0,padlen);
+     memcpy(buf,kat_msg[v],(size_t)msglen);
+     buf[msglen] = 0x80;
+     for (i = 0; i < 8; ++i) buf[padlen-8+i] = (uint8_t)(bitlen >> (8*i));
+
+     state[0] = 0x67452301U; state[1] = 0xefcdab89U;
+     state[2] = 0x98badcfeU; state[3] = 0x10325476U;
+     md5_block(state,buf,(size_t)nblocks);
+
+     // Serialize the state little-endian (16 bytes) into a hex string.
+     for (i = 0; i < 16; ++i)
+        sprintf(got + 2*i,"%02x",(unsigned)((state[i/4] >> (8*(i%4))) & 0xff));
+
+     if (strcmp(got,kat_digest[v]) != 0)
+      { printf("### Disparity: [MD5(\"%s\")] got %s not %s\n",
+               kat_msg[v],got,kat_digest[v]);
+        return 1;
+      }
+     if (VERBOSE)
+        printf("OK: MD5(\"%s\") = %s\n",kat_msg[v],got);
+   }
+  printf("All OK\n");
+  return 0;
+#endif
+}
+
 int test_sha3_keccak2_f1600(void)
 {
 #ifdef __x86_64__
@@ -17630,6 +17873,8 @@ int main(int argc, char *argv[])
     functionaltest(all,"bignum_copy_row_from_table_16",test_bignum_copy_row_from_table_16);
     functionaltest(all,"bignum_copy_row_from_table_32",test_bignum_copy_row_from_table_32);
     functionaltest(all,"bignum_emontredc_8n_cdiff",test_bignum_emontredc_8n_cdiff);
+    functionaltest(arm,"md5_block",test_md5_block);
+    functionaltest(arm,"md5_block (RFC 1321 known values)",test_md5_block_kat);
     functionaltest(sha3,"sha3_keccak_f1600_alt",test_sha3_keccak_f1600_alt);
     functionaltest(arm,"sha3_keccak_f1600_alt2",test_sha3_keccak_f1600_alt2);
     functionaltest(sha3,"sha3_keccak2_f1600",test_sha3_keccak2_f1600);
