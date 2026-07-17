@@ -98,6 +98,16 @@ static inline void CRYPTO_xor16(uint8_t out[16], const uint8_t a[16],
                                 const uint8_t b[16]) {
   for (size_t i = 0; i < 16; i++) out[i] = a[i] ^ b[i];
 }
+// aws-lc names for memcpy/memset/constant-time compare; the verbatim GCM
+// framing bodies (setiv/aad/finish) below use these. Behaviourally identical to
+// the libc / boringssl originals for our fixed-size, non-secret test inputs.
+#define OPENSSL_memcpy memcpy
+#define OPENSSL_memset memset
+static int CRYPTO_memcmp(const void *a, const void *b, size_t len) {
+  const uint8_t *pa = a, *pb = b; uint8_t d = 0;
+  for (size_t i = 0; i < len; i++) d |= pa[i] ^ pb[i];
+  return d;   // 0 iff equal, matching boringssl's constant-time semantics
+}
 
 // ==================== GLUE: file-level macros (VERBATIM from aws-lc gcm.c:17-26) ====================
 // These are the non-GCM_FUNCREF definitions. GCM_FUNCREF is intentionally left
@@ -416,6 +426,160 @@ static size_t hw_gcm_encrypt(const uint8_t *in, uint8_t *out, size_t len,
   }
 
   return len_blocks;
+}
+
+// ==================== VERBATIM: aws-lc gcm.c CRYPTO_gcm128_setiv ====================
+// GCM IV setup: derives the initial counter block Yi and the E(K,J0) block EK0.
+// For a 96-bit IV this is J0 = IV||0x00000001; otherwise J0 is GHASH-derived.
+void CRYPTO_gcm128_setiv(GCM128_CONTEXT *ctx, const AES_KEY *key,
+                         const uint8_t *iv, size_t len) {
+#ifdef GCM_FUNCREF
+  void (*gcm_gmult_p)(uint8_t Xi[16], const u128 Htable[16]) =
+      ctx->gcm_key.gmult;
+#endif
+
+  OPENSSL_memset(&ctx->Yi, 0, sizeof(ctx->Yi));
+  OPENSSL_memset(&ctx->Xi, 0, sizeof(ctx->Xi));
+  ctx->len.aad = 0;
+  ctx->len.msg = 0;
+  ctx->ares = 0;
+  ctx->mres = 0;
+
+#if defined(GHASH_ASM_X86_64) && !defined(MY_ASSEMBLER_IS_TOO_OLD_FOR_512AVX)
+  if (ctx->gcm_key.use_hw_gcm_crypt && crypto_gcm_avx512_enabled()) {
+    gcm_setiv_avx512(key, ctx, iv, len);
+    return;
+  }
+#endif
+
+  uint32_t ctr;
+  if (len == 12) {
+    OPENSSL_memcpy(ctx->Yi, iv, 12);
+    ctx->Yi[15] = 1;
+    ctr = 1;
+  } else {
+    uint64_t len0 = len;
+
+    while (len >= 16) {
+      CRYPTO_xor16(ctx->Yi, ctx->Yi, iv);
+      GCM_MUL(ctx, Yi);
+      iv += 16;
+      len -= 16;
+    }
+    if (len) {
+      for (size_t i = 0; i < len; ++i) {
+        ctx->Yi[i] ^= iv[i];
+      }
+      GCM_MUL(ctx, Yi);
+    }
+
+    uint8_t len_block[16];
+    OPENSSL_memset(len_block, 0, 8);
+    CRYPTO_store_u64_be(len_block + 8, len0 << 3);
+    CRYPTO_xor16(ctx->Yi, ctx->Yi, len_block);
+
+    GCM_MUL(ctx, Yi);
+    ctr = CRYPTO_load_u32_be(ctx->Yi + 12);
+  }
+
+  (*ctx->gcm_key.block)(ctx->Yi, ctx->EK0, key);
+  ++ctr;
+  CRYPTO_store_u32_be(ctx->Yi + 12, ctr);
+}
+
+// ==================== VERBATIM: aws-lc gcm.c CRYPTO_gcm128_aad ====================
+int CRYPTO_gcm128_aad(GCM128_CONTEXT *ctx, const uint8_t *aad, size_t len) {
+#ifdef GCM_FUNCREF
+  void (*gcm_gmult_p)(uint8_t Xi[16], const u128 Htable[16]) =
+      ctx->gcm_key.gmult;
+  void (*gcm_ghash_p)(uint8_t Xi[16], const u128 Htable[16], const uint8_t *inp,
+                      size_t len) = ctx->gcm_key.ghash;
+#endif
+
+  if (ctx->len.msg != 0) {
+    // The caller must have finished the AAD before providing other input.
+    return 0;
+  }
+
+  uint64_t alen = ctx->len.aad + len;
+  if (alen > (UINT64_C(1) << 61) || (sizeof(len) == 8 && alen < len)) {
+    return 0;
+  }
+  ctx->len.aad = alen;
+
+  unsigned n = ctx->ares;
+  if (n) {
+    while (n && len) {
+      ctx->Xi[n] ^= *(aad++);
+      --len;
+      n = (n + 1) % 16;
+    }
+    if (n == 0) {
+      GCM_MUL(ctx, Xi);
+    } else {
+      ctx->ares = n;
+      return 1;
+    }
+  }
+
+  // Process a whole number of blocks.
+  size_t len_blocks = len & kSizeTWithoutLower4Bits;
+  if (len_blocks != 0) {
+    GHASH(ctx, aad, len_blocks);
+    aad += len_blocks;
+    len -= len_blocks;
+  }
+
+  // Process the remainder.
+  if (len != 0) {
+    // This is needed to avoid a compiler warning on powerpc64le using GCC 12.2:
+    // .../aws-lc/crypto/fipsmodule/modes/gcm.c:428:18: error: writing 1 byte into
+    // a region of size 0 [-Werror=stringop-overflow=]
+    // 428 | ctx->Xi[i] ^= aad[i];
+    //     | ~~~~~~~~~~~^~~~~~~~~
+    if (len > 16) {
+      abort();
+      return 0;
+    }
+    n = (unsigned int)len;
+    for (size_t i = 0; i < len; ++i) {
+      ctx->Xi[i] ^= aad[i];
+    }
+  }
+
+  ctx->ares = n;
+  return 1;
+}
+
+// ==================== VERBATIM: aws-lc gcm.c CRYPTO_gcm128_finish ====================
+int CRYPTO_gcm128_finish(GCM128_CONTEXT *ctx, const uint8_t *tag, size_t len) {
+#ifdef GCM_FUNCREF
+  void (*gcm_gmult_p)(uint8_t Xi[16], const u128 Htable[16]) =
+      ctx->gcm_key.gmult;
+#endif
+
+  if (ctx->mres || ctx->ares) {
+    GCM_MUL(ctx, Xi);
+  }
+
+  uint8_t len_block[16];
+  CRYPTO_store_u64_be(len_block, ctx->len.aad << 3);
+  CRYPTO_store_u64_be(len_block + 8, ctx->len.msg << 3);
+  CRYPTO_xor16(ctx->Xi, ctx->Xi, len_block);
+  GCM_MUL(ctx, Xi);
+  CRYPTO_xor16(ctx->Xi, ctx->Xi, ctx->EK0);
+
+  if (tag && len <= sizeof(ctx->Xi)) {
+    return CRYPTO_memcmp(ctx->Xi, tag, len) == 0;
+  } else {
+    return 0;
+  }
+}
+
+// ==================== VERBATIM: aws-lc gcm.c CRYPTO_gcm128_tag ====================
+void CRYPTO_gcm128_tag(GCM128_CONTEXT *ctx, unsigned char *tag, size_t len) {
+  CRYPTO_gcm128_finish(ctx, NULL, 0);
+  OPENSSL_memcpy(tag, ctx->Xi, len <= sizeof(ctx->Xi) ? len : sizeof(ctx->Xi));
 }
 
 // ==================== GLUE: v8-format Htable builder ====================
