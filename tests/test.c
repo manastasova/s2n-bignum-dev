@@ -16706,6 +16706,135 @@ int test_aes_xts_roundtrip(void)
 }
 
 // ****************************************************************************
+// Testing of the AES-256-GCM 8x encrypt kernel aesv8_gcm_8x_enc_256
+//
+// The imported assembly is a fused CTR-encrypt+GHASH kernel with no clean 1:1
+// C counterpart, so (per the importer verbatim rule) it is tested at the big_op
+// level. ref_gcm_nohw.c supplies, VERBATIM from aws-lc, both big_ops:
+//   * CRYPTO_gcm128_encrypt  (generic pure-C GCM encrypt, path A / reference)
+//   * hw_gcm_encrypt         (aws-lc HW dispatch containing the exact call site
+//                             that reaches aesv8_gcm_8x_enc_256, path B / SUT)
+// plus the verbatim pure-C GHASH gcm_*_nohw. Both big_ops compute the identical
+// GCM bulk operation (CTR encrypt under the AES-256 key + GHASH over the
+// resulting ciphertext, advancing the counter), so for the same inputs their
+// ciphertext, GHASH accumulator Xi and counter Yi/ivec must agree exactly.
+// ****************************************************************************
+
+#include "ref_gcm_nohw.c"
+
+#ifndef __x86_64__
+// GCM tag helpers (glue): standard GHASH length-block fold and E(J0) XOR that
+// turn the kernel's GHASH-over-ciphertext accumulator into the GCM tag. The
+// GHASH steps themselves reuse the VERBATIM gcm_ghash_nohw; only the counter
+// bookkeeping is glue.
+static void ref_gcm_store_be64(uint8_t out[8], uint64_t v)
+{ for (int i = 0; i < 8; ++i) out[7 - i] = (uint8_t)(v >> (8 * i)); }
+
+// Compute the GCM authentication tag given: the GHASH accumulator Xi already
+// folded over AAD and ciphertext, the nohw Htable (needs only slot 0 = H), the
+// AAD and ciphertext bit lengths, the AES key, and J0 = IV||0x00000001.
+static void ref_gcm_finish_tag(uint8_t tag[16], uint8_t Xi[16],
+                               const u128 Htable_nohw[16], uint64_t aad_bits,
+                               uint64_t cipher_bits, const s2n_bignum_AES_KEY *ek,
+                               const uint8_t J0[16])
+{ uint8_t lenblk[16], ek0[16];
+  ref_gcm_store_be64(lenblk, aad_bits);
+  ref_gcm_store_be64(lenblk + 8, cipher_bits);
+  gcm_ghash_nohw(Xi, Htable_nohw, lenblk, 16);   // verbatim GHASH of length block
+  ref_aes256_encrypt_block(J0, ek0, ek);         // E(K, J0)
+  for (int i = 0; i < 16; ++i) tag[i] = ek0[i] ^ Xi[i];
+}
+#endif
+
+// Randomized differential test: the imported asm (path B) vs the pure-C
+// reference big_op (path A), over the harness's `tests` count.
+int test_aesv8_gcm_8x_enc_256(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  uint64_t t;
+  uint8_t key[32], ivec[16], xi_in[16];
+  s2n_bignum_AES_KEY ek;
+  size_t len;
+
+  printf("Testing aesv8_gcm_8x_enc_256 against reference with %d cases\n",tests);
+
+  for (t = 0; t < (uint64_t)tests; ++t)
+   { // Random AES-256 key, counter block (ivec), and GHASH accumulator (Xi).
+     random_bytes(key, 32);
+     random_bytes(ivec, 16);
+     random_bytes(xi_in, 16);
+
+     // The 8x path is taken only for length >= 256 and processes whole blocks.
+     // Use block-aligned lengths from 256 bytes (16 blocks) up to 1008 bytes,
+     // exercising the 8x main loop and every tail length the cascade handles.
+     size_t blocks = 16 + (rand() % 48);
+     if ((rand() & 3) == 0) blocks = 16 + (rand() % 8);
+     len = blocks * 16;
+
+     random_bytes(bb1, len);                 // plaintext
+     memset(bb2, 0, len);                     // path A ciphertext (reference)
+     memset(bb3, 0, len);                     // path B ciphertext (asm)
+
+     ref_aes256_expand_key(key, &ek);         // rd_key layout consumed by both
+     ek.rounds = 14;                          // AES-256; select the 256 kernel
+
+     // H = E(K, 0^128), the GHASH subkey (bytes, big-endian pair).
+     uint8_t zero[16] = {0}, Hbytes[16];
+     ref_aes256_encrypt_block(zero, Hbytes, &ek);
+     uint64_t H[2] = { CRYPTO_load_u64_be(Hbytes), CRYPTO_load_u64_be(Hbytes + 8) };
+
+     // ---- Path A: verbatim CRYPTO_gcm128_encrypt + gcm_*_nohw (uses only H) ----
+     GCM128_CONTEXT ctxA; memset(&ctxA, 0, sizeof ctxA);
+     gcm_init_nohw(ctxA.gcm_key.Htable, H);
+     ctxA.gcm_key.block = ref_gcm_aes256_block;
+     memcpy(ctxA.Yi, ivec, 16);
+     memcpy(ctxA.Xi, xi_in, 16);
+     CRYPTO_gcm128_encrypt(&ctxA, &ek, bb1, bb2, len);
+
+     // ---- Path B: verbatim hw_gcm_encrypt -> asm, fed a C-built v8 table ----
+     uint64_t Htable_v8[2 * 16]; memset(Htable_v8, 0, sizeof Htable_v8);
+     gcm_init_v8_c(Htable_v8, H);
+     uint8_t xi_b[16], ivec_b[16];
+     memcpy(xi_b, xi_in, 16); memcpy(ivec_b, ivec, 16);
+     size_t bulk = hw_gcm_encrypt(bb1, bb3, len, &ek, ivec_b, xi_b, Htable_v8);
+
+     int bad = 0;
+     if (bulk != len)
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 bulk=%zu != len=%zu\n", bulk, len);
+        bad = 1;
+      }
+     if (memcmp(bb2, bb3, len) != 0)
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 ciphertext len=%zu\n", len);
+        bad = 1;
+      }
+     if (memcmp(ctxA.Xi, xi_b, 16) != 0)
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 GHASH Xi len=%zu\n", len);
+        bad = 1;
+      }
+     if (memcmp(ctxA.Yi, ivec_b, 16) != 0)
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 counter len=%zu\n", len);
+        bad = 1;
+      }
+     if (bad)
+      { printf("    key=");
+        for (int i = 0; i < 32; ++i) printf("%02x", key[i]);
+        printf("\n    ivec=");
+        for (int i = 0; i < 16; ++i) printf("%02x", ivec[i]);
+        printf("\n");
+        return 1;
+      }
+     else if (VERBOSE)
+      { printf("OK: aesv8_gcm_8x_enc_256 len=%zu\n", len);
+      }
+   }
+  printf("All OK\n");
+  return 0;
+#endif
+}
+
+// ****************************************************************************
 // Analogous testing of relevant functions against TweetNaCl as reference
 //
 // See https://tweetnacl.cr.yp.to/ for more info on TweetNaCl
@@ -17640,6 +17769,7 @@ int main(int argc, char *argv[])
     functionaltest(aes,"aes_xts_roundtrip",test_aes_xts_roundtrip);
     functionaltest(aes,"known value tests for aes-xts encrypt",test_known_values_xts_encrypt);
     functionaltest(aes,"known value tests for aes-xts decrypt",test_known_values_xts_decrypt);
+    functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256",test_aesv8_gcm_8x_enc_256);
   }
 
   if (extrastrigger) function_to_test = "_";
