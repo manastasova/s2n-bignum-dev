@@ -1775,3 +1775,44 @@ let AESV8_GCM_8X_ENC_256_GHASH_REDUCE = prove
   REWRITE_TAC[ghash_reduce_raw] THEN
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   ASM_REWRITE_TAC[]);;
+
+(* ------------------------------------------------------------------------- *)
+(* P4 bridge (a): the reduce region's raw output IS the polyval reduction.   *)
+(*                                                                           *)
+(* CORRECTS the session-005 note above: `ghash_reduce_raw p1 p2 p3` is NOT   *)
+(* reflection-entangled at the reduce boundary.  It equals the polyval       *)
+(* reduction of the SAME accumulators with p2/p3 swapped:                    *)
+(*                                                                           *)
+(*     ghash_reduce_raw p1 p2 p3 = polyval_reduce_g2 p1 p3 p2                 *)
+(*                                                                           *)
+(* No byteswap128 / word_reversefields layer is required HERE (the store-    *)
+(* order byteswap that session-005's oracle saw lives in the ext+rev64 at    *)
+(* pc 0x11cc/0x11d0, which ghash_reduce_raw deliberately excludes).  The      *)
+(* argument swap arises because the reduce loads Q17=hi, Q18=mid, Q19=lo,     *)
+(* whereas polyval_reduce_g2's convention takes (p1,p2,p3) = (hi,lo,mid).     *)
+(*                                                                           *)
+(* A symbolic `CONV_TAC BITBLAST_RULE` on the bare identity FAILS because     *)
+(* BITBLAST treats `word_pmul` opaquely and cannot see that the two outer     *)
+(* pmul arguments are XOR-equal (they differ only by the associativity/order  *)
+(* of a 5-term int64 XOR).  The fix is exactly POLYVAL_REDUCE_G2's own:       *)
+(* abbreviate the inner pmul w1, push subwords through the XORs, then align   *)
+(* the outer pmul argument with a WORD_BITWISE_RULE rewrite so it becomes a   *)
+(* common subterm on both sides; WORD_BLAST then closes the rest.            *)
+(* ------------------------------------------------------------------------- *)
+
+let GHASH_REDUCE_RAW_IS_POLYVAL_G2 = prove
+ (`!p1 p2 p3. ghash_reduce_raw p1 p2 p3 = polyval_reduce_g2 p1 p3 p2`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[ghash_reduce_raw; polyval_reduce_g2] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  CONV_TAC(TOP_DEPTH_CONV BETA_CONV) THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  ABBREV_TAC
+   `w1 = (word_pmul:int64->int64->int128)
+      (word_subword (p1:int128) (0,64)) (word 13979173243358019584)` THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+   `word_xor (word_xor (word_xor (word_xor (a:int64) b) c) d) e =
+    word_xor (word_xor d e) (word_xor (word_xor b c) a)`] THEN
+  CONV_TAC WORD_BLAST);;
