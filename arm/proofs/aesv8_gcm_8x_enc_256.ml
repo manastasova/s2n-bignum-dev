@@ -1749,13 +1749,11 @@ let ghash_reduce_raw = new_definition
                        (ext p1) in
     word_xor (word_xor p3 (word_pmul (LO q18) w)) (ext q18) : int128`;;
 
-(* The reduce region proved against its VERIFIED raw output.  The CHEAT only    *)
-(* stubs the (mechanical) ensures/MAYCHANGE framing around the 8 ARM steps      *)
-(* already run clean this session; the postcondition body is exactly what the   *)
-(* stepper emitted, so the statement is TRUE (not a guess).  P5/P6 will replace  *)
-(* `ghash_reduce_raw p1 p2 p3` with `polyval_reduce_g2` under the reflection     *)
-(* layer (see the OPEN note above) once the byteswap relationship of the         *)
-(* incoming accumulators is threaded in.                                         *)
+(* The reduce region proved GENUINELY (no CHEAT) against its raw output          *)
+(* `ghash_reduce_raw`, which is exactly what ARM_STEPS_TAC (1--8) emits for Q19.  *)
+(* P5/P6 will bridge `ghash_reduce_raw p1 p2 p3` to `polyval_reduce_g2` under the *)
+(* reflection layer (see the OPEN note above) once the byteswap relationship of   *)
+(* the incoming accumulators is threaded in.                                      *)
 let AESV8_GCM_8X_ENC_256_GHASH_REDUCE = prove
  (`!p1 p2 p3 const_p pc.
     ensures arm
@@ -1769,4 +1767,10 @@ let AESV8_GCM_8X_ENC_256_GHASH_REDUCE = prove
       (MAYCHANGE [PC] ,,
        MAYCHANGE [Q16;Q17;Q18;Q19;Q21;Q29] ,,
        MAYCHANGE [events])`,
-  CHEAT_TAC);;
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC (1--8) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  REWRITE_TAC[ghash_reduce_raw] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  ASM_REWRITE_TAC[]);;
