@@ -1816,3 +1816,51 @@ let GHASH_REDUCE_RAW_IS_POLYVAL_G2 = prove
    `word_xor (word_xor (word_xor (word_xor (a:int64) b) c) d) e =
     word_xor (word_xor d e) (word_xor (word_xor b c) a)`] THEN
   CONV_TAC WORD_BLAST);;
+
+(* ------------------------------------------------------------------------- *)
+(* P4 bridge (b): the Karatsuba multiply-accumulate fold.                    *)
+(*                                                                           *)
+(* Given the three Karatsuba partial products of a single 128x128 carryless  *)
+(* multiply  a * b  --  lo*lo, the cross term (a_lo^a_hi)*(b_lo^b_hi), and    *)
+(* hi*hi -- feeding the reduce region in the Q17(hi)/Q18(mid)/Q19(lo) order   *)
+(* the hardware uses (pmull -> lo lane, pmull2 -> hi lane, pmull of the       *)
+(* eor'd halves -> cross/mid lane), the reduce computes exactly the polyval   *)
+(* "dot" product  polyval_dot a b = prop3(pmul a b).                          *)
+(*                                                                           *)
+(*     ghash_reduce_raw <lo*lo> <cross> <hi*hi>  =  polyval_dot a b           *)
+(*                                                                           *)
+(* Proof chain: bridge (a) turns ghash_reduce_raw into polyval_reduce_g2      *)
+(* (with the p2<->p3 swap that reorders cross/hi into g2's hi,lo,mid slots),  *)
+(* POLYVAL_REDUCE_G2 rewrites that to polyval_reduce_prop3 of the reassembled *)
+(* 256-bit product, and GSYM PMUL_KARATSUBA_JOIN collapses the three partial  *)
+(* products back into the single word_pmul a b inside polyval_dot.  NB the    *)
+(* two REWRITE_TAC calls must stay SEPARATE: folding POLYVAL_REDUCE_G2 into    *)
+(* the bridge-(a) rewrite list makes it fire before the swap settles and the  *)
+(* proof diverges.                                                           *)
+(*                                                                           *)
+(* This is the per-block fold primitive the main-loop / prepretail / tail     *)
+(* bodies compose (P6): each GHASH block is `word_pmul (acc_xor_block)        *)
+(* (h_power ...)`; the batched multi-block accumulation over v8..v15 then      *)
+(* closes with the existing common/ lemma GHASH_POLYVAL_ACC_BATCHED (which    *)
+(* already reduces `ghash_polyval_acc h a (CONS b bs)` to a prop3 of the      *)
+(* pmul + ghash_wide sum), and NIST_DOT_IS_POLYVAL_DOT / nist_ghash bridge    *)
+(* the polyval accumulator to the nist_ghash tag - exactly the x4 loop-body   *)
+(* composition at reload_full.ml:1256-1275.                                   *)
+(* ------------------------------------------------------------------------- *)
+
+let GHASH_REDUCE_RAW_KARATSUBA_IS_DOT = prove
+ (`!a b:int128.
+    ghash_reduce_raw
+      (word_pmul (word_subword a (0,64):int64)
+                 (word_subword b (0,64):int64):int128)
+      (word_pmul (word_xor (word_subword a (0,64):int64)
+                           (word_subword a (64,64):int64))
+                 (word_xor (word_subword b (0,64):int64)
+                           (word_subword b (64,64):int64)):int128)
+      (word_pmul (word_subword a (64,64):int64)
+                 (word_subword b (64,64):int64):int128)
+    = polyval_dot a b`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_IS_POLYVAL_G2] THEN
+  REWRITE_TAC[POLYVAL_REDUCE_G2; polyval_dot] THEN
+  REWRITE_TAC[GSYM(REWRITE_RULE[LET_DEF;LET_END_DEF] PMUL_KARATSUBA_JOIN)]);;
