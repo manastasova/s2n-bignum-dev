@@ -1577,3 +1577,101 @@ let PMUL_KARATSUBA_JOIN_ALT = prove
                            (word_subword p1 (64,64):int64))
                  (word_subword p1 (0,64):int64) : int128)`,
   REWRITE_TAC[PMUL_KARATSUBA_JOIN] THEN REWRITE_TAC[WORD_XOR_SYM]);;
+
+(* ========================================================================= *)
+(* P3 - First register-only AES-256 block bridge.                            *)
+(*                                                                           *)
+(* Smallest meaningful contiguous computational unit of the kernel: the      *)
+(* eight interleaved 14-round aese/aesmc chains that form the first AES-256  *)
+(* counter-mode pass in the setup region (pc+0x90 .. pc+0x41c).  This is     *)
+(* register-only: the eight counter blocks are taken as opaque inputs in     *)
+(* Q0..Q7, the fifteen round keys rk0,rk1 come in Q26,Q27 and rk2..rk14 are  *)
+(* reloaded in-region from the key schedule in memory at key_p (offsets      *)
+(* 32..224).  The region ends at the round-13 aese of every block, just      *)
+(* before the data-dependent tail branch; the final rk14 xor is folded into  *)
+(* the subsequent eor3 with plaintext, so the raw Qi value here is exactly   *)
+(* the pre-rk14-xor AES chain.  Each output therefore satisfies              *)
+(* `word_xor (read Qi s) rk14 = word_reversefields 8 (aes256_cipher ...)`,   *)
+(* i.e. AES256_CIPHER_RECONSTRUCT (proved in P2) applied verbatim.           *)
+(*                                                                           *)
+(* NB the eight blocks are FULLY INTERLEAVED instruction-by-instruction in   *)
+(* the machine code (block3-r0, block4-r0, block2-r0, block0-r0, ...), so    *)
+(* there is no shorter contiguous single-block range to carve out; the whole *)
+(* 227-instruction region is the atomic AES unit.  It validates the AES      *)
+(* bridge (14 aese / 13 aesmc + in-memory key reload) before any GHASH or    *)
+(* ciphertext-memory complexity is added in later phases.                    *)
+(* ========================================================================= *)
+
+let AESV8_GCM_8X_ENC_256_AES_SETUP = prove
+ (`!b0 b1 b2 b3 b4 b5 b6 b7
+     k0 k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12 k13 k14 key_p pc.
+    ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
+           read PC s = word (pc + 0x90) /\
+           read X11 s = key_p /\
+           read Q0 s = b0 /\ read Q1 s = b1 /\ read Q2 s = b2 /\
+           read Q3 s = b3 /\ read Q4 s = b4 /\ read Q5 s = b5 /\
+           read Q6 s = b6 /\ read Q7 s = b7 /\
+           read Q26 s = k0 /\ read Q27 s = k1 /\
+           read (memory :> bytes128 (word_add key_p (word 32)))  s = k2 /\
+           read (memory :> bytes128 (word_add key_p (word 48)))  s = k3 /\
+           read (memory :> bytes128 (word_add key_p (word 64)))  s = k4 /\
+           read (memory :> bytes128 (word_add key_p (word 80)))  s = k5 /\
+           read (memory :> bytes128 (word_add key_p (word 96)))  s = k6 /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s = k7 /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s = k8 /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s = k9 /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s = k10 /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s = k11 /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s = k12 /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s = k13 /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s = k14)
+      (\s. read PC s = word (pc + 0x41c) /\
+           word_xor (read Q0 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b0)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])) /\
+           word_xor (read Q1 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b1)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])) /\
+           word_xor (read Q2 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b2)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])) /\
+           word_xor (read Q3 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b3)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])) /\
+           word_xor (read Q4 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b4)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])) /\
+           word_xor (read Q5 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b5)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])) /\
+           word_xor (read Q6 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b6)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])) /\
+           word_xor (read Q7 s) k14 =
+           word_reversefields 8
+            (aes256_cipher (word_reversefields 8 b7)
+              (MAP (word_reversefields 8)
+               [k0;k1;k2;k3;k4;k5;k6;k7;k8;k9;k10;k11;k12;k13;k14])))
+      (MAYCHANGE [PC] ,,
+       MAYCHANGE [Q0;Q1;Q2;Q3;Q4;Q5;Q6;Q7;Q19;Q26;Q27;Q28;Q30] ,,
+       MAYCHANGE [events])`,
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC (1--227) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[AES256_CIPHER_RECONSTRUCT]);;
