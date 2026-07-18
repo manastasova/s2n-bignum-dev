@@ -1990,6 +1990,11 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
            read Q13 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 5)) (inblock (8 * 0 + 5)) /\
            read Q14 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 6)) (inblock (8 * 0 + 6)) /\
            read Q15 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 7)) (inblock (8 * 0 + 7)) /\
+           read Q0 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 8)) /\
+           read Q1 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 9)) /\
+           read Q2 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 10)) /\
+           read Q3 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 11)) /\
+           read Q4 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 12)) /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
@@ -2054,6 +2059,11 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
            read Q13 s = word_xor (aes_ctr_block nonce rk (8 * k + 5)) (inblock (8 * k + 5)) /\
            read Q14 s = word_xor (aes_ctr_block nonce rk (8 * k + 6)) (inblock (8 * k + 6)) /\
            read Q15 s = word_xor (aes_ctr_block nonce rk (8 * k + 7)) (inblock (8 * k + 7)) /\
+           read Q0 s = word_reversefields 8 (ctr_block nonce (8 * k + 8)) /\
+           read Q1 s = word_reversefields 8 (ctr_block nonce (8 * k + 9)) /\
+           read Q2 s = word_reversefields 8 (ctr_block nonce (8 * k + 10)) /\
+           read Q3 s = word_reversefields 8 (ctr_block nonce (8 * k + 11)) /\
+           read Q4 s = word_reversefields 8 (ctr_block nonce (8 * k + 12)) /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
@@ -2121,6 +2131,11 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
             read Q13 s = word_xor (aes_ctr_block nonce rk (8 * i + 5)) (inblock (8 * i + 5)) /\
             read Q14 s = word_xor (aes_ctr_block nonce rk (8 * i + 6)) (inblock (8 * i + 6)) /\
             read Q15 s = word_xor (aes_ctr_block nonce rk (8 * i + 7)) (inblock (8 * i + 7)) /\
+            read Q0 s = word_reversefields 8 (ctr_block nonce (8 * i + 8)) /\
+            read Q1 s = word_reversefields 8 (ctr_block nonce (8 * i + 9)) /\
+            read Q2 s = word_reversefields 8 (ctr_block nonce (8 * i + 10)) /\
+            read Q3 s = word_reversefields 8 (ctr_block nonce (8 * i + 11)) /\
+            read Q4 s = word_reversefields 8 (ctr_block nonce (8 * i + 12)) /\
             htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
             (!j. j < nb
                  ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
@@ -2140,7 +2155,31 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     ENSURES_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[];
 
-    (* Subgoal 3: body -- 340-instr fused GHASH+AES pipeline (P6) *)
+    (* Subgoal 3: body -- 340-instr fused GHASH+AES pipeline (P6, still CHEAT).   *)
+    (* SESSION 009: v0..v4 now pinned (rev8 of ctr_block, indices 8i+8..8i+12,     *)
+    (* dumped empirically at s329); init/back-edge/exit re-close.  The full 340-   *)
+    (* instr body now STEPS THROUGH to ENSURES_FINAL_STATE_TAC (the s008 store-    *)
+    (* nonoverlap blocker is SOLVED).  Body recipe for next session:              *)
+    (*   X_GEN_TAC i THEN STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN               *)
+    (*   -- CRITICAL store fix: reduce LENGTH mc to the numeral 4604 in the        *)
+    (*      aligned_bytes_loaded + base-nonoverlapping assumptions, else the       *)
+    (*      ciphertext stores stp q8..q15,[x2],#32 (steps 330,334,337,338) fail    *)
+    (*      "could not prove updates will not modify the program code": the        *)
+    (*      code-preservation check (aligned_bytes_loaded_update,                  *)
+    (*      instruction.ml:123) uses the code region with LENGTH as a NUMERAL.     *)
+    (*   RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_EXEC]    *)
+    (*     `LENGTH aesv8_gcm_8x_enc_256_mc`]) THEN                                  *)
+    (*   MAP_EVERY (fun n -> ARM_STEPS_TAC EXEC [n] THEN                            *)
+    (*     RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE(word_add(word_add b(word m))      *)
+    (*       (word n) = word_add b (word(m+n)))]) THEN   -- flatten post-inc [x2]   *)
+    (*     RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)))      *)
+    (*     (1--340) THEN ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[...].         *)
+    (* Then close (x4 reload_full body 1010-1107 scaled 4->8): counter conjuncts   *)
+    (* via CTR_BLOCK_RECONSTRUCT_REV8/REV32 + WORD_SUBWORD_{REVERSEFIELDS_32,       *)
+    (* CTR_BLOCK_32}; Q8..Q15 ciphertext via XOR_AES256_CIPHER_RECONSTRUCT +       *)
+    (* AES_CTR_BLOCK_RECONSTRUCT; Q19 GHASH fold via GHASH_REDUCE_RAW_KARATSUBA_IS_ *)
+    (* DOT + GHASH_POLYVAL_ACC_BATCHED + NIST_GHASH_IS_POLYVAL; in/out forall via   *)
+    (* FIRST_ASSUM MATCH; PC-branch + counter arith via WORD_RULE/ARITH.           *)
     CHEAT_TAC;
 
     (* Subgoal 4: back-edge taken (0 < i < k => b.lt branches back) *)
