@@ -1892,18 +1892,40 @@ let GHASH_REDUCE_RAW_KARATSUBA_IS_DOT = prove
 (* 0-step ensures; the back-edge/exit subgoals only step the single b.lt      *)
 (* (register/memory preserving) so every state conjunct passes through.       *)
 (*                                                                           *)
-(* BODY-DEPENDENT FORMS to VALIDATE in P6 (best-effort here, from the .S      *)
-(* comments + x4 analogy; a wrong guess is only caught when the body is       *)
-(* actually stepped, so P6 may need to adjust these and re-close init):       *)
-(*   - Q30 counter index `8 * i + 13` (from ".S CTR block 8k+13" at 0x498).   *)
-(*   - Q19 accumulator wrapper `byteswap128 (nist_ghash ...)` (x4 Q11 form).  *)
-(*   - the exact modulo-constant stack location / nonoverlapping shape.       *)
+(* SESSION 008 (P6, partial): stepped the full 339-instr body on server gcm8x  *)
+(* with ghost values for v0..v15 and confirmed the invariant was INCOMPLETE.   *)
+(* The loop is software-pipelined, so the SIMD blocks are loop-carried across  *)
+(* the b.lt back-edge and MUST be pinned:                                      *)
+(*   - v8..v15 = the PREVIOUS group's ciphertext (blocks 8i..8i+7), GHASH-folded *)
+(*     this iteration; each is `word_xor (aes_ctr_block nonce rk (8i+j))         *)
+(*     (inblock (8i+j))` (identical to the out-memory store form; store order    *)
+(*     confirmed: stp q8,q9,[x2] puts q8 at 8(i+1)+0, ..., q15 at 8(i+1)+7).    *)
+(*     Without these, `read Q19 s339` (the fold result the postcondition must    *)
+(*     equal) is a word_pmul/word_xor over the UNPINNED ghosts q8,q9,... and the *)
+(*     goal is unprovable.  NOW ADDED below (24 conjuncts: pre/inv/post).        *)
+(*   - `8 * (k + 1) <= nb` antecedent ADDED: the 4 ciphertext stores            *)
+(*     (stp q8..q15,[x2],#32 at 0x9bc..0x9dc) FAIL the stepper's                 *)
+(*     "updates will not modify program code" check without a bound tying the   *)
+(*     block count nb to the loop count k (max store byte = 128k+128 = 16*nb).  *)
+(*     (This is the P9 nb-vs-k tie surfacing early.)                            *)
+(* CONFIRMED-CORRECT invariant-at-(i+1) forms (goal conclusion matched verbatim *)
+(* after stepping): X0/X2 128*((i+1)+1), Q30 index 8*(i+1)+13, Q19 byteswap128  *)
+(* nist_ghash..(8*(i+1)), Q31, all key/htable/tag/ivec mem, out-forall bound,   *)
+(* flag fact (NF<=>VF)<=>(i+1=k), PC pc+0x9e4.                                   *)
+(* STILL TODO for the body (P6, next session): v0,v1,v2,v3,v4 are ALSO          *)
+(* loop-carried (first body use is `aese vN,v26`, a READ) = pre-AES CTR         *)
+(* keystream blocks for the group AES'd this iteration; v5,v6,v7 are computed   *)
+(* fresh inside (first use `rev32 vN,v30`).  Their exact counter-index forms    *)
+(* must be pinned (derive via XOR_AES256_CIPHER_RECONSTRUCT + the setup counter *)
+(* bookkeeping) before the body's AES side can close.  init stays reflexive so  *)
+(* adding them will not break it.                                              *)
 (* ------------------------------------------------------------------------- *)
 
 let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
     ~(k = 0) /\
+    8 * (k + 1) <= nb /\
     nonoverlapping (out_p, 16 * nb)
                    (word pc, LENGTH aesv8_gcm_8x_enc_256_mc) /\
     ALLPAIRS nonoverlapping
@@ -1960,6 +1982,14 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
              byteswap128
               (nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0))) /\
+           read Q8 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 0)) (inblock (8 * 0 + 0)) /\
+           read Q9 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 1)) (inblock (8 * 0 + 1)) /\
+           read Q10 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 2)) (inblock (8 * 0 + 2)) /\
+           read Q11 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 3)) (inblock (8 * 0 + 3)) /\
+           read Q12 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 4)) (inblock (8 * 0 + 4)) /\
+           read Q13 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 5)) (inblock (8 * 0 + 5)) /\
+           read Q14 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 6)) (inblock (8 * 0 + 6)) /\
+           read Q15 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 7)) (inblock (8 * 0 + 7)) /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
@@ -2016,6 +2046,14 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
              byteswap128
               (nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * k))) /\
+           read Q8 s = word_xor (aes_ctr_block nonce rk (8 * k + 0)) (inblock (8 * k + 0)) /\
+           read Q9 s = word_xor (aes_ctr_block nonce rk (8 * k + 1)) (inblock (8 * k + 1)) /\
+           read Q10 s = word_xor (aes_ctr_block nonce rk (8 * k + 2)) (inblock (8 * k + 2)) /\
+           read Q11 s = word_xor (aes_ctr_block nonce rk (8 * k + 3)) (inblock (8 * k + 3)) /\
+           read Q12 s = word_xor (aes_ctr_block nonce rk (8 * k + 4)) (inblock (8 * k + 4)) /\
+           read Q13 s = word_xor (aes_ctr_block nonce rk (8 * k + 5)) (inblock (8 * k + 5)) /\
+           read Q14 s = word_xor (aes_ctr_block nonce rk (8 * k + 6)) (inblock (8 * k + 6)) /\
+           read Q15 s = word_xor (aes_ctr_block nonce rk (8 * k + 7)) (inblock (8 * k + 7)) /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
@@ -2075,6 +2113,14 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
               byteswap128
                (nist_ghash (aes256_cipher (word 0) rk) tag0
                   (list_of_seq (nist_cipher_block nonce rk inblock) (8 * i))) /\
+            read Q8 s = word_xor (aes_ctr_block nonce rk (8 * i + 0)) (inblock (8 * i + 0)) /\
+            read Q9 s = word_xor (aes_ctr_block nonce rk (8 * i + 1)) (inblock (8 * i + 1)) /\
+            read Q10 s = word_xor (aes_ctr_block nonce rk (8 * i + 2)) (inblock (8 * i + 2)) /\
+            read Q11 s = word_xor (aes_ctr_block nonce rk (8 * i + 3)) (inblock (8 * i + 3)) /\
+            read Q12 s = word_xor (aes_ctr_block nonce rk (8 * i + 4)) (inblock (8 * i + 4)) /\
+            read Q13 s = word_xor (aes_ctr_block nonce rk (8 * i + 5)) (inblock (8 * i + 5)) /\
+            read Q14 s = word_xor (aes_ctr_block nonce rk (8 * i + 6)) (inblock (8 * i + 6)) /\
+            read Q15 s = word_xor (aes_ctr_block nonce rk (8 * i + 7)) (inblock (8 * i + 7)) /\
             htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
             (!j. j < nb
                  ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
