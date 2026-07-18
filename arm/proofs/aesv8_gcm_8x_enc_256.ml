@@ -1731,8 +1731,9 @@ let AESV8_GCM_8X_ENC_256_AES_SETUP = prove
 (* corrected goal (x4 uses exactly this at reload_full.ml:1291; on the        *)
 (* normalised 2KB goal it ran in ~4s this session).                          *)
 (*                                                                           *)
-(* CHEAT_TAC placeholder so the file loads; statement carries the verified    *)
-(* region and the reflection-corrected RHS to be discharged next session.     *)
+(* The reduce region itself is proved outright below against ghash_reduce_raw; *)
+(* only the ghash_reduce_raw -> polyval_reduce_g2 spec bridge (needing the      *)
+(* reflection layer) is deferred to P5/P6.                                      *)
 (* ========================================================================= *)
 
 (* The exact register-out value the 8-step symbolic execution produces for    *)
