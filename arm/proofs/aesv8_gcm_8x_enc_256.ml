@@ -1920,6 +1920,94 @@ let GHASH_REDUCE_RAW_KARATSUBA_IS_DOT = prove
 (* bookkeeping) before the body's AES side can close.  init stays reflexive so  *)
 (* adding them will not break it.                                              *)
 (* ------------------------------------------------------------------------- *)
+(* SESSION 011 body-stepping helpers.                                          *)
+(*                                                                             *)
+(* The main-loop body reloads 8 plaintext blocks with `ldp q_even,q_odd,       *)
+(* [x0],#32` (steps 263/295/303/304).  Because X0 post-increments, the SECOND  *)
+(* element of each later pair is read at `word_add (word_add in_p (word ...))  *)
+(* (word 16)` where the offset arithmetic (e.g. `(128*(i+1)+64)+48`) is NOT    *)
+(* reduced to the literal `128*(i+1)+112` that the input-block reads use.  The  *)
+(* stepper's memory resolution needs a syntactic address match, so the load    *)
+(* stays opaque (`read(memory..) s_prev`) and DISCARD_OLDSTATE drops the        *)
+(* ciphertext-register fact.  (The very first ldp, blocks 0/1, resolves        *)
+(* natively because X0 is the un-incremented base there.)                      *)
+(*                                                                             *)
+(* Fix, applied only at the incremented ldps (LDP_STEP4_TAC): re-derive the 8  *)
+(* plaintext reads at the CURRENT state from the persistent quantified         *)
+(* in-memory forall (INBLOCKS_TAC — the specific s0 facts get dropped, the     *)
+(* forall does not), verbose-step (no auto-discard), FLATTEN the nested         *)
+(* word_adds, NORMOFF the offset arithmetic to the literal form, resolve the   *)
+(* now-matching memory reads, then discard old state.  NORMOFF_RULE reduces    *)
+(* `word (a + c1 + c2 + ...)` offsets; is_inp_memfact selects the memory       *)
+(* equations used to substitute the loads.  NSTEP is the ordinary per-step     *)
+(* chain (flatten + NORMOFF + subword) for all other instructions.             *)
+(* ------------------------------------------------------------------------- *)
+
+let NORMOFF_RULE =
+  CONV_RULE(ONCE_DEPTH_CONV(fun tm -> match tm with
+      Comb(Const("word",_),_) ->
+        (RAND_CONV(REWRITE_CONV[GSYM ADD_ASSOC] THENC DEPTH_CONV NUM_ADD_CONV)) tm
+    | _ -> failwith "NORMOFF"));;
+
+let is_inp_memfact th =
+  match concl th with
+    Comb(Comb(Const("=",_), Comb(Comb(Const("read",_),
+      Comb(Comb(Const(":>",_),Const("memory",_)),_)), _)), _) -> true
+  | _ -> false;;
+
+let NSTEP n =
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC [n] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
+    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
+  RULE_ASSUM_TAC NORMOFF_RULE THEN
+  RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV));;
+
+let INBLOCKS_TAC sname =
+  let sv = mk_var(sname,`:armstate`) in
+  let concl_tm = subst[sv,`s:armstate`]
+   `read (memory :> bytes128 (word_add in_p (word (128 * (i + 1))))) s =
+    inblock (8 * (i + 1)) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 16)))) s =
+    inblock (8 * (i + 1) + 1) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 32)))) s =
+    inblock (8 * (i + 1) + 2) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 48)))) s =
+    inblock (8 * (i + 1) + 3) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 64)))) s =
+    inblock (8 * (i + 1) + 4) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 80)))) s =
+    inblock (8 * (i + 1) + 5) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 96)))) s =
+    inblock (8 * (i + 1) + 6) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 112)))) s =
+    inblock (8 * (i + 1) + 7)` in
+  SUBGOAL_THEN concl_tm STRIP_ASSUME_TAC THENL
+   [REWRITE_TAC[ARITH_RULE
+     `128 * (i + 1) + 16 = 16 * (8 * (i + 1) + 1) /\
+      128 * (i + 1) + 32 = 16 * (8 * (i + 1) + 2) /\
+      128 * (i + 1) + 48 = 16 * (8 * (i + 1) + 3) /\
+      128 * (i + 1) + 64 = 16 * (8 * (i + 1) + 4) /\
+      128 * (i + 1) + 80 = 16 * (8 * (i + 1) + 5) /\
+      128 * (i + 1) + 96 = 16 * (8 * (i + 1) + 6) /\
+      128 * (i + 1) + 112 = 16 * (8 * (i + 1) + 7)`] THEN
+    REWRITE_TAC[ARITH_RULE `128 * a = 16 * 8 * a`] THEN
+    REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN
+    ASM_ARITH_TAC;
+    ALL_TAC];;
+
+let LDP_STEP4_TAC n =
+  let sprev = "s"^string_of_int (n-1) in
+  let sn = "s"^string_of_int n in
+  INBLOCKS_TAC sprev THEN
+  ARM_VERBOSE_STEP_TAC AESV8_GCM_8X_ENC_256_EXEC sn THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
+    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
+  RULE_ASSUM_TAC NORMOFF_RULE THEN
+  (fun (asl,w as gl) ->
+     let memfacts = filter is_inp_memfact (map snd asl) in
+     RULE_ASSUM_TAC(REWRITE_RULE memfacts) gl) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  DISCARD_OLDSTATE_TAC sn;;
 
 let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -2155,31 +2243,70 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     ENSURES_FINAL_STATE_TAC THEN
     ASM_REWRITE_TAC[];
 
-    (* Subgoal 3: body -- 340-instr fused GHASH+AES pipeline (P6, still CHEAT).   *)
-    (* SESSION 009: v0..v4 now pinned (rev8 of ctr_block, indices 8i+8..8i+12,     *)
-    (* dumped empirically at s329); init/back-edge/exit re-close.  The full 340-   *)
-    (* instr body now STEPS THROUGH to ENSURES_FINAL_STATE_TAC (the s008 store-    *)
-    (* nonoverlap blocker is SOLVED).  Body recipe for next session:              *)
-    (*   X_GEN_TAC i THEN STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN               *)
-    (*   -- CRITICAL store fix: reduce LENGTH mc to the numeral 4604 in the        *)
-    (*      aligned_bytes_loaded + base-nonoverlapping assumptions, else the       *)
-    (*      ciphertext stores stp q8..q15,[x2],#32 (steps 330,334,337,338) fail    *)
-    (*      "could not prove updates will not modify the program code": the        *)
-    (*      code-preservation check (aligned_bytes_loaded_update,                  *)
-    (*      instruction.ml:123) uses the code region with LENGTH as a NUMERAL.     *)
-    (*   RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_EXEC]    *)
-    (*     `LENGTH aesv8_gcm_8x_enc_256_mc`]) THEN                                  *)
-    (*   MAP_EVERY (fun n -> ARM_STEPS_TAC EXEC [n] THEN                            *)
-    (*     RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE(word_add(word_add b(word m))      *)
-    (*       (word n) = word_add b (word(m+n)))]) THEN   -- flatten post-inc [x2]   *)
-    (*     RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)))      *)
-    (*     (1--340) THEN ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[...].         *)
-    (* Then close (x4 reload_full body 1010-1107 scaled 4->8): counter conjuncts   *)
-    (* via CTR_BLOCK_RECONSTRUCT_REV8/REV32 + WORD_SUBWORD_{REVERSEFIELDS_32,       *)
-    (* CTR_BLOCK_32}; Q8..Q15 ciphertext via XOR_AES256_CIPHER_RECONSTRUCT +       *)
-    (* AES_CTR_BLOCK_RECONSTRUCT; Q19 GHASH fold via GHASH_REDUCE_RAW_KARATSUBA_IS_ *)
-    (* DOT + GHASH_POLYVAL_ACC_BATCHED + NIST_GHASH_IS_POLYVAL; in/out forall via   *)
-    (* FIRST_ASSUM MATCH; PC-branch + counter arith via WORD_RULE/ARITH.           *)
+    (* Subgoal 3: body -- 339-instr fused GHASH+AES pipeline.                     *)
+    (* SESSION 011: the full body now STEPS THROUGH to ENSURES_FINAL_STATE_TAC     *)
+    (* with ALL EIGHT ciphertext register facts (read Q8..Q15 s339) intact — the  *)
+    (* long-standing "Q11..Q15 facts vanish" blocker is SOLVED (see the           *)
+    (* LDP_STEP4_TAC helper above: the ldp 2nd-element read addresses needed a     *)
+    (* word_add-flatten + offset-arithmetic reduction to match the input-block     *)
+    (* reads, else DISCARD_OLDSTATE dropped them).  Step count is (1--339): the    *)
+    (* b.lt@0x9e4 (step 340) is the PUP back-edge (subgoals 4&5), NOT the body.    *)
+    (* The 4 plaintext reloads are ldp q,q,[x0],#32 at steps 263/295/303/304;      *)
+    (* the first resolves natively, the 3 incremented ones use LDP_STEP4_TAC.      *)
+    (*                                                                             *)
+    (* REMAINING (CHEAT below, next session): the ENSURES_FINAL_STATE goal is a    *)
+    (* 50-conjunct conjunction; 49 are cheap (X-regs, keys/htable/tag/ivec mem,   *)
+    (* Q30/Q31, Q0..Q4 counter, Q8..Q15 ciphertext, in/out foralls, flag, PC) and *)
+    (* close via CTR_BLOCK_RECONSTRUCT_REV8/REV32 + WORD_SUBWORD_{REVERSEFIELDS_32,*)
+    (* CTR_BLOCK_32} + XOR_AES256_CIPHER_RECONSTRUCT + AES_CTR_BLOCK_RECONSTRUCT + *)
+    (* FIRST_ASSUM MATCH (in/out) + WORD_RULE/ARITH (PC/counter).  The 50th        *)
+    (* conjunct (~367k chars) is the Q19 GHASH fold: x4 reload_full 1043-1107      *)
+    (* scaled 4->8 — byteswap128 BITBLAST wrapper, MAP_EVERY ABBREV_TAC            *)
+    (* sofar/cipherblock_0..7/h0..h7, TRANS_TAC EQ_TRANS to                        *)
+    (* polyval_reduce_prop3(<8-term pmul chain>), PMUL_KARATSUBA_JOIN_ALT +        *)
+    (* karatsuba_mid + POLYVAL_REDUCE_G2 + BITBLAST, then                          *)
+    (* GHASH_POLYVAL_ACC_BATCHED [cipherblock_1..7] + NIST_GHASH_IS_POLYVAL +      *)
+    (* list_of_seq (8*i+8 = SUC^8 (8*i)) + GHASH_ACC_APPEND.                       *)
+    X_GEN_TAC `i:num` THEN STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN
+    SUBGOAL_THEN
+     `read (memory :> bytes128 (word_add in_p (word (128 * (i + 1))))) s0 =
+      inblock (8 * (i + 1)) /\
+      read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 16)))) s0 =
+      inblock (8 * (i + 1) + 1) /\
+      read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 32)))) s0 =
+      inblock (8 * (i + 1) + 2) /\
+      read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 48)))) s0 =
+      inblock (8 * (i + 1) + 3) /\
+      read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 64)))) s0 =
+      inblock (8 * (i + 1) + 4) /\
+      read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 80)))) s0 =
+      inblock (8 * (i + 1) + 5) /\
+      read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 96)))) s0 =
+      inblock (8 * (i + 1) + 6) /\
+      read (memory :> bytes128 (word_add in_p (word (128 * (i + 1) + 112)))) s0 =
+      inblock (8 * (i + 1) + 7)`
+    STRIP_ASSUME_TAC THENL
+     [REWRITE_TAC[ARITH_RULE
+       `128 * (i + 1) + 16 = 16 * (8 * (i + 1) + 1) /\
+        128 * (i + 1) + 32 = 16 * (8 * (i + 1) + 2) /\
+        128 * (i + 1) + 48 = 16 * (8 * (i + 1) + 3) /\
+        128 * (i + 1) + 64 = 16 * (8 * (i + 1) + 4) /\
+        128 * (i + 1) + 80 = 16 * (8 * (i + 1) + 5) /\
+        128 * (i + 1) + 96 = 16 * (8 * (i + 1) + 6) /\
+        128 * (i + 1) + 112 = 16 * (8 * (i + 1) + 7)`] THEN
+      REWRITE_TAC[ARITH_RULE `128 * a = 16 * 8 * a`] THEN
+      REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN
+      ASM_ARITH_TAC;
+      ALL_TAC] THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_EXEC]
+      `LENGTH aesv8_gcm_8x_enc_256_mc`]) THEN
+    MAP_EVERY NSTEP (1--294) THEN
+    LDP_STEP4_TAC 295 THEN
+    MAP_EVERY NSTEP (296--302) THEN
+    LDP_STEP4_TAC 303 THEN
+    LDP_STEP4_TAC 304 THEN
+    MAP_EVERY NSTEP (305--339) THEN
+    ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
     CHEAT_TAC;
 
     (* Subgoal 4: back-edge taken (0 < i < k => b.lt branches back) *)
