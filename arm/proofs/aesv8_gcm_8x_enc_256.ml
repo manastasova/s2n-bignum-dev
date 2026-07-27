@@ -1470,6 +1470,25 @@ let XOR_AES256_CIPHER_RECONSTRUCT = prove
     inblock`,
   REWRITE_TAC[WORD_XOR_ASSOC] THEN REWRITE_TAC[AES256_CIPHER_RECONSTRUCT]);;
 
+(* aes256_cipher reads only EL 0..14 of its key list (see common/fips197.ml),  *)
+(* so replacing the key argument by its explicit first-15 EL-projection is a    *)
+(* no-op.  UNCONDITIONAL (no `LENGTH rk = 15` needed).  This closes the final   *)
+(* residual left on each ciphertext out-block conjunct after                    *)
+(* XOR_AES256_CIPHER_RECONSTRUCT + MAP + WORD_REVERSEFIELDS_REVERSEFIELDS: those *)
+(* rewrites collapse the per-element `word_reversefields`, but leave the key as  *)
+(* the explicit list `[EL 0 rk; ...; EL 14 rk]` rather than `rk`.  The x4 proof  *)
+(* sidesteps this by `ASM_CASES_TAC \`LENGTH rk = 11\`` + `EXPAND_TAC "rk"` at    *)
+(* the top of its _CORRECT (making `rk` a concrete cons-list); this lemma is     *)
+(* the cleaner route for the x8 statement, which keeps `rk` a free variable.     *)
+let AES256_CIPHER_KEYLIST = prove
+ (`aes256_cipher p
+     [EL 0 rk; EL 1 rk; EL 2 rk; EL 3 rk; EL 4 rk; EL 5 rk; EL 6 rk; EL 7 rk;
+      EL 8 rk; EL 9 rk; EL 10 rk; EL 11 rk; EL 12 rk; EL 13 rk; EL 14 rk] =
+   aes256_cipher p rk`,
+  REWRITE_TAC[aes256_cipher] THEN
+  CONV_TAC(DEPTH_CONV EL_CONV) THEN
+  REWRITE_TAC[]);;
+
 (* ------------------------------------------------------------------------- *)
 (* The reduction pattern that is used in the code (p1, p2, p3 are the        *)
 (* Karatsuba subcomponents of an implicit 256-bit result).                   *)
@@ -2347,6 +2366,88 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     LDP_STEP4_TAC 304 THEN
     MAP_EVERY NSTEP (305--339) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+    (* --- Cheap-conjunct close (session 016): validates the +2 counter fix.    *)
+    (* The case-split bound is 8*((i+1)+1) (invariant out-forall at i is         *)
+    (* j<8*(i+1), so at i+1 it is j<8*(i+2)); the eor3 3-way store XOR is        *)
+    (* AC-normalized to the XOR_AES256_CIPHER_RECONSTRUCT shape; then            *)
+    (* AES256_CIPHER_KEYLIST collapses the residual explicit key list            *)
+    (* `[EL 0 rk;..;EL 14 rk]` back to `rk` (the piece prior sessions missed —   *)
+    (* XOR_AES256_CIPHER_RECONSTRUCT + MAP leaves the list, not `rk`).           *)
+    REWRITE_TAC[ARITH_RULE `j < 8 * ((i + 1) + 1) <=>
+                            j < 8 * (i+1) \/ j = 8*(i+1) \/ j = 8*(i+1) + 1 \/
+                            j = 8*(i+1) + 2 \/ j = 8*(i+1) + 3 \/ j = 8*(i+1) + 4 \/
+                            j = 8*(i+1) + 5 \/ j = 8*(i+1) + 6 \/ j = 8*(i+1) + 7`] THEN
+    ASM_REWRITE_TAC[TAUT `p \/ q ==> r <=> (p ==> r) /\ (q ==> r)`] THEN
+    REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
+    REWRITE_TAC[ARITH_RULE `16 * (8 * (i+1) + b) = 128 * (i+1) + 16 * b`] THEN
+    REWRITE_TAC[ARITH_RULE `16 * 8 * (i+1) = 128 * (i+1)`] THEN
+    CONV_TAC(DEPTH_CONV NUM_MULT_CONV) THEN ASM_REWRITE_TAC[] THEN
+    REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS_32; WORD_SUBWORD_CTR_BLOCK_32] THEN
+    REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN
+    REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8; CTR_BLOCK_RECONSTRUCT_REV32] THEN
+    ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+      `word_xor (word_xor (inb:int128) ch) rk14 =
+       word_xor ch (word_xor rk14 inb)`] THEN
+    REWRITE_TAC[XOR_AES256_CIPHER_RECONSTRUCT] THEN
+    ASM_REWRITE_TAC[MAP; WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+    REWRITE_TAC[aes_ctr_block; GSYM ADD_ASSOC] THEN
+    CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN ASM_REWRITE_TAC[] THEN
+    REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN
+    REWRITE_TAC[WORD_ADD; GSYM WORD_ADD_ASSOC] THEN
+    ASM_SIMP_TAC[WORD_SUB; LT_IMP_LE; ARITH_RULE `i < l ==> i + 1 <= l`] THEN
+    REWRITE_TAC[ADD_ASSOC; ARITH] THEN
+    REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
+    REWRITE_TAC[GSYM cipher_block] THEN
+    REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+    REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+    SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+    REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+    REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+    CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+    REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+    CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+    REPEAT(CONJ_TAC THENL [CONV_TAC WORD_RULE; ALL_TAC]) THEN
+    REWRITE_TAC[AES256_CIPHER_KEYLIST] THEN
+    (* --- Remaining after cheap-close (session 016 diagnosis): exactly THREE    *)
+    (* obligations survive (the ~49 cheap conjuncts + all 16 ciphertext          *)
+    (* out-blocks now CLOSE, validating the +2 counter fix end-to-end):          *)
+    (*   (A) Q19 GHASH fold (~186k chars): x4 reload_full 1043-1107 scaled 4->8, *)
+    (*       drafted in /tmp/s012_q19_stage.ml (byteswap128 BITBLAST wrapper;     *)
+    (*       ABBREV sofar/cipherblock_0..7/h0..h7; TRANS_TAC to                   *)
+    (*       polyval_reduce_prop3(8-term pmul); PMUL_KARATSUBA_JOIN_ALT +         *)
+    (*       karatsuba_mid + POLYVAL_REDUCE_G2 + BITBLAST; then                   *)
+    (*       GHASH_POLYVAL_ACC_BATCHED + NIST_GHASH_IS_POLYVAL + list_of_seq +    *)
+    (*       GHASH_ACC_APPEND).                                                   *)
+    (*   (B) OLD out-forall (!j. j<8*(i+1) ==> read(out+16j) s = ...): the        *)
+    (*       incoming invariant out-forall is DROPPED by ASSUMPTION_STATE_UPDATE  *)
+    (*       at the first ciphertext store (step 330).  ROOT CAUSE (session 016): *)
+    (*       ASSUMPTION_STATE_UPDATE_TAC advances an assumption over a store via  *)
+    (*       STATE_UPDATE_RULE -> COMPONENTS_READ_OVER_WRITE_ORTHOGONAL_CONV,     *)
+    (*       which DOES descend under the !j binder AND collects the antecedent   *)
+    (*       j<8*(i+1) into its context (components.ml:3203) — BUT it then needs  *)
+    (*       ORTHOGONAL_COMPONENTS_RULE to discharge orthogonality of             *)
+    (*       bytes128(out_p+16*j) vs the store at bytes128(out_p+128*(i+1)),      *)
+    (*       which requires the NONLINEAR bound 16*(j+1)<=128*(i+1) from          *)
+    (*       j<8*(i+1); the driver machinery does not derive it for a SYMBOLIC    *)
+    (*       product offset, so the update fails and the forall is erased.  This  *)
+    (*       is genuinely novel: every existing s2n proof (e.g. emontredc) that   *)
+    (*       advances a quantified memory forall over a store uses a FIXED unroll *)
+    (*       and EXPAND_CASES_CONV to concrete indices; the x8 out-forall bound   *)
+    (*       8*(i+1) is symbolic in i and cannot be expanded.  Needs either a     *)
+    (*       symbolic-index bytes128 orthogonality lemma fed to the conv, or a    *)
+    (*       reformulation.  (verbose-step PRESERVES the s329-ref forall; it is   *)
+    (*       the subsequent DISCARD_OLDSTATE of the following NSTEP that drops it.)*)
+    (*   (C) FLAG/PC-branch fact: the invariant q(i+1) = ((NF<=>VF)<=>(i+1=k))    *)
+    (*       cannot close because MAIN_LOOP's antecedent does NOT constrain        *)
+    (*       end_p.  Derived (session 016) from the .S setup (0x34-0x4c) + the    *)
+    (*       body cmp@0x978 (X0=in_p+128*(i+2) at the cmp): the missing hyp is    *)
+    (*       `end_p = word_add in_p (word (128 * (k + 1)))` (+ a k bound for the  *)
+    (*       signed cmp no-overflow).  word_sub cancels in_p, leaving a pure      *)
+    (*       k-bounded word fact.  This is a real invariant-completeness gap      *)
+    (*       (like s008's v8..v15 and s015's +2) — add the end_p antecedent and   *)
+    (*       re-close init/back-edge/exit; reconcile with P7 setup / P9 (end_p    *)
+    (*       is how the iteration count k is pinned).                             *)
     CHEAT_TAC;
 
     (* Subgoal 4: back-edge taken (0 < i < k => b.lt branches back) *)
