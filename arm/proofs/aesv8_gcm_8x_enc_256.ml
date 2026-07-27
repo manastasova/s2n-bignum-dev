@@ -1384,6 +1384,41 @@ let WORD_SUBWORD_BYTESWAP128 = prove
    (!x. word_subword (byteswap128 x) (64,64):int64 = word_subword x (0,64))`,
   REWRITE_TAC[byteswap128] THEN CONV_TAC WORD_BLAST);;
 
+(* ------------------------------------------------------------------------- *)
+(* byteswap128 toolkit for the P6 Q19 GHASH fold (session 019).               *)
+(*                                                                           *)
+(* KEY STRUCTURAL FACT (objdump of the frozen .o, sessions 018/019): the x8   *)
+(* main-loop body has NO trailing `ext v19` byteswap (last v19 write is the   *)
+(* raw MODULO `eor3 v19,v19,v21,v17`@0x9c8, then `b.lt`@0x9e4; the            *)
+(* `ext v19`@0x4cc is the NEXT loop-top's PRE).  So the body-end Q19 value is  *)
+(* the RAW reduce, and the P6 body postcondition's Q19 residual (goal[0]) is   *)
+(*     <raw reduce, word_xor-headed> = byteswap128(nist_ghash ... (8*i+8))     *)
+(* whereas the x4 kernels DO have a trailing ext, so their fold's LHS is       *)
+(* already byteswap-shaped and x4's opening `byteswap128;WORD_BLAST +          *)
+(* MATCH_MP_TAC(strip)` applies.  On x8 that opener FAILS ("No match").        *)
+(*                                                                           *)
+(* These three lemmas move the RHS byteswap onto the LHS and cancel the        *)
+(* ext/byteswap half-swaps, so the fold can then follow x4's ABBREV +          *)
+(* RECONSTRUCT_POLYVAL_REDUCE_G2 + POLYVAL_REDUCE_G2 + GHASH_POLYVAL_ACC_      *)
+(* BATCHED tail (reload_full 1043-1107, scaled 4->8).  BS_EXT is decisive:     *)
+(* byteswap128 and the Karatsuba `ext` (word_subword(word_join x x)(64,128))    *)
+(* are inverse half-swaps, so they cancel to the identity.                     *)
+(* ------------------------------------------------------------------------- *)
+
+let BS_INVOL = prove
+ (`!x y:int128. byteswap128 x = y ==> x = byteswap128 y`,
+  REWRITE_TAC[byteswap128] THEN REPEAT GEN_TAC THEN
+  DISCH_THEN(SUBST1_TAC o GSYM) THEN CONV_TAC WORD_BLAST);;
+
+let BS_XOR = prove
+ (`!a b:int128. byteswap128(word_xor a b) =
+                word_xor (byteswap128 a) (byteswap128 b)`,
+  REWRITE_TAC[byteswap128] THEN REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+let BS_EXT = prove
+ (`!x:int128. byteswap128(word_subword (word_join x x:int256) (64,128)) = x`,
+  REWRITE_TAC[byteswap128] THEN GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
 let WORD_SUBWORD_CTR_BLOCK_32 = prove
  (`word_subword (ctr_block nonce cnt) (0,32):int32 = word cnt /\
    word_subword (ctr_block nonce cnt) (32,32):int32 =
