@@ -2039,11 +2039,64 @@ let LDP_STEP4_TAC n =
   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   DISCARD_OLDSTATE_TAC sn;;
 
+(* ------------------------------------------------------------------------- *)
+(* Flag-close lemmas for the main-loop body (blocker C, session 017).        *)
+(*                                                                           *)
+(* The loop back-edge is a signed pointer compare `cmp x0,x5; b.lt` at       *)
+(* pc 0x978/0x9e4: X0 = in_p + 128*(i+2) (four `ldp [x0],#32` past the loop  *)
+(* top), X5 = end_p.  After the cheap-close ASM_REWRITE, the invariant's     *)
+(* flag conjunct q(i+1) has been reduced to the raw NF!=VF biconditional     *)
+(* over `word_sub X0 end_p`.  BRIDGE_GE recognises that biconditional as the *)
+(* signed GE `ival end_p <= ival X0`; IV_ADD linearises each additive ival   *)
+(* under the buffer-end no-wrap bound `val in_p + 128*(k+1) < 2^63`; FLAG_LEM *)
+(* then reduces the whole thing to `i + 1 = k` using the body hyp `i < k`.   *)
+(* The no-wrap bound is supplied by MAIN_LOOP's new end_p antecedent.        *)
+
+let BRIDGE_GE = prove
+ (`!a c:int64.
+     ((ival (word_sub a c) < &0) <=>
+      ~(ival a - ival c = ival (word_sub a c))) <=> ival c <= ival a`,
+  REPEAT GEN_TAC THEN BITBLAST_TAC);;
+
+let IV_ADD = prove
+ (`!(in_p:int64) off.
+     val in_p + off < 2 EXP 63
+     ==> ival(word_add in_p (word off)) = &(val in_p + off)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `val(word_add (in_p:int64) (word off)) = val in_p + off`
+    ASSUME_TAC THENL
+   [REWRITE_TAC[VAL_WORD_ADD; VAL_WORD; DIMINDEX_64] THEN
+    CONV_TAC MOD_DOWN_CONV THEN MATCH_MP_TAC MOD_LT THEN ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  ASM_REWRITE_TAC[INT_IVAL; DIMINDEX_64] THEN
+  COND_CASES_TAC THEN ASM_REWRITE_TAC[] THEN
+  POP_ASSUM MP_TAC THEN REWRITE_TAC[INT_OF_NUM_POW; INT_OF_NUM_LT] THEN
+  CONV_TAC NUM_REDUCE_CONV THEN ASM_ARITH_TAC);;
+
+let FLAG_LEM = prove
+ (`!(in_p:int64) i k.
+     i < k /\ val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> ((ival (word_sub (word_add in_p (word (128 * (i + 1) + 128)))
+                          (word_add in_p (word (128 * (k + 1))))) < &0
+           <=> ~(ival (word_add in_p (word (128 * (i + 1) + 128))) -
+                 ival (word_add in_p (word (128 * (k + 1)))) =
+                 ival (word_sub (word_add in_p (word (128 * (i + 1) + 128)))
+                                (word_add in_p (word (128 * (k + 1)))))))
+          <=> (i + 1 = k))`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[BRIDGE_GE] THEN
+  MP_TAC(SPECL [`in_p:int64`; `128 * (i + 1) + 128`] IV_ADD) THEN
+  ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN DISCH_THEN SUBST1_TAC THEN
+  MP_TAC(SPECL [`in_p:int64`; `128 * (k + 1)`] IV_ADD) THEN
+  ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN DISCH_THEN SUBST1_TAC THEN
+  REWRITE_TAC[INT_OF_NUM_LE] THEN ASM_ARITH_TAC);;
+
 let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
     ~(k = 0) /\
     8 * (k + 1) <= nb /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
     nonoverlapping (out_p, 16 * nb)
                    (word pc, LENGTH aesv8_gcm_8x_enc_256_mc) /\
     ALLPAIRS nonoverlapping
@@ -2448,7 +2501,43 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     (*       (like s008's v8..v15 and s015's +2) — add the end_p antecedent and   *)
     (*       re-close init/back-edge/exit; reconcile with P7 setup / P9 (end_p    *)
     (*       is how the iteration count k is pinned).                             *)
-    CHEAT_TAC;
+    (* SESSION 017: (C) is now CLOSED.  Added the two end_p antecedents to        *)
+    (* MAIN_LOOP (`end_p = word_add in_p (word (128*(k+1)))` and the no-wrap      *)
+    (* bound `val in_p + 128*(k+1) < 2 EXP 63`) and the BRIDGE_GE/IV_ADD lemmas   *)
+    (* above.  The residual is A /\ C /\ B (Q19 fold / flag / out-forall+frame),  *)
+    (* split by REPEAT CONJ_TAC.  The cheap-close's WORD_ADD normalisation splits *)
+    (* the flag offsets to `word_add (word (128*i)) (word 256)` (= X0 = in_p +    *)
+    (* 128*(i+2)) and `word_add (word (128*k)) (word 128)` (= end_p, already      *)
+    (* substituted by ASM_REWRITE), so the flag close does NOT match FLAG_LEM     *)
+    (* syntactically — instead it rewrites BRIDGE_GE (the NF!=VF biconditional =  *)
+    (* signed GE `ival end_p <= ival X0`), linearises both additive ivals with    *)
+    (* IV_ADD under the no-wrap bound, and finishes by INT/ARITH using `i < k`.   *)
+    (* FLAG_LEM (above) packages the same reasoning for the un-normalised shape   *)
+    (* and is kept as documentation.  A (Q19 fold) and B (OLD out-forall) still   *)
+    (* CHEAT (B advisor-gated).                                                   *)
+    REPEAT CONJ_TAC THEN
+    (* Guard: fire the flag close ONLY on the flag-shaped goal — the sole
+       residual whose conclusion is `<flag biconditional> <=> (i + 1 = k)`
+       (RHS = `i + 1 = k`).  This keeps BRIDGE_GE off the ~186k-char Q19 term  *)
+    (* (resid A).  CRITICAL: the flag arithmetic uses targeted UNDISCH_TAC of   *)
+    (* the two needed hyps (`i < k`, the no-wrap bound) + bare ARITH_TAC — NOT  *)
+    (* ASM_ARITH_TAC, which would scan every hyp (incl. the giant ciphertext/   *)
+    (* Q19 facts) and wedge the checker (see holctl-operational-gotchas).       *)
+    (let flag_arith =
+       UNDISCH_TAC `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63` THEN
+       UNDISCH_TAC `(i:num) < k` THEN ARITH_TAC in
+     fun (asl,w as gl) ->
+       (if (can (term_match [] `xxx:bool <=> (i:num) + 1 = k`) w)
+        then
+         (REWRITE_TAC[BRIDGE_GE] THEN
+          MP_TAC(SPECL [`in_p:int64`; `128 * i + 256`] IV_ADD) THEN
+          ANTS_TAC THENL [flag_arith; ALL_TAC] THEN
+          MP_TAC(SPECL [`in_p:int64`; `128 * k + 128`] IV_ADD) THEN
+          ANTS_TAC THENL [flag_arith; ALL_TAC] THEN
+          REWRITE_TAC[GSYM WORD_ADD] THEN
+          DISCH_THEN SUBST1_TAC THEN DISCH_THEN SUBST1_TAC THEN
+          REWRITE_TAC[INT_OF_NUM_LE] THEN flag_arith)
+        else CHEAT_TAC) gl);
 
     (* Subgoal 4: back-edge taken (0 < i < k => b.lt branches back) *)
     REPEAT STRIP_TAC THEN
