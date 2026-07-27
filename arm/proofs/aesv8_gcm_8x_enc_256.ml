@@ -1419,6 +1419,39 @@ let BS_EXT = prove
  (`!x:int128. byteswap128(word_subword (word_join x x:int256) (64,128)) = x`,
   REWRITE_TAC[byteswap128] THEN GEN_TAC THEN CONV_TAC WORD_BLAST);;
 
+(* ------------------------------------------------------------------------- *)
+(* Two more building blocks for the P6 Q19 fold (session 020).                *)
+(*                                                                           *)
+(* Session 020 pinned down WHY the x4 Q19 fold opener does not transfer.  The *)
+(* x4 acc conjunct is ALSO `byteswap128(nist_ghash ...)` (reload_full l.909), *)
+(* and x4's opener (reload_full 1043-1051) rewrites `byteswap128` + the        *)
+(* `word_subword(word_join h l)(64,128) = word_join(LO h)(HI l)` BLAST rule,   *)
+(* which normalises BOTH the RHS byteswap AND x4's TRAILING-`ext` LHS into a   *)
+(* `word_join(word_subword _)(word_subword _)` shape, then strips both joins   *)
+(* with a MATCH_MP_TAC.  x8 has NO trailing `ext` (its last v19 write is the   *)
+(* raw MODULO eor3@0x9c8), so its LHS stays `word_xor`-headed and the join     *)
+(* strip fails "No match" (reproduced deterministically: STEP2 MATCH_MP_TAC    *)
+(* No match).  The x8 route is instead: MATCH_MP_TAC BS_INVOL to flip the RHS  *)
+(* byteswap onto the LHS, fold the LHS raw reduce to `ghash_reduce_raw` (whose *)
+(* GSYM must be applied BEFORE the cheap-close subword blast destroys the      *)
+(* `ext`/`word_pmul(LO _)` structure), bridge to `polyval_reduce_g2` via the   *)
+(* proven GHASH_REDUCE_RAW_IS_POLYVAL_G2, rewrite to prop3 via the lemma just  *)
+(* below, and match lane-wise against the batched-GHASH prop3.                 *)
+(*                                                                           *)
+(* EXT_TO_JOIN: the `ext` (Karatsuba half-take) written explicitly as a join. *)
+(* BYTESWAP128_G2_PROP3: push byteswap128 through the g2->prop3 reduction so   *)
+(* the fold can match byteswap128(prop3 W) on both sides (RHS byteswap128(NG)  *)
+(* = byteswap128(prop3 chain) via GHASH_POLYVAL_ACC_BATCHED).                  *)
+(* ------------------------------------------------------------------------- *)
+
+let EXT_TO_JOIN = prove
+ (`!x:int128. word_subword (word_join x x : int256) (64,128) =
+   word_join (word_subword x (0,64):int64) (word_subword x (64,64):int64) : int128`,
+  GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* NB BYTESWAP128_G2_PROP3 needs POLYVAL_REDUCE_G2, so it is defined further     *)
+(* below, right after PMUL_KARATSUBA_JOIN_ALT.                                   *)
+
 let WORD_SUBWORD_CTR_BLOCK_32 = prove
  (`word_subword (ctr_block nonce cnt) (0,32):int32 = word cnt /\
    word_subword (ctr_block nonce cnt) (32,32):int32 =
@@ -1631,6 +1664,28 @@ let PMUL_KARATSUBA_JOIN_ALT = prove
                            (word_subword p1 (64,64):int64))
                  (word_subword p1 (0,64):int64) : int128)`,
   REWRITE_TAC[PMUL_KARATSUBA_JOIN] THEN REWRITE_TAC[WORD_XOR_SYM]);;
+
+(* Push byteswap128 through the g2 -> prop3 reduction (session 020; needs        *)
+(* POLYVAL_REDUCE_G2, hence defined here).  Used by the P6 Q19 fold: after       *)
+(* MATCH_MP_TAC BS_INVOL the goal is `byteswap128(<raw reduce>) = nist_ghash`;    *)
+(* the raw reduce folds to `polyval_reduce_g2` (via GHASH_REDUCE_RAW_IS_POLYVAL_  *)
+(* G2), this lemma rewrites `byteswap128(g2 ..)` to `byteswap128(prop3 W)`, and   *)
+(* the RHS `byteswap128(nist_ghash ..)` becomes `byteswap128(prop3 chain)` via    *)
+(* GHASH_POLYVAL_ACC_BATCHED — so the two match lane-wise under one BITBLAST.     *)
+let BYTESWAP128_G2_PROP3 = prove
+ (`!p1 p2 p3:int128.
+     byteswap128(polyval_reduce_g2 p1 p2 p3) =
+     byteswap128(polyval_reduce_prop3
+      ((word_join : int128 -> int128 -> (256)word)
+         (word_join (word_subword p2 (64,64):int64)
+                    (word_xor (word_subword (word_xor (word_xor p1 p2) p3)
+                                            (64,64):int64)
+                              (word_subword p2 (0,64):int64)): int128)
+         (word_join (word_xor (word_subword (word_xor (word_xor p1 p2) p3)
+                                            (0,64):int64)
+                    (word_subword p1 (64,64):int64))
+                    (word_subword p1 (0,64):int64): int128)))`,
+  REWRITE_TAC[POLYVAL_REDUCE_G2]);;
 
 (* ========================================================================= *)
 (* P3 - First register-only AES-256 block bridge.                            *)
