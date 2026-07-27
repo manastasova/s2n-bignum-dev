@@ -1949,10 +1949,21 @@ let NORMOFF_RULE =
         (RAND_CONV(REWRITE_CONV[GSYM ADD_ASSOC] THENC DEPTH_CONV NUM_ADD_CONV)) tm
     | _ -> failwith "NORMOFF"));;
 
+(* Selects ONLY the freshly re-derived input-block reads                       *)
+(* (`read (memory :> bytesN ..) s = inblock <idx>`), which LDP_STEP4_TAC        *)
+(* substitutes into the ldp 2nd-element load.  The RHS-variable-headed guard    *)
+(* `is_var(fst(strip_comb rhs))` is essential: WITHOUT it this matched EVERY    *)
+(* `read(memory..) s = v` fact, so REWRITE_RULE memfacts rewrote each READ-ONLY *)
+(* key/mod/tag/ivec/htable fact BY ITSELF -> `v = v` -> `T`, silently deleting  *)
+(* the ~30 read-only memory facts the postcondition needs (they are never       *)
+(* regenerated, unlike the input reads which INBLOCKS_TAC re-asserts each call). *)
+(* Input reads carry the abstract value `inblock j` (a var applied to args);    *)
+(* all read-only facts carry constant-headed values (word_reversefields/word/…).*)
 let is_inp_memfact th =
   match concl th with
     Comb(Comb(Const("=",_), Comb(Comb(Const("read",_),
-      Comb(Comb(Const(":>",_),Const("memory",_)),_)), _)), _) -> true
+      Comb(Comb(Const(":>",_),Const("memory",_)),_)), _)), rhs) ->
+        is_var(fst(strip_comb rhs))
   | _ -> false;;
 
 let NSTEP n =
