@@ -2338,6 +2338,97 @@ let GHASH_REDUCE_RAW_XOR = prove
   CONV_TAC WORD_BITWISE_RULE);;
 
 (* ------------------------------------------------------------------------- *)
+(* Building blocks for the ALGEBRAIC Q19 fold (session 026).                  *)
+(*                                                                           *)
+(* These replace the dead-end g2 lane-match (byteswap128(prop3 A)=prop3 B,     *)
+(* s020-024) with a per-block polyval_dot composition that never forms a       *)
+(* byteswap-vs-reduce BITBLAST. The route (all validated on the real body-end  *)
+(* q19_raw, session 026):                                                      *)
+(*   RECON_GRR : raw reduce -> ghash_reduce_raw (Sum lolo)(Sum cross)(Sum hihi)*)
+(*   EXT_BS    : collapse the accumulator ext(byteswap128 sofar) -> sofar      *)
+(*               (WHOLE int128 — the s024 accumulator-byteswap obstruction     *)
+(*               dissolves here, before any lane slicing; the loop-top         *)
+(*               `ext v19@0x4cc` is exactly this un-byteswap).                 *)
+(*   [reassemble cipherblocks + AC-normalise the 3 lanes to canonical order]   *)
+(*   GHASH_REDUCE_RAW_DIST8 : summed lanes -> XOR_j polyval_dot a_j b_j        *)
+(*   DOTSUM_IS_PROP3SUM     : -> prop3(XOR_j pmul a_j b_j) = the RHS batched B. *)
+(* ------------------------------------------------------------------------- *)
+
+(* ext o byteswap128 = id.  On the RAW body-end reduce the accumulator appears  *)
+(* as word_subword(word_join(byteswap128 sofar)(byteswap128 sofar))(64,128) =   *)
+(* ext(byteswap128 sofar); this collapses it to the plain sofar the RHS wants,  *)
+(* as a WHOLE int128 (so no residual half-swap survives lane slicing).          *)
+let EXT_BS = prove
+ (`!x:int128.
+     word_subword (word_join (byteswap128 x) (byteswap128 x):int256) (64,128) = x`,
+  REWRITE_TAC[byteswap128] THEN GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* The hardware's three summed Karatsuba lanes (in CANONICAL block order 0..7)  *)
+(* reduce to the XOR-sum of the eight per-block polyval_dots.  GHASH_REDUCE_RAW_ *)
+(* XOR (GF(2)-linearity) distributes the 3-arg sum into 8 aligned triples; each *)
+(* fires GHASH_REDUCE_RAW_KARATSUBA_IS_DOT.  (The body lanes come out in order  *)
+(* 1,0,2,3,4,5,6,7 across all three lanes — AC-normalise to canonical before    *)
+(* applying this.)                                                              *)
+let GHASH_REDUCE_RAW_DIST8 = prove
+ (`!a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7:int128.
+    ghash_reduce_raw
+      (word_xor (word_pmul (word_subword a0 (0,64):int64) (word_subword b0 (0,64):int64):int128)
+      (word_xor (word_pmul (word_subword a1 (0,64):int64) (word_subword b1 (0,64):int64):int128)
+      (word_xor (word_pmul (word_subword a2 (0,64):int64) (word_subword b2 (0,64):int64):int128)
+      (word_xor (word_pmul (word_subword a3 (0,64):int64) (word_subword b3 (0,64):int64):int128)
+      (word_xor (word_pmul (word_subword a4 (0,64):int64) (word_subword b4 (0,64):int64):int128)
+      (word_xor (word_pmul (word_subword a5 (0,64):int64) (word_subword b5 (0,64):int64):int128)
+      (word_xor (word_pmul (word_subword a6 (0,64):int64) (word_subword b6 (0,64):int64):int128)
+                (word_pmul (word_subword a7 (0,64):int64) (word_subword b7 (0,64):int64):int128))))))))
+      (word_xor (word_pmul (word_xor (word_subword a0 (0,64):int64) (word_subword a0 (64,64):int64)) (word_xor (word_subword b0 (0,64):int64) (word_subword b0 (64,64):int64)):int128)
+      (word_xor (word_pmul (word_xor (word_subword a1 (0,64):int64) (word_subword a1 (64,64):int64)) (word_xor (word_subword b1 (0,64):int64) (word_subword b1 (64,64):int64)):int128)
+      (word_xor (word_pmul (word_xor (word_subword a2 (0,64):int64) (word_subword a2 (64,64):int64)) (word_xor (word_subword b2 (0,64):int64) (word_subword b2 (64,64):int64)):int128)
+      (word_xor (word_pmul (word_xor (word_subword a3 (0,64):int64) (word_subword a3 (64,64):int64)) (word_xor (word_subword b3 (0,64):int64) (word_subword b3 (64,64):int64)):int128)
+      (word_xor (word_pmul (word_xor (word_subword a4 (0,64):int64) (word_subword a4 (64,64):int64)) (word_xor (word_subword b4 (0,64):int64) (word_subword b4 (64,64):int64)):int128)
+      (word_xor (word_pmul (word_xor (word_subword a5 (0,64):int64) (word_subword a5 (64,64):int64)) (word_xor (word_subword b5 (0,64):int64) (word_subword b5 (64,64):int64)):int128)
+      (word_xor (word_pmul (word_xor (word_subword a6 (0,64):int64) (word_subword a6 (64,64):int64)) (word_xor (word_subword b6 (0,64):int64) (word_subword b6 (64,64):int64)):int128)
+                (word_pmul (word_xor (word_subword a7 (0,64):int64) (word_subword a7 (64,64):int64)) (word_xor (word_subword b7 (0,64):int64) (word_subword b7 (64,64):int64)):int128))))))))
+      (word_xor (word_pmul (word_subword a0 (64,64):int64) (word_subword b0 (64,64):int64):int128)
+      (word_xor (word_pmul (word_subword a1 (64,64):int64) (word_subword b1 (64,64):int64):int128)
+      (word_xor (word_pmul (word_subword a2 (64,64):int64) (word_subword b2 (64,64):int64):int128)
+      (word_xor (word_pmul (word_subword a3 (64,64):int64) (word_subword b3 (64,64):int64):int128)
+      (word_xor (word_pmul (word_subword a4 (64,64):int64) (word_subword b4 (64,64):int64):int128)
+      (word_xor (word_pmul (word_subword a5 (64,64):int64) (word_subword b5 (64,64):int64):int128)
+      (word_xor (word_pmul (word_subword a6 (64,64):int64) (word_subword b6 (64,64):int64):int128)
+                (word_pmul (word_subword a7 (64,64):int64) (word_subword b7 (64,64):int64):int128))))))))
+    = word_xor (polyval_dot a0 b0)
+      (word_xor (polyval_dot a1 b1)
+      (word_xor (polyval_dot a2 b2)
+      (word_xor (polyval_dot a3 b3)
+      (word_xor (polyval_dot a4 b4)
+      (word_xor (polyval_dot a5 b5)
+      (word_xor (polyval_dot a6 b6) (polyval_dot a7 b7)))))))`,
+  REWRITE_TAC[GHASH_REDUCE_RAW_XOR] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_KARATSUBA_IS_DOT]);;
+
+(* Collapse the per-block dot-sum to a single prop3 of the pmul-sum (via the    *)
+(* proven additivity PROP3_XOR).  The RHS of the Q19 fold, after                *)
+(* GHASH_POLYVAL_ACC_BATCHED, is exactly prop3 of this same pmul-sum with       *)
+(* a_0 = word_xor sofar cb0 and b_j = h^{7-j}.                                   *)
+let DOTSUM_IS_PROP3SUM = prove
+ (`word_xor (polyval_dot a0 b0)
+   (word_xor (polyval_dot a1 b1)
+   (word_xor (polyval_dot a2 b2)
+   (word_xor (polyval_dot a3 b3)
+   (word_xor (polyval_dot a4 b4)
+   (word_xor (polyval_dot a5 b5)
+   (word_xor (polyval_dot a6 b6) (polyval_dot a7 b7))))))) =
+   polyval_reduce_prop3
+    (word_xor (word_pmul a0 b0)
+    (word_xor (word_pmul a1 b1)
+    (word_xor (word_pmul a2 b2)
+    (word_xor (word_pmul a3 b3)
+    (word_xor (word_pmul a4 b4)
+    (word_xor (word_pmul a5 b5)
+    (word_xor (word_pmul a6 b6) (word_pmul a7 b7:256 word))))))))`,
+  REWRITE_TAC[polyval_dot; PROP3_XOR]);;
+
+(* ------------------------------------------------------------------------- *)
 (* Q19 GHASH-fold tactic (blocker A — sessions 017-022).                      *)
 (*                                                                           *)
 (* Applied to the body-end Q19 residual conjunct                              *)
