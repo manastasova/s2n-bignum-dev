@@ -1419,6 +1419,63 @@ let BS_EXT = prove
  (`!x:int128. byteswap128(word_subword (word_join x x:int256) (64,128)) = x`,
   REWRITE_TAC[byteswap128] THEN GEN_TAC THEN CONV_TAC WORD_BLAST);;
 
+(* byteswap128 involution + injectivity (session 021).  Used to strip a         *)
+(* byteswap128 from BOTH sides of an equation `byteswap128 x = byteswap128 y`.   *)
+let BS_INVOL2 = prove
+ (`!x:int128. byteswap128(byteswap128 x) = x`,
+  REWRITE_TAC[byteswap128] THEN GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+let BS_INJ = prove
+ (`!x y:int128. (byteswap128 x = byteswap128 y) <=> (x = y)`,
+  REPEAT GEN_TAC THEN EQ_TAC THENL
+   [DISCH_THEN(MP_TAC o AP_TERM `byteswap128`) THEN REWRITE_TAC[BS_INVOL2];
+    DISCH_THEN SUBST1_TAC THEN REFL_TAC]);;
+
+(* ------------------------------------------------------------------------- *)
+(* SESSION 021 BREAKTHROUGH — how the x8 Q19 fold actually fires.             *)
+(*                                                                           *)
+(* Sessions 017-020 could not make ANY fold-back (GSYM ghash_reduce_raw or    *)
+(* GSYM polyval_reduce_g2) fire on the real body-end Q19 residual, and the    *)
+(* s020 recipe was validated only on a SYNTHETIC free-var `ghash_reduce_raw   *)
+(* P1 P2 P3`.  Session 021 reconstructed the real residual and proved the     *)
+(* fold-back genuinely fails on it — then root-caused WHY and found the fix:  *)
+(*                                                                           *)
+(* ROOT CAUSE: the body driver `NSTEP` applies WORD_SIMPLE_SUBWORD_CONV after *)
+(* EVERY step.  The GHASH accumulators Q17/Q18/Q19 are word_join-headed        *)
+(* (Karatsuba lane sums), and that conv pushes word_subword INTO the joins,   *)
+(* collapsing `word_subword(word_join a b)(0,64)`->b etc.  This destroys the  *)
+(* `LO p1`(=word_subword p1 (0,64)) and `ext p1`(=word_subword(word_join p1   *)
+(* p1)(64,128)) patterns that `ghash_reduce_raw`'s definition needs, so       *)
+(* GSYM ghash_reduce_raw can no longer first-order-match.  Confirmed by a     *)
+(* decisive synthetic test: `ghash_reduce_raw` of word_join accumulators      *)
+(* folds via GSYM BEFORE the conv, but stays word_xor-headed AFTER it.        *)
+(*                                                                           *)
+(* THE FIX (two parts):                                                       *)
+(*  (1) A GUARDED NSTEP that SKIPS WORD_SIMPLE_SUBWORD_CONV on any assumption  *)
+(*      whose read-component is Q17/Q18/Q19 (see NSTEP_G in the body proof),   *)
+(*      preserving the accumulators' ext/LO structure so the final Q19 stays   *)
+(*      ghash_reduce_raw-shaped (modulo eor3 XOR re-association).              *)
+(*  (2) A one-line AC-swap                                                     *)
+(*        word_xor (word_xor x e) p = word_xor (word_xor x p) e               *)
+(*      (WORD_BITWISE_RULE; int128 atoms — cheap) to reorder the top XOR from  *)
+(*      eor3's `(p3 (+) ext) (+) pmul` grouping to the def's `(p3 (+) pmul)    *)
+(*      (+) ext`, after which GSYM ghash_reduce_raw FIRES (LHS 371k -> 69k,    *)
+(*      head becomes ghash_reduce_raw).                                        *)
+(*                                                                           *)
+(* Then the s020 chain runs: GHASH_REDUCE_RAW_IS_POLYVAL_G2 (-> g2),           *)
+(* MATCH_MP_TAC BS_INVOL, BYTESWAP128_G2_PROP3 (LHS -> byteswap128(prop3 A));  *)
+(* RHS nist_ghash folds via NIST_GHASH_IS_POLYVAL + 8(i+1)=SUC^8 + list_of_seq *)
+(* + APPEND + GHASH_ACC_APPEND, then the CONS-list SUC-form indices are        *)
+(* normalised to +n form with REWRITE_TAC[ADD1;GSYM ADD_ASSOC]+NUM_ADD_CONV    *)
+(* (else the batched ISPECL won't match), then GHASH_POLYVAL_ACC_BATCHED       *)
+(* collapses it to prop3 B.  The remaining goal is                             *)
+(*   `byteswap128(polyval_reduce_prop3 A) = polyval_reduce_prop3 B`            *)
+(* where A (~197k, word_join of inlined g2 lanes) and B (~1.2k, clean          *)
+(* cipherblock (x) h_power chain) differ by the store-order byteswap — the     *)
+(* final lane-wise BITBLAST match (x4 reload_full CONJ1 territory) is the ONE  *)
+(* remaining step (blocker A not yet closed as of session 021).               *)
+(* ------------------------------------------------------------------------- *)
+
 (* ------------------------------------------------------------------------- *)
 (* Two more building blocks for the P6 Q19 fold (session 020).                *)
 (*                                                                           *)
