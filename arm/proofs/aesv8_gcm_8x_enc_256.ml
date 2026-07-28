@@ -2272,6 +2272,72 @@ let FLAG_LEM = prove
   REWRITE_TAC[INT_OF_NUM_LE] THEN ASM_ARITH_TAC);;
 
 (* ------------------------------------------------------------------------- *)
+(* GF(2)-linearity (additivity over word_xor) of the reduction primitives.    *)
+(*                                                                           *)
+(* Both polyval_reduce_prop3 and ghash_reduce_raw are compositions of         *)
+(* GF(2)-linear word ops (word_subword, word_pmul BY A CONSTANT, word_xor,    *)
+(* word_join), hence additive.  These are the KEY lemmas (session 025,        *)
+(* advisor-directed route) that let the pipelined-GHASH Q19 fold DISTRIBUTE   *)
+(* the summed-lane hardware reduce over the 8 in-flight blocks, so each block *)
+(* individually fires GHASH_REDUCE_RAW_KARATSUBA_IS_DOT — replacing the       *)
+(* dead-end byteswap128(prop3 A) = prop3 B lane-match (sessions 020-024).      *)
+(*                                                                           *)
+(* PROOF RECIPE (the crux — prior sessions failed because WORD_BITWISE_RULE   *)
+(* cannot crack opaque `word_pmul a w`): first distribute the opaque pmuls    *)
+(* with `WORD_PMUL_XOR` (hol-light Library/words.ml) so every pmul atom is    *)
+(* SHARED across both sides, then push word_xor into the word_join lanes and  *)
+(* split into 64-bit lanes closed by WORD_BITWISE_RULE (pure XOR ring, NO     *)
+(* bit-blasting of pmul).  A whole-goal WORD_BLAST does NOT terminate in      *)
+(* practical time (it bit-blasts the pmuls); the lane-split is essential.     *)
+(* ------------------------------------------------------------------------- *)
+
+(* word_xor of two word_joins is the join of the xored lanes (64- and         *)
+(* 128-bit-lane variants) + lane-split helpers.                               *)
+let JOIN_XOR_LANE = WORD_BLAST
+  `word_xor (word_join (a:int64) (b:int64):int128) (word_join c d) =
+   word_join (word_xor a c) (word_xor b d)`;;
+
+let JOIN_XOR_128 = WORD_BLAST
+  `word_xor (word_join (a:int128) (b:int128):int256) (word_join c d) =
+   word_join (word_xor a c) (word_xor b d)`;;
+
+let JOIN_EQ_LANE = MESON[]
+  `(a:int64) = c /\ (b:int64) = d ==> word_join a b:int128 = word_join c d`;;
+
+let JOIN_EQ_128 = MESON[]
+  `(a:int128) = c /\ (b:int128) = d ==> word_join a b:int256 = word_join c d`;;
+
+(* polyval_reduce_prop3 distributes over word_xor. *)
+let PROP3_XOR = prove
+ (`!s t:256 word.
+     polyval_reduce_prop3 (word_xor s t) =
+     word_xor (polyval_reduce_prop3 s) (polyval_reduce_prop3 t)`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REWRITE_TAC[WORD_PMUL_XOR; WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[JOIN_XOR_LANE] THEN
+  MATCH_MP_TAC JOIN_EQ_LANE THEN CONJ_TAC THEN
+  CONV_TAC WORD_BITWISE_RULE);;
+
+(* ghash_reduce_raw is jointly additive in its three arguments.  Proved via   *)
+(* the polyval_reduce_g2 bridge (so its two nested pmul layers become a single *)
+(* prop3 of a linear argument) + PROP3_XOR + a 4-lane split.                   *)
+let GHASH_REDUCE_RAW_XOR = prove
+ (`!a1 a2 b1 b2 c1 c2:int128.
+     ghash_reduce_raw (word_xor a1 a2) (word_xor b1 b2) (word_xor c1 c2) =
+     word_xor (ghash_reduce_raw a1 b1 c1) (ghash_reduce_raw a2 b2 c2)`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_IS_POLYVAL_G2; POLYVAL_REDUCE_G2] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[GSYM PROP3_XOR] THEN
+  AP_TERM_TAC THEN
+  REWRITE_TAC[JOIN_XOR_128; JOIN_XOR_LANE] THEN
+  MATCH_MP_TAC JOIN_EQ_128 THEN CONJ_TAC THEN
+  MATCH_MP_TAC JOIN_EQ_LANE THEN CONJ_TAC THEN
+  CONV_TAC WORD_BITWISE_RULE);;
+
+(* ------------------------------------------------------------------------- *)
 (* Q19 GHASH-fold tactic (blocker A — sessions 017-022).                      *)
 (*                                                                           *)
 (* Applied to the body-end Q19 residual conjunct                              *)
