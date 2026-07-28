@@ -2531,6 +2531,80 @@ let A0_HI = prove
    = word_subword (word_xor (byteswap128 sofar) cb0) (64,64):int64`,
   REWRITE_TAC[byteswap128; WORD_SUBWORD_XOR] THEN CONV_TAC WORD_BLAST);;
 
+(* Per-block-0 reduce, in the EXACT raw swapped-lane form the body produces      *)
+(* (sofar's two 64-bit halves crossed with cb0's — the store-order byteswap):    *)
+(*   lo.lo  = word_xor (subword sofar (64,64)) (subword cb0 (0,64))              *)
+(*   hi.hi  = word_xor (subword sofar (0,64))  (subword cb0 (64,64))             *)
+(*   cross  = word_xor <hi-shape> <lo-shape>                                     *)
+(* This reduces to polyval_dot (byteswap128 sofar (x) cb0) b.  The block-0       *)
+(* accumulator byteswap is absorbed INSIDE this lemma (ABBREV byteswap128 sofar  *)
+(* so the swap-lane rewrites do not re-fire on their own output), which is why   *)
+(* the global fold A0_LO/A0_HI cannot be used directly on the body residual.     *)
+let KDOT_B0 = prove
+ (`!s c b:int128.
+    ghash_reduce_raw
+      (word_pmul (word_xor (word_subword s (64,64):int64) (word_subword c (0,64):int64))
+                 (word_subword b (0,64):int64):int128)
+      (word_pmul (word_xor (word_xor (word_subword s (0,64):int64) (word_subword c (64,64):int64))
+                           (word_xor (word_subword s (64,64):int64) (word_subword c (0,64):int64)))
+                 (karatsuba_mid b):int128)
+      (word_pmul (word_xor (word_subword s (0,64):int64) (word_subword c (64,64):int64))
+                 (word_subword b (64,64):int64):int128)
+    = polyval_dot (word_xor (byteswap128 s) c) b`,
+  REPEAT GEN_TAC THEN ABBREV_TAC `bs = byteswap128 (s:int128)` THEN
+  SUBGOAL_THEN `word_subword (s:int128) (64,64):int64 = word_subword (bs:int128) (0,64) /\
+                word_subword (s:int128) (0,64):int64 = word_subword (bs:int128) (64,64)`
+    (fun th -> REWRITE_TAC[th]) THENL
+   [EXPAND_TAC "bs" THEN REWRITE_TAC[byteswap128] THEN CONJ_TAC THEN CONV_TAC WORD_BLAST;
+    ALL_TAC] THEN
+  REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN REWRITE_TAC[KARATSUBA_IS_DOT_HW]);;
+
+(* The full body-order 8-block distribution WITH block-0 in raw form: the three  *)
+(* summed hardware lanes (block order [1;0;2;3;4;5;6;7] on lo.lo/hi.hi,          *)
+(* [1;0;3;2;5;4;7;6] on cross) reduce to the canonical XOR-sum of the eight      *)
+(* per-block polyval_dots, where block 0's dot argument carries the store-order  *)
+(* byteswap `byteswap128 s (x) c`.  This is the lemma that FIRES on the real     *)
+(* body-end residual (verified live: reassembled reduce -> this exact form).     *)
+let GHASH_REDUCE_RAW_DIST8_B0 = prove
+ (`!s c a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7:int128.
+    ghash_reduce_raw
+      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (word_pmul (word_subword a1 (0,64):int64) (word_subword b1 (0,64):int64):int128)
+        (word_pmul (word_xor (word_subword s (64,64):int64) (word_subword c (0,64):int64)) (word_subword b0 (0,64):int64):int128))
+        (word_pmul (word_subword a2 (0,64):int64) (word_subword b2 (0,64):int64):int128))
+        (word_pmul (word_subword a3 (0,64):int64) (word_subword b3 (0,64):int64):int128))
+        (word_pmul (word_subword a4 (0,64):int64) (word_subword b4 (0,64):int64):int128))
+        (word_pmul (word_subword a5 (0,64):int64) (word_subword b5 (0,64):int64):int128))
+        (word_pmul (word_subword a6 (0,64):int64) (word_subword b6 (0,64):int64):int128))
+        (word_pmul (word_subword a7 (0,64):int64) (word_subword b7 (0,64):int64):int128))
+      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (word_pmul (word_xor (word_subword a1 (64,64):int64) (word_subword a1 (0,64):int64)) (karatsuba_mid b1):int128)
+        (word_pmul (word_xor (word_xor (word_subword s (0,64):int64) (word_subword c (64,64):int64)) (word_xor (word_subword s (64,64):int64) (word_subword c (0,64):int64))) (karatsuba_mid b0):int128))
+        (word_pmul (word_xor (word_subword a3 (64,64):int64) (word_subword a3 (0,64):int64)) (karatsuba_mid b3):int128))
+        (word_pmul (word_xor (word_subword a2 (64,64):int64) (word_subword a2 (0,64):int64)) (karatsuba_mid b2):int128))
+        (word_pmul (word_xor (word_subword a5 (64,64):int64) (word_subword a5 (0,64):int64)) (karatsuba_mid b5):int128))
+        (word_pmul (word_xor (word_subword a4 (64,64):int64) (word_subword a4 (0,64):int64)) (karatsuba_mid b4):int128))
+        (word_pmul (word_xor (word_subword a7 (64,64):int64) (word_subword a7 (0,64):int64)) (karatsuba_mid b7):int128))
+        (word_pmul (word_xor (word_subword a6 (64,64):int64) (word_subword a6 (0,64):int64)) (karatsuba_mid b6):int128))
+      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (word_pmul (word_subword a1 (64,64):int64) (word_subword b1 (64,64):int64):int128)
+        (word_pmul (word_xor (word_subword s (0,64):int64) (word_subword c (64,64):int64)) (word_subword b0 (64,64):int64):int128))
+        (word_pmul (word_subword a2 (64,64):int64) (word_subword b2 (64,64):int64):int128))
+        (word_pmul (word_subword a3 (64,64):int64) (word_subword b3 (64,64):int64):int128))
+        (word_pmul (word_subword a4 (64,64):int64) (word_subword b4 (64,64):int64):int128))
+        (word_pmul (word_subword a5 (64,64):int64) (word_subword b5 (64,64):int64):int128))
+        (word_pmul (word_subword a6 (64,64):int64) (word_subword b6 (64,64):int64):int128))
+        (word_pmul (word_subword a7 (64,64):int64) (word_subword b7 (64,64):int64):int128))
+    = word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (polyval_dot (word_xor (byteswap128 s) c) b0) (polyval_dot a1 b1)) (polyval_dot a2 b2))
+        (polyval_dot a3 b3)) (polyval_dot a4 b4)) (polyval_dot a5 b5))
+        (polyval_dot a6 b6)) (polyval_dot a7 b7)`,
+  REPEAT GEN_TAC THEN
+  GEN_REWRITE_TAC (LAND_CONV o RATOR_CONV o RAND_CONV) [REORD_CROSS] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_XOR] THEN
+  REWRITE_TAC[KDOT_B0; KARATSUBA_IS_DOT_HW] THEN
+  CONV_TAC WORD_BITWISE_RULE);;
+
 (* ------------------------------------------------------------------------- *)
 (* Q19 GHASH-fold tactic (blocker A — sessions 017-022).                      *)
 (*                                                                           *)
