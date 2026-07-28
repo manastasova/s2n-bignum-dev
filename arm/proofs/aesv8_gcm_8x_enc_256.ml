@@ -2139,6 +2139,40 @@ let NSTEP n =
   RULE_ASSUM_TAC NORMOFF_RULE THEN
   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV));;
 
+(* ------------------------------------------------------------------------- *)
+(* GUARDED body stepper (session 021/022 — the Q19-fold breakthrough).        *)
+(*                                                                           *)
+(* NSTEP applies WORD_SIMPLE_SUBWORD_CONV after EVERY step.  The GHASH        *)
+(* accumulators Q17/Q18/Q19 are word_join-headed Karatsuba lane sums, and     *)
+(* that conv pushes word_subword INTO the joins, collapsing                   *)
+(* `word_subword(word_join a b)(0,64)`->b etc.  This destroys the `LO p1` /   *)
+(* `ext p1` structure `ghash_reduce_raw`'s definition needs, so the body-end  *)
+(* Q19 residual can no longer be folded back to ghash_reduce_raw (the         *)
+(* 5-session Q19 dead-end, sessions 017-021).                                 *)
+(*                                                                           *)
+(* NSTEP_G is NSTEP with the per-step subword conv SKIPPED on any assumption  *)
+(* whose read-component is Q17/Q18/Q19, preserving the accumulators' ext/LO   *)
+(* structure so the final Q19 stays ghash_reduce_raw-foldable.  The v0..v15   *)
+(* counter/ciphertext facts (all other registers) are still normalised as     *)
+(* before, so the cheap-close is unaffected.                                  *)
+let is_ghash_acc th =
+  let c = concl th in
+  can (find_term (fun t -> match t with
+      Comb(Const("read",_), r) ->
+        (match r with
+         | Const("Q17",_) | Const("Q18",_) | Const("Q19",_) -> true
+         | _ -> false)
+    | _ -> false)) c;;
+
+let NSTEP_G n =
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC [n] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
+    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
+  RULE_ASSUM_TAC NORMOFF_RULE THEN
+  RULE_ASSUM_TAC(fun th ->
+    if is_ghash_acc th then th
+    else CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th);;
+
 let INBLOCKS_TAC sname =
   let sv = mk_var(sname,`:armstate`) in
   let concl_tm = subst[sv,`s:armstate`]
@@ -2236,6 +2270,74 @@ let FLAG_LEM = prove
   MP_TAC(SPECL [`in_p:int64`; `128 * (k + 1)`] IV_ADD) THEN
   ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN DISCH_THEN SUBST1_TAC THEN
   REWRITE_TAC[INT_OF_NUM_LE] THEN ASM_ARITH_TAC);;
+
+(* ------------------------------------------------------------------------- *)
+(* Q19 GHASH-fold tactic (blocker A — sessions 017-022).                      *)
+(*                                                                           *)
+(* Applied to the body-end Q19 residual conjunct                              *)
+(*   `<raw ghash reduce of the 8 in-flight ciphertext blocks> =              *)
+(*    byteswap128(nist_ghash H tag0 (list_of_seq nist_cipher_block (8i+8)))`  *)
+(* AFTER splitting it off the raw post-FINAL_STATE conjunction but BEFORE the *)
+(* cheap-close (whose WORD_SIMPLE_SUBWORD_CONV would destroy the foldable     *)
+(* ext/LO structure — session 022 confirmed the fold FAILS post-cheap-close). *)
+(* NSTEP_G (guarded stepper) is what keeps the accumulator foldable through   *)
+(* the 339 body steps.                                                        *)
+(*                                                                           *)
+(* Chain (session 021/022, validated live end-to-end):                        *)
+(*  1. AC-swap the eor3 top XOR into ghash_reduce_raw's grouping;             *)
+(*  2. GSYM ghash_reduce_raw (RECON_GRR) — FIRES (LHS 186k->67k);             *)
+(*  3. GHASH_REDUCE_RAW_IS_POLYVAL_G2 (-> polyval_reduce_g2 P1 P3 P2);        *)
+(*  4. MATCH_MP_TAC BS_INVOL (flip the RHS byteswap onto the LHS);            *)
+(*  5. fold the RHS nist_ghash to a prop3 chain: NIST_GHASH_IS_POLYVAL +      *)
+(*     8(i+1)=SUC^8(8i) + list_of_seq + APPEND + GHASH_ACC_APPEND, then       *)
+(*     normalise the CONS SUC-form indices to +n (ADD1;GSYM ADD_ASSOC;        *)
+(*     NUM_ADD_CONV) so the batched ISPECL matches, then                      *)
+(*     GHASH_POLYVAL_ACC_BATCHED collapses it to prop3 B.                     *)
+(* The residual is the final lane-match                                       *)
+(*   `byteswap128(polyval_reduce_prop3 A) = polyval_reduce_prop3 B`           *)
+(* (A = the g2-Karatsuba lanes, B = the clean cipherblock (x) h_power chain,  *)
+(* differing by the store-order byteswap).  That lane-identity is CHEAT'd     *)
+(* here (the ONE remaining piece of blocker A — see the Q19_LANE_MATCH note   *)
+(* in the body-close comment); everything ABOVE it is genuinely proved.       *)
+let RECON_GRR = REWRITE_RULE[LET_DEF; LET_END_DEF] (GSYM ghash_reduce_raw);;
+
+let Q19_FOLD_TAC =
+  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+    `word_xor (word_xor (x:int128) e) p = word_xor (word_xor x p) e`] THEN
+  REWRITE_TAC[RECON_GRR] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_IS_POLYVAL_G2] THEN
+  MATCH_MP_TAC BS_INVOL THEN
+  REWRITE_TAC[NIST_GHASH_IS_POLYVAL] THEN
+  REWRITE_TAC[ARITH_RULE
+    `8 * (i + 1) = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * i))))))))`] THEN
+  REWRITE_TAC[list_of_seq] THEN REWRITE_TAC[GSYM APPEND_ASSOC] THEN
+  REWRITE_TAC[APPEND] THEN
+  REWRITE_TAC[GHASH_ACC_APPEND] THEN
+  REWRITE_TAC[ADD1; GSYM ADD_ASSOC] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+  MP_TAC(ISPECL
+    [`ghash_twist (aes256_cipher (word 0) rk)`;
+     `[nist_cipher_block nonce rk inblock (8*i+1);
+       nist_cipher_block nonce rk inblock (8*i+2);
+       nist_cipher_block nonce rk inblock (8*i+3);
+       nist_cipher_block nonce rk inblock (8*i+4);
+       nist_cipher_block nonce rk inblock (8*i+5);
+       nist_cipher_block nonce rk inblock (8*i+6);
+       nist_cipher_block nonce rk inblock (8*i+7)]:(int128)list`;
+     `ghash_polyval_acc (ghash_twist (aes256_cipher (word 0) rk)) tag0
+        (list_of_seq (nist_cipher_block nonce rk inblock) (8*i))`;
+     `nist_cipher_block nonce rk inblock (8*i)`]
+    GHASH_POLYVAL_ACC_BATCHED) THEN
+  REWRITE_TAC[LENGTH; ghash_wide] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
+  (* Final lane-match `byteswap128(prop3 A) = prop3 B` — CHEAT'd (the ONE      *)
+  (* remaining piece of blocker A).  A = g2 Karatsuba lanes over the 8 in-     *)
+  (* flight cipherblocks; B = the clean cipherblock (x) h_power chain; they    *)
+  (* differ by the store-order byteswap.  Session 022 reduced it (via x4       *)
+  (* byte-reassembly + ABBREV of the 8 cipherblocks/h_powers + pmul-atom       *)
+  (* abstraction) to a pure word_join/word_subword/word_xor/word_pmul          *)
+  (* identity over ~40 int128 vars, provable in principle by BITBLAST but      *)
+  (* too large in one shot; a lane-split BITBLAST is the next step.            *)
+  CHEAT_TAC;;
 
 let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -2559,12 +2661,12 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
       ALL_TAC] THEN
     RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_EXEC]
       `LENGTH aesv8_gcm_8x_enc_256_mc`]) THEN
-    MAP_EVERY NSTEP (1--294) THEN
+    MAP_EVERY NSTEP_G (1--294) THEN
     LDP_STEP4_TAC 295 THEN
-    MAP_EVERY NSTEP (296--302) THEN
+    MAP_EVERY NSTEP_G (296--302) THEN
     LDP_STEP4_TAC 303 THEN
     LDP_STEP4_TAC 304 THEN
-    MAP_EVERY NSTEP (305--339) THEN
+    MAP_EVERY NSTEP_G (305--339) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
     (* --- Cheap-conjunct close (session 016): validates the +2 counter fix.    *)
     (* The case-split bound is 8*((i+1)+1) (invariant out-forall at i is         *)
@@ -2573,52 +2675,70 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     (* AES256_CIPHER_KEYLIST collapses the residual explicit key list            *)
     (* `[EL 0 rk;..;EL 14 rk]` back to `rk` (the piece prior sessions missed —   *)
     (* XOR_AES256_CIPHER_RECONSTRUCT + MAP leaves the list, not `rk`).           *)
-    REWRITE_TAC[ARITH_RULE `j < 8 * ((i + 1) + 1) <=>
+    (* SESSION 022 RESTRUCTURE: split the RAW post-FINAL_STATE conjunction     *)
+    (* FIRST (before the cheap-close), so the Q19 GHASH-fold conjunct can be    *)
+    (* folded while its ext/LO structure is intact.  Session 022 CONFIRMED the  *)
+    (* cheap-close's WORD_SIMPLE_SUBWORD_CONV DESTROYS Q19's foldability (the    *)
+    (* GSYM ghash_reduce_raw fold-back fails post-cheap-close), so Q19 MUST be   *)
+    (* peeled off before it runs.  `REPEAT CONJ_TAC` yields 20 atomic goals     *)
+    (* (18 cheap + 1 Q19 + 1 flag); the per-goal dispatcher routes each:        *)
+    (*   - Q19 (is_eq, RHS headed by byteswap128): Q19_FOLD_TAC (genuine down   *)
+    (*     to the final lane-match, which is CHEAT'd inside Q19_FOLD_TAC);       *)
+    (*   - everything else: the cheap-close rewrites (which also handle the      *)
+    (*     out-forall case-split), then a nested split + flag-close / CHEAT for  *)
+    (*     the out-forall (blocker B, advisor-gated).                           *)
+    REPEAT CONJ_TAC THEN
+    (fun (asl,w as gl) ->
+      if is_eq w &&
+         (try fst(dest_const(fst(strip_comb(rhs w)))) = "byteswap128"
+          with _ -> false)
+      then Q19_FOLD_TAC gl
+      else
+       (REWRITE_TAC[ARITH_RULE `j < 8 * ((i + 1) + 1) <=>
                             j < 8 * (i+1) \/ j = 8*(i+1) \/ j = 8*(i+1) + 1 \/
                             j = 8*(i+1) + 2 \/ j = 8*(i+1) + 3 \/ j = 8*(i+1) + 4 \/
                             j = 8*(i+1) + 5 \/ j = 8*(i+1) + 6 \/ j = 8*(i+1) + 7`] THEN
-    ASM_REWRITE_TAC[TAUT `p \/ q ==> r <=> (p ==> r) /\ (q ==> r)`] THEN
-    REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
-    REWRITE_TAC[ARITH_RULE `16 * (8 * (i+1) + b) = 128 * (i+1) + 16 * b`] THEN
-    REWRITE_TAC[ARITH_RULE `16 * 8 * (i+1) = 128 * (i+1)`] THEN
-    CONV_TAC(DEPTH_CONV NUM_MULT_CONV) THEN ASM_REWRITE_TAC[] THEN
-    REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS_32; WORD_SUBWORD_CTR_BLOCK_32] THEN
-    REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN
-    REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8; CTR_BLOCK_RECONSTRUCT_REV32] THEN
-    ONCE_REWRITE_TAC[WORD_BITWISE_RULE
-      `word_xor (word_xor (inb:int128) ch) rk14 =
-       word_xor ch (word_xor rk14 inb)`] THEN
-    REWRITE_TAC[XOR_AES256_CIPHER_RECONSTRUCT] THEN
-    ASM_REWRITE_TAC[MAP; WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
-    REWRITE_TAC[aes_ctr_block; GSYM ADD_ASSOC] THEN
-    CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN ASM_REWRITE_TAC[] THEN
-    REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
-    CONV_TAC NUM_REDUCE_CONV THEN
-    REWRITE_TAC[WORD_ADD; GSYM WORD_ADD_ASSOC] THEN
-    ASM_SIMP_TAC[WORD_SUB; LT_IMP_LE; ARITH_RULE `i < l ==> i + 1 <= l`] THEN
-    REWRITE_TAC[ADD_ASSOC; ARITH] THEN
-    REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
-    REWRITE_TAC[GSYM cipher_block] THEN
-    REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
-    REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
-    SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
-    REWRITE_TAC[WORD_SUBWORD_XOR] THEN
-    REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
-    CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-    REWRITE_TAC[WORD_SUBWORD_XOR] THEN
-    CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-    REPEAT(CONJ_TAC THENL [CONV_TAC WORD_RULE; ALL_TAC]) THEN
-    REWRITE_TAC[AES256_CIPHER_KEYLIST] THEN
-    (* --- Remaining after cheap-close (session 016 diagnosis): exactly THREE    *)
-    (* obligations survive (the ~49 cheap conjuncts + all 16 ciphertext          *)
-    (* out-blocks now CLOSE, validating the +2 counter fix end-to-end):          *)
-    (*   (A) Q19 GHASH fold (~186k chars): x4 reload_full 1043-1107 scaled 4->8, *)
-    (*       drafted in /tmp/s012_q19_stage.ml (byteswap128 BITBLAST wrapper;     *)
-    (*       ABBREV sofar/cipherblock_0..7/h0..h7; TRANS_TAC to                   *)
-    (*       polyval_reduce_prop3(8-term pmul); PMUL_KARATSUBA_JOIN_ALT +         *)
-    (*       karatsuba_mid + POLYVAL_REDUCE_G2 + BITBLAST; then                   *)
-    (*       GHASH_POLYVAL_ACC_BATCHED + NIST_GHASH_IS_POLYVAL + list_of_seq +    *)
-    (*       GHASH_ACC_APPEND).                                                   *)
+        ASM_REWRITE_TAC[TAUT `p \/ q ==> r <=> (p ==> r) /\ (q ==> r)`] THEN
+        REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
+        REWRITE_TAC[ARITH_RULE `16 * (8 * (i+1) + b) = 128 * (i+1) + 16 * b`] THEN
+        REWRITE_TAC[ARITH_RULE `16 * 8 * (i+1) = 128 * (i+1)`] THEN
+        CONV_TAC(DEPTH_CONV NUM_MULT_CONV) THEN ASM_REWRITE_TAC[] THEN
+        REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS_32; WORD_SUBWORD_CTR_BLOCK_32] THEN
+        REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN
+        REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8; CTR_BLOCK_RECONSTRUCT_REV32] THEN
+        ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+          `word_xor (word_xor (inb:int128) ch) rk14 =
+           word_xor ch (word_xor rk14 inb)`] THEN
+        REWRITE_TAC[XOR_AES256_CIPHER_RECONSTRUCT] THEN
+        ASM_REWRITE_TAC[MAP; WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+        REWRITE_TAC[aes_ctr_block; GSYM ADD_ASSOC] THEN
+        CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN ASM_REWRITE_TAC[] THEN
+        REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
+        CONV_TAC NUM_REDUCE_CONV THEN
+        REWRITE_TAC[WORD_ADD; GSYM WORD_ADD_ASSOC] THEN
+        ASM_SIMP_TAC[WORD_SUB; LT_IMP_LE; ARITH_RULE `i < l ==> i + 1 <= l`] THEN
+        REWRITE_TAC[ADD_ASSOC; ARITH] THEN
+        REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
+        REWRITE_TAC[GSYM cipher_block] THEN
+        REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+        REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+        SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+        REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+        REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+        CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+        REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+        CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+        REPEAT(CONJ_TAC THENL [CONV_TAC WORD_RULE; ALL_TAC]) THEN
+        REWRITE_TAC[AES256_CIPHER_KEYLIST]) gl) THEN
+    (* --- Remaining after the split-first dispatcher (session 022):             *)
+    (* the ~18 cheap conjuncts + all 16 ciphertext out-blocks CLOSE (validating  *)
+    (* the +2 counter fix end-to-end).  Three obligations remain, TWO now GONE:  *)
+    (*   (A) Q19 GHASH fold: NOW WIRED via NSTEP_G + the split-first dispatcher   *)
+    (*       + Q19_FOLD_TAC (above), which folds the raw body-end reduce all the  *)
+    (*       way to the final lane-match `byteswap128(prop3 A)=prop3 B` — that    *)
+    (*       ONE lane-identity is the sole remaining CHEAT of blocker A (inside   *)
+    (*       Q19_FOLD_TAC).  Everything from the raw ghash reduce down to the     *)
+    (*       lane-match is genuinely proved (5-session Q19 dead-end resolved).    *)
     (*   (B) OLD out-forall (!j. j<8*(i+1) ==> read(out+16j) s = ...): the        *)
     (*       incoming invariant out-forall is DROPPED by ASSUMPTION_STATE_UPDATE  *)
     (*       at the first ciphertext store (step 330).  ROOT CAUSE (session 016): *)
