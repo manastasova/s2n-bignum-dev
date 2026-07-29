@@ -3375,8 +3375,30 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
 (*                                                                           *)
 (* STATUS (s031): interface pinned, body CHEAT'd - the 282-step symbolic exec *)
 (* + counter/ciphertext/AES reconstruction is the next fill (mirrors the      *)
-(* MAIN_LOOP body cheap-close + AES_SETUP recipe).  end_p / no-wrap discharge  *)
-(* from block-aligned bit_len = 128*nb via ((16*nb-1)&~127)=128*(k+1).        *)
+(* MAIN_LOOP body cheap-close + AES_SETUP recipe).                            *)
+(*                                                                           *)
+(* SESSION 031 DE-RISKING (body proof recipe, VALIDATED on the warm server):  *)
+(*  - INIT + a SETUP-specific input SUBGOAL for blocks 0..7 at                 *)
+(*    word_add in_p (word (16*j)) (NOT the loop body's 128*(i+1)+off) proves   *)
+(*    by `REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC`.   *)
+(*  - `MAP_EVERY NSTEP (1--252)` steps CLEAN (counter build + 14-round AES +   *)
+(*    tag load); reuse the file's NSTEP/NORMOFF/LDP_STEP4 machinery verbatim.  *)
+(*    ldp[x0]#32 at steps 255/256/264/265 (256/264/265 need LDP_STEP4-style);  *)
+(*    stp[x2]#32 at 270/271/278/280; apply the s009 LENGTH->4604 rewrite.      *)
+(*  - THE TWO BRANCH DISCHARGES (the real work): step 254 = b.ge@0x424 (tail   *)
+(*    check) and step 282 = b.ge@0x494 (prepretail check).  Each emits a       *)
+(*    conditional PC `if in_p >=_s X5 then <skip> else <fall through>` with     *)
+(*    X5 = in_p + ((16*nb-1) & ~127).  Discharge `in_p < end_p` via the        *)
+(*    file's BRIDGE_GE + IV_ADD signed-ptr lemmas (as the MAIN_LOOP flag       *)
+(*    close does).  KEY IDENTITY (why the premise `8*(k+2)=nb`): for nb=8m,     *)
+(*    (16*nb-1)&~127 = 128*(m-1), so main-loop-end = in_p+128*(m-1) and the     *)
+(*    LAST 8-group is drained by prepretail -> k+1 = m-1 -> k = nb DIV 8 - 2.   *)
+(*    (The `8*(k+2)=nb` premise is the s031 hypothesis for this; VERIFY it      *)
+(*    against the real branch + reconcile with the P8 tail / P9 assembly.)     *)
+(*  - FINAL_STATE reconstruction mirrors the MAIN_LOOP body cheap-close        *)
+(*    (XOR_AES256_CIPHER_RECONSTRUCT + AES_CTR_BLOCK_RECONSTRUCT +             *)
+(*    AES256_CIPHER_KEYLIST for Q8..Q15; CTR_BLOCK_RECONSTRUCT_* for Q0..Q4;   *)
+(*    plain Q19 = nist_ghash..(8*0) = tag0, PROVED trivially s031).            *)
 (* ========================================================================= *)
 
 let AESV8_GCM_8X_ENC_256_SETUP = prove
@@ -3385,7 +3407,7 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
     ~(k = 0) /\
     8 * (k + 1) <= nb /\
     bit_len = 128 * nb /\
-    k = nb DIV 8 - 1 /\
+    8 * (k + 2) = nb /\
     end_p = word_add in_p (word (128 * (k + 1))) /\
     val in_p + 128 * (k + 1) < 2 EXP 63 /\
     nonoverlapping (out_p, 16 * nb)
