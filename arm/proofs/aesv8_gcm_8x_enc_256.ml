@@ -3564,6 +3564,29 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     ARM_SIM_TAC AESV8_GCM_8X_ENC_256_EXEC [1] THEN
     ASM_REWRITE_TAC[]]);;
 
+(* SESSION 035: the SETUP Q30 (rev32 next-group counter) reconstruction.  A    *)
+(* monolithic `REWRITE_TAC[ctr_block] THEN WORD_BLAST` on the whole Q30        *)
+(* word_join HANGS (>120s, ignores SIGINT) because it bit-blasts the symbolic  *)
+(* 96-bit nonce whole.  Lane-decomposition is instant: each 32-bit lane shares *)
+(* the symbolic nonce structurally so WORD_BLAST matches it without blasting.  *)
+(* Combine with CTR_BLOCK_RECONSTRUCT_REV32 (@~1538) to assemble the full      *)
+(* word_reversefields 32 (ctr_block nonce 15).  Validated s035.                *)
+let SETUP_Q30_LANES = prove
+ (`(word_add (word_add
+      (word_reversefields 8
+        (word_subword (word_reversefields 8 (ctr_block nonce 2)) (96,32):int32))
+      (word 12)) (word 1):int32 = word 15) /\
+   (word_add (word_reversefields 8
+      (word_subword (word_reversefields 8 (ctr_block nonce 2)) (64,32):int32)) (word 0):int32
+    = word_subword nonce (0,32)) /\
+   (word_add (word_reversefields 8
+      (word_subword (word_reversefields 8 (ctr_block nonce 2)) (32,32):int32)) (word 0):int32
+    = word_subword nonce (32,32)) /\
+   (word_add (word_reversefields 8
+      (word_subword (word_reversefields 8 (ctr_block nonce 2)) (0,32):int32)) (word 0):int32
+    = word_subword nonce (64,32))`,
+  REWRITE_TAC[ctr_block] THEN CONV_TAC WORD_BLAST);;
+
 (* ========================================================================= *)
 (* P7 - SETUP (pipeline fill).  Core entry pc+0x30 (just after the prologue's *)
 (* stack adjust + callee-save spills + mod-const store + X9/X16/X11/X10       *)
@@ -3838,22 +3861,54 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
   (* head — is_neg->flag(SETUP_GE_FALSE_2); is_forall->out-forall; is_eq split by *)
   (* (lhd,rhd): read/word_xor->AES ciphertext; word_join/nist_ghash->Q19=tag0;    *)
   (* word_join/word_reversefields->counter (lanes-then-mono); word_add->ptr/X4/X5.*)
-  (* ~~~ REAL BLOCKER (s034, NOT yet fixed) ~~~                                   *)
-  (* Q8..Q15 CIPHERTEXT REGISTER FACTS ARE DROPPED before FINAL_STATE.  Probe     *)
-  (* (/tmp/s034_mini.out): s263_hasQ8=NO AND s282_hasQ8=NO — no `read Q8..Q15 sN` *)
-  (* hyp survives (only Q0-Q7,Q19,Q26-Q31 do — /tmp/s034_qregs.txt), so goals     *)
-  (* G07-G14 `read Q8..Q15 s282 = word_xor(aes_ctr_block j)(inblock j)` are       *)
-  (* UNCONSTRAINED and cannot close.  ROOT: Q8..Q15 are loaded at 0x428-0x450,    *)
-  (* AES+eor3 processed, STORED via `stp q,q,[x2],#32` at 0x464/0x468/0x484/0x48c *)
-  (* and never reloaded; plain NSTEP's DISCARD_OLDSTATE drops the register facts  *)
-  (* once the store advances X2 (dropped already by s263 — the store-side LDP_    *)
-  (* STEP4 analogue).  MAIN_LOOP avoids this because it RELOADS Q8..Q15 fresh at  *)
-  (* 0x8b0/0x930/0x950/0x954 near body-end.                                       *)
-  (* FIX (next session): a store-side retention tactic for the AES-region steps   *)
-  (* that store Q8..Q15 — e.g. ARM_VERBOSE_STEP over the stp, re-ASSUME           *)
-  (* `read Q8..Q15 sN = <value>` (they are unchanged by the store), THEN          *)
-  (* DISCARD_OLDSTATE; OR SUBGOAL-pin Q8..Q15 just before the first stp and carry *)
-  (* the pins (non-consuming FIRST_ASSUM) through to FINAL_STATE.  Then the       *)
-  (* dispatcher above closes G07-G14.  Reserve NSTEP for the non-store steps.     *)
+  (* ~~~ SESSION 035: Q8..Q15 DROP FIXED (s034 root cause was WRONG) ~~~          *)
+  (* s034 claimed Q8..Q15 drop at the `stp` store (steps 270-280) via             *)
+  (* DISCARD_OLDSTATE.  REFUTED empirically: Q8 is already absent at s255 — right *)
+  (* after the FIRST `ldp q8,q9,[x0],#32`@0x428 (step 255), BEFORE any store       *)
+  (* (/tmp/s035_probe2/3: s255_Q8_RHS = `read(memory:>bytes128 in_p) s254`, an    *)
+  (* UNRESOLVED opaque load).  REAL cause: the block-0 ldp reads at bare `in_p`,  *)
+  (* but SETUP_INBLOCKS_TAC's memfact address is `word_add in_p (word (16*0))`    *)
+  (* (unreduced) — no syntactic match, so REWRITE_RULE memfacts doesn't fire, the *)
+  (* load stays opaque, and DISCARD_OLDSTATE drops it.  FIX (committed s035):     *)
+  (* LDP_SETUP_TAC now NORMALIZES the memfacts (NUM_MULT_CONV reduces `16*j`;     *)
+  (* WORD_ADD_0 collapses `word_add in_p (word 0)`->in_p) before the substitute.  *)
+  (* With the fix, ALL Q8..Q15 survive to s282 (/tmp/s035_probe4).                *)
+  (*                                                                             *)
+  (* DISPATCHER (s035, /tmp/s035_final.ml — 34 conjuncts split by REPEAT         *)
+  (* CONJ_TAC; NB htable_mem_8 stays FOLDED, do NOT unfold — 23 atomic goals):   *)
+  (*   drive: INIT + s009 LENGTH rewrite + NSTEP(1-253) + branch254              *)
+  (*     SETUP_BRANCH_COND_FALSE + LDP_SETUP_TAC 255/256 + NSTEP(257-263) +       *)
+  (*     LDP_SETUP_TAC 264/265 + NSTEP(266-281) + NSTEP 282 +                     *)
+  (*     SETUP_BRANCH_COND_FALSE_2 + FINAL_STATE + ASM_REWRITE + REPEAT CONJ_TAC. *)
+  (*   post-fix goal shapes + status (disp2 live-goal test):                     *)
+  (*     word_add=word_add (ptrs/X4/X5, 4): CLOSE — WORD_RULE / X4 word_ushr /    *)
+  (*       X5_END_PTR.  [validated]                                              *)
+  (*     word_join=word_reversefields (Q0-Q4 rev8 + Q30 rev32, 6): CLOSE —        *)
+  (*       NUM_REDUCE + CTR_BLOCK_RECONSTRUCT_REV8/REV32 + SETUP_Q30_LANES        *)
+  (*       (+ ctr_block/WORD_BLAST fallback).  [validated]                        *)
+  (*     word_join=nist_ghash (Q19=tag0, 1): CLOSE — NUM_REDUCE + list_of_seq +   *)
+  (*       NIST_GHASH_NIL + WORD_BLAST.  [validated]                             *)
+  (*     word_xor=word_xor (Q8-Q15 ciphertext, 8): NOT YET closed.  After         *)
+  (*       ASM_REWRITE the LHS is the eor3 form `word_xor(word_xor(inblock j)     *)
+  (*       (aese..))rk14`.  MUST use the MAIN_LOOP ciphertext chain (file         *)
+  (*       ~3442-3465) ending at AES256_CIPHER_KEYLIST — do NOT append            *)
+  (*       ctr_block+WORD_BLAST (WORD_BLAST CANNOT blast through aes256_cipher;    *)
+  (*       that was the s035_final crash).  The residual after the chain needs    *)
+  (*       relating the SETUP-built keystream v0..v7 (rev32 of the fresh counter, *)
+  (*       arg `word_join nonce (word 1)`-shaped) to `aes_ctr_block nonce rk j`   *)
+  (*       via AES_CTR_BLOCK_RECONSTRUCT — verify the counter arg matches `j+2`.  *)
+  (*       NEXT SESSION: capture the post-KEYLIST residual on ONE Q8 goal (avoid  *)
+  (*       the rotation-while loop — it churns; use REPEAT CONJ_TAC THEN a        *)
+  (*       shape-guarded closer, or peel the 8 ciphertext conjuncts by position). *)
+  (*     OTHER (htable_mem_8 folded, 1): needs ASM_REWRITE[htable_mem_8] or the   *)
+  (*       MAIN_LOOP htable closer — verify.                                      *)
+  (*     FORALL (out-forall j<8*(0+1), 1): case-split j=0..7 + ciphertext chain.  *)
+  (*     NEG (flag (NF<=>VF)<=>(0=k), 1): BRIDGE_GE + SETUP_GE_FALSE_2 — the      *)
+  (*       disp2 form left a residual; check the exact biconditional shape.       *)
+  (*     read=word (stack mod const, 1): ASM_REWRITE + numeral-normalize          *)
+  (*       (word 0xc2..0 vs word 13979173243358019584 — same value).             *)
+  (* SETUP_Q30_LANES is now a committed lemma (@~line 3567).  The LDP fix is      *)
+  (* committed in LDP_SETUP_TAC.  REMAINING: the ciphertext-chain residual +      *)
+  (* the 4 small closers (htable/forall/flag/stack), then commit CHEAT-free.     *)
   (* ========================================================================= *)
   CHEAT_TAC);;
