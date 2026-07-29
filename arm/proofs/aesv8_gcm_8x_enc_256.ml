@@ -2605,6 +2605,59 @@ let GHASH_REDUCE_RAW_DIST8_B0 = prove
   REWRITE_TAC[KDOT_B0; KARATSUBA_IS_DOT_HW] THEN
   CONV_TAC WORD_BITWISE_RULE);;
 
+(* SESSION 029 (route c — HUMAN-directed re-examination of the x8 Q19 invariant): *)
+(* the body-order 8-block distribution with ALL blocks in the CLEAN (non-crossed) *)
+(* form — block order [1;0;2;3;4;5;6;7] on lo.lo/hi.hi, [1;0;3;2;5;4;7;6] on the *)
+(* cross lane — reduces to the canonical XOR-sum of the eight per-block           *)
+(* polyval_dots.  This is the PLAIN analogue of GHASH_REDUCE_RAW_DIST8_B0 (which  *)
+(* carries the store-order byteswap on block 0): it FIRES on the body-end Q19     *)
+(* residual once the Q19 loop-invariant conjunct is stated WITHOUT the            *)
+(* `byteswap128` wrapper (`read Q19 s = nist_ghash..8i`, not                       *)
+(* `byteswap128(nist_ghash..8i)`).  Session 029 established EMPIRICALLY (via a     *)
+(* faithful re-derivation of the H2 body residual) that under the plain invariant *)
+(* block 0 enters the reduce as the ordinary `nist_cipher_block (x) sofar`        *)
+(* (NO store-order byteswap), so DIST8_B0's block-0 crossing is neither needed    *)
+(* nor matched — this lemma is.  Same proof shape as DIST8_B0 minus KDOT_B0.       *)
+let GHASH_REDUCE_RAW_DIST8_PLAIN = prove
+ (`!a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7:int128.
+    ghash_reduce_raw
+      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (word_pmul (word_subword a1 (0,64):int64) (word_subword b1 (0,64):int64):int128)
+        (word_pmul (word_subword a0 (0,64):int64) (word_subword b0 (0,64):int64):int128))
+        (word_pmul (word_subword a2 (0,64):int64) (word_subword b2 (0,64):int64):int128))
+        (word_pmul (word_subword a3 (0,64):int64) (word_subword b3 (0,64):int64):int128))
+        (word_pmul (word_subword a4 (0,64):int64) (word_subword b4 (0,64):int64):int128))
+        (word_pmul (word_subword a5 (0,64):int64) (word_subword b5 (0,64):int64):int128))
+        (word_pmul (word_subword a6 (0,64):int64) (word_subword b6 (0,64):int64):int128))
+        (word_pmul (word_subword a7 (0,64):int64) (word_subword b7 (0,64):int64):int128))
+      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (word_pmul (word_xor (word_subword a1 (64,64):int64) (word_subword a1 (0,64):int64)) (karatsuba_mid b1):int128)
+        (word_pmul (word_xor (word_subword a0 (64,64):int64) (word_subword a0 (0,64):int64)) (karatsuba_mid b0):int128))
+        (word_pmul (word_xor (word_subword a3 (64,64):int64) (word_subword a3 (0,64):int64)) (karatsuba_mid b3):int128))
+        (word_pmul (word_xor (word_subword a2 (64,64):int64) (word_subword a2 (0,64):int64)) (karatsuba_mid b2):int128))
+        (word_pmul (word_xor (word_subword a5 (64,64):int64) (word_subword a5 (0,64):int64)) (karatsuba_mid b5):int128))
+        (word_pmul (word_xor (word_subword a4 (64,64):int64) (word_subword a4 (0,64):int64)) (karatsuba_mid b4):int128))
+        (word_pmul (word_xor (word_subword a7 (64,64):int64) (word_subword a7 (0,64):int64)) (karatsuba_mid b7):int128))
+        (word_pmul (word_xor (word_subword a6 (64,64):int64) (word_subword a6 (0,64):int64)) (karatsuba_mid b6):int128))
+      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (word_pmul (word_subword a1 (64,64):int64) (word_subword b1 (64,64):int64):int128)
+        (word_pmul (word_subword a0 (64,64):int64) (word_subword b0 (64,64):int64):int128))
+        (word_pmul (word_subword a2 (64,64):int64) (word_subword b2 (64,64):int64):int128))
+        (word_pmul (word_subword a3 (64,64):int64) (word_subword b3 (64,64):int64):int128))
+        (word_pmul (word_subword a4 (64,64):int64) (word_subword b4 (64,64):int64):int128))
+        (word_pmul (word_subword a5 (64,64):int64) (word_subword b5 (64,64):int64):int128))
+        (word_pmul (word_subword a6 (64,64):int64) (word_subword b6 (64,64):int64):int128))
+        (word_pmul (word_subword a7 (64,64):int64) (word_subword b7 (64,64):int64):int128))
+    = word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
+        (polyval_dot a0 b0) (polyval_dot a1 b1)) (polyval_dot a2 b2))
+        (polyval_dot a3 b3)) (polyval_dot a4 b4)) (polyval_dot a5 b5))
+        (polyval_dot a6 b6)) (polyval_dot a7 b7)`,
+  REPEAT GEN_TAC THEN
+  GEN_REWRITE_TAC (LAND_CONV o RATOR_CONV o RAND_CONV) [REORD_CROSS] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_XOR] THEN
+  REWRITE_TAC[KARATSUBA_IS_DOT_HW] THEN
+  CONV_TAC WORD_BITWISE_RULE);;
+
 (* ------------------------------------------------------------------------- *)
 (* Q19 GHASH-fold tactic (blocker A — sessions 017-022).                      *)
 (*                                                                           *)
@@ -2635,12 +2688,42 @@ let GHASH_REDUCE_RAW_DIST8_B0 = prove
 (* in the body-close comment); everything ABOVE it is genuinely proved.       *)
 let RECON_GRR = REWRITE_RULE[LET_DEF; LET_END_DEF] (GSYM ghash_reduce_raw);;
 
+(* SESSION 029 — ROUTE (c), blocker A CLOSED (no CHEAT).  The 5-session Q19    *)
+(* dead-end (s018-028) was caused by the P5 invariant stating the Q19          *)
+(* accumulator conjunct WITH a `byteswap128` wrapper                            *)
+(*   read Q19 s = byteswap128(nist_ghash..8i)                                   *)
+(* whereas the x8 body PRESERVES the PLAIN form                                 *)
+(*   read Q19 s = nist_ghash..8i.                                               *)
+(* ROOT CAUSE of the divergence from x4: x4 has BOTH a leading `ext v17`        *)
+(* AND a TRAILING `ext v11` at body-end (byteswap-parity 1); x8 has ONLY the    *)
+(* leading `ext v19`@0x4cc and NO trailing ext (byteswap-parity 0).  Under the  *)
+(* byteswapped invariant the body-end reduce (parity 0) could never match the   *)
+(* byteswap-wrapped RHS (parity 1) — the odd-parity gap that BS_INVOL/BS_INJ    *)
+(* only move side-to-side (s028).  With the PLAIN invariant the body-end reduce *)
+(* (parity 0) matches the plain RHS (parity 0) and the fold closes cleanly via  *)
+(* the flat 8-`polyval_dot`-sum route.  Established empirically (session 029)    *)
+(* by re-deriving the H2 body residual: block 0 enters the reduce as the        *)
+(* ordinary clean `nist_cipher_block (x) sofar` (no store-order byteswap), so    *)
+(* the fold uses GHASH_REDUCE_RAW_DIST8_PLAIN (all blocks clean), NOT DIST8_B0.  *)
 let Q19_FOLD_TAC =
   ONCE_REWRITE_TAC[WORD_BITWISE_RULE
     `word_xor (word_xor (x:int128) e) p = word_xor (word_xor x p) e`] THEN
   REWRITE_TAC[RECON_GRR] THEN
-  REWRITE_TAC[GHASH_REDUCE_RAW_IS_POLYVAL_G2] THEN
-  MATCH_MP_TAC BS_INVOL THEN
+  (* Reassemble the 8 cipherblocks (no EXT_BS: the plain invariant leaves no    *)
+  (* store-order byteswap on the accumulator to cancel).                        *)
+  REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  (* Re-fold the block-accumulator's distributed subwords                        *)
+  (* (subword X (x) subword Y -> subword(X (x) Y)) so DIST8_PLAIN's lo.lo/hi.hi  *)
+  (* lanes match, then distribute the reduce over the 8 clean blocks.            *)
+  REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_DIST8_PLAIN] THEN
+  (* RHS: fold nist_ghash..8(i+1) to prop3(pmul chain) — plain, no BS_INVOL.     *)
   REWRITE_TAC[NIST_GHASH_IS_POLYVAL] THEN
   REWRITE_TAC[ARITH_RULE
     `8 * (i + 1) = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * i))))))))`] THEN
@@ -2663,7 +2746,20 @@ let Q19_FOLD_TAC =
     GHASH_POLYVAL_ACC_BATCHED) THEN
   REWRITE_TAC[LENGTH; ghash_wide] THEN CONV_TAC NUM_REDUCE_CONV THEN
   DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
-  (* Final lane-match `byteswap128(prop3 A) = prop3 B` — CHEAT'd (the ONE      *)
+  (* Both sides are now the SAME 8-block field element, byteswap-free: collapse *)
+  (* the LHS XOR-of-polyval_dot to a single prop3 (GF(2)-linearity, PROP3_XOR)  *)
+  (* and match the pmul-sums by GF(2) XOR-AC.                                    *)
+  REWRITE_TAC[ADD_0] THEN
+  REWRITE_TAC[polyval_dot] THEN
+  REWRITE_TAC[GSYM PROP3_XOR] THEN
+  AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
+
+(* ---- historical note (blocker A resolution, sessions 018-029) --------------- *)
+(* The comment below documents the DEAD routes so future sessions don't retry    *)
+(* them.  Route (c) [drop the byteswap128 invariant wrapper] closed the fold.     *)
+(* OLD (superseded) tactic tail, kept for the diagnosis it records:              *)
+(*   ... MATCH_MP_TAC BS_INVOL ... then CHEAT'd the lane-match                    *)
+(*   Final lane-match `byteswap128(prop3 A) = prop3 B` — CHEAT'd (the ONE      *)
   (* remaining piece of blocker A).  A = g2 Karatsuba lanes over the 8 in-     *)
   (* flight cipherblocks; B = the clean cipherblock (x) h_power chain; they    *)
   (* differ by the store-order byteswap.                                       *)
@@ -2749,7 +2845,12 @@ let Q19_FOLD_TAC =
   (*    POLYVAL_REDUCE_PROP3_CORRECT (prop3 t * x^128 == poly_of_word t mod Q) *)
   (*    giving byteswap128 (half-swap) a polynomial meaning — real math, not   *)
   (*    plumbing.  Do NOT open a 4th shortcut route without human direction.   *)
-  CHEAT_TAC;;
+  (* SESSION 029 RESOLUTION (route c, human-directed): the human's diagnosis   *)
+  (* was correct — the parity gap was NOT intrinsic; it was the invariant's    *)
+  (* byteswap128 wrapper.  Dropping it (plain `read Q19 = nist_ghash..8i` in    *)
+  (* pre/inv/post) makes the body-end reduce (parity 0) match the plain RHS     *)
+  (* (parity 0), and the fold closes via GHASH_REDUCE_RAW_DIST8_PLAIN + the     *)
+  (* flat-sum route with NO byteswap crossing.  See the new Q19_FOLD_TAC above. *)
 
 let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -2811,9 +2912,8 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
            read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 15)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            read Q19 s =
-             byteswap128
-              (nist_ghash (aes256_cipher (word 0) rk) tag0
-                 (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0))) /\
+             nist_ghash (aes256_cipher (word 0) rk) tag0
+                 (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0)) /\
            read Q8 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 0)) (inblock (8 * 0 + 0)) /\
            read Q9 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 1)) (inblock (8 * 0 + 1)) /\
            read Q10 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 2)) (inblock (8 * 0 + 2)) /\
@@ -2880,9 +2980,8 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
            read Q30 s = word_reversefields 32 (ctr_block nonce (8 * k + 15)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            read Q19 s =
-             byteswap128
-              (nist_ghash (aes256_cipher (word 0) rk) tag0
-                 (list_of_seq (nist_cipher_block nonce rk inblock) (8 * k))) /\
+             nist_ghash (aes256_cipher (word 0) rk) tag0
+                 (list_of_seq (nist_cipher_block nonce rk inblock) (8 * k)) /\
            read Q8 s = word_xor (aes_ctr_block nonce rk (8 * k + 0)) (inblock (8 * k + 0)) /\
            read Q9 s = word_xor (aes_ctr_block nonce rk (8 * k + 1)) (inblock (8 * k + 1)) /\
            read Q10 s = word_xor (aes_ctr_block nonce rk (8 * k + 2)) (inblock (8 * k + 2)) /\
@@ -2952,9 +3051,8 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
             read Q30 s = word_reversefields 32 (ctr_block nonce (8 * i + 15)) /\
             read Q31 s = word 79228162514264337593543950336 /\
             read Q19 s =
-              byteswap128
-               (nist_ghash (aes256_cipher (word 0) rk) tag0
-                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * i))) /\
+              nist_ghash (aes256_cipher (word 0) rk) tag0
+                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * i)) /\
             read Q8 s = word_xor (aes_ctr_block nonce rk (8 * i + 0)) (inblock (8 * i + 0)) /\
             read Q9 s = word_xor (aes_ctr_block nonce rk (8 * i + 1)) (inblock (8 * i + 1)) /\
             read Q10 s = word_xor (aes_ctr_block nonce rk (8 * i + 2)) (inblock (8 * i + 2)) /\
@@ -3102,7 +3200,7 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     REPEAT CONJ_TAC THEN
     (fun (asl,w as gl) ->
       if is_eq w &&
-         (try fst(dest_const(fst(strip_comb(rhs w)))) = "byteswap128"
+         (try fst(dest_const(fst(strip_comb(rhs w)))) = "nist_ghash"
           with _ -> false)
       then Q19_FOLD_TAC gl
       else
