@@ -4086,37 +4086,28 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
 (* MODULO `eor3 v19,v19,v21,v17`@0xe98, NO trailing `ext v19`), so it closes  *)
 (* via the ALREADY-PROVEN Q19_FOLD_TAC (route-c plain form).                  *)
 (*                                                                           *)
-(* SESSION 037 STATUS — scaffolded, body CHEAT'd so the file loads.  The      *)
-(* drive `MAP_EVERY NSTEP_G (1--308)` steps cleanly to pc+0xeb8 (308 instrs,  *)
-(* exit PC = pc+3768 = pc+0xeb8 VERIFIED on gate033b).  ONE retention issue   *)
-(* to solve when filling the body:                                           *)
+(* SESSION 038 — BODY CLOSED CHEAT-FREE.  The s037 "accumulators drop         *)
+(* mid-drive" diagnosis was WRONG: probing register presence + concreteness   *)
+(* at s30/s150/s250/s301/s308 shows Q17/Q18/Q19 are all PRESENT and CONCRETE   *)
+(* (no old-state refs) through s308; the drive `MAP_EVERY NSTEP_GP (1--308)`   *)
+(* reaches pc+0xeb8 with Q19 = the concrete sz365k raw fold.  FINAL_STATE +    *)
+(* REPEAT CONJ_TAC leaves exactly 10 residuals: Q30 counter, Q19 GHASH fold,   *)
+(* and the 8 v0..v7 AES reconstructions (the rest close by ASM_REWRITE).       *)
 (*                                                                           *)
-(*   THE GHASH ACCUMULATORS Q17/Q18/Q19 DROP mid-drive.  The final Q19 write  *)
-(*   is step 301 (`eor3 v19,v19,v21,v17`@0xe98), followed by 7 trailing       *)
-(*   `aese v0..v7`@0xe9c..0xeb4 (steps 302-308) that do NOT touch v19.  After  *)
-(*   step 301, `read Q19 s301 = word_xor(word_xor(read Q19 s300)(read Q21     *)
-(*   s300))(read Q17 s300)` — it REFERENCES s300 registers.  Q17/Q19/Q21 at   *)
-(*   s300 are THEMSELVES already dropped (verified: Q17 gone by s60, Q19 gone  *)
-(*   by s100; only Q18 stays concrete — sz 3022, no old-state refs — because   *)
-(*   its update chain fully resolves to the pinned Q8..Q15 inputs).  So the    *)
-(*   cascade of cross-state accumulator refs is never resolved to a concrete   *)
-(*   (state-free) form, and DISCARD_OLDSTATE erases the whole Q19 chain.       *)
-(*   In the MAIN_LOOP BODY this is a non-issue: the final `eor3 v19`@0x9c8 is  *)
-(*   the LAST body step (339), so its `read Q19 s339` references s338 which    *)
-(*   is still the CURRENT (un-discarded) state at FINAL_STATE — Q19 survives.  *)
-(*   The drain's 7 trailing aese are what break this.                         *)
-(*                                                                           *)
-(*   FIX OPTIONS for the fill (next session): (a) drive NSTEP_G (1--301), then *)
-(*   step the trailing 302-308 with `ARM_VERBOSE_STEP_TAC` (NO auto-discard)   *)
-(*   so `read Q19 s301` is never dropped, THEN ENSURES_FINAL_STATE_TAC (which  *)
-(*   resolves the s300/s301 refs at the end, exactly as the body does at       *)
-(*   s339); OR (b) an accumulator-retention tactic that resolves the Q17/Q19/  *)
-(*   Q21 cross-refs to concrete Q8..Q15-based forms as each is written (the    *)
-(*   Q18 chain already does this automatically — find why Q17/Q19 don't and    *)
-(*   mirror it; likely a scratch-reg (v16/v20/v29) intermediate that references *)
-(*   a just-superseded state).  Option (a) is the smaller, lower-risk change.  *)
-(*   Once Q19 survives to FINAL_STATE as the raw fold, Q19_FOLD_TAC closes it  *)
-(*   verbatim (plain route c).                                                *)
+(*   THE REAL (and only) OBSTRUCTION was that the drain's MODULO reduce has a  *)
+(*   DIFFERENT instruction schedule from the main-loop/standalone reduce.  Its *)
+(*   final `eor3 v19,v19,v21,v17`@0xe98 takes v21 = ext(v18)@0xe74 (-> Q21)    *)
+(*   and v17 = pmull(v18,w)@0xe3c (-> Q17).  The plain body stepper NSTEP_G     *)
+(*   protects Q17/Q18/Q19 from WORD_SIMPLE_SUBWORD_CONV but NOT Q21, so the     *)
+(*   SAME mid-accumulator v18 appeared UN-normalized inside the pmull (via Q17) *)
+(*   but NORMALIZED inside the ext (via Q21) — `ghash_reduce_raw`'s q18         *)
+(*   requires the two identical, so RECON_GRR (GSYM ghash_reduce_raw) could not *)
+(*   higher-order match (verified: WORD_SIMPLE_SUBWORD_CONV on both makes them  *)
+(*   equal).  FIX = NSTEP_GP, an extended-guard stepper that ALSO protects      *)
+(*   Q20/Q21 (the ext-scratch), keeping v18 un-normalized in both positions.    *)
+(*   With NSTEP_GP the AC-swap + RECON_GRR fold-back FIRES (365k -> 69k) and     *)
+(*   the k-indexed fold Q19_FOLD_TAC_K (= Q19_FOLD_TAC with i->k) closes it     *)
+(*   exactly as the main-loop body does.                                       *)
 (*                                                                           *)
 (* Exit forms VERIFIED on gate033b (drive to s308):                          *)
 (*   PC = pc+0xeb8; X0..X16 all preserved; Q31 preserved;                     *)
@@ -4133,6 +4124,113 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
 (* cipher ...)), matching the AES_SETUP convention and what the tail consumes  *)
 (* (tail's first `eor3 v9,v8,v0,v28` XORs v0 with v28=rk14).                  *)
 (* ========================================================================= *)
+
+(* Extended-guard body stepper for the drain.  NSTEP_G protects Q17/Q18/Q19    *)
+(* from the per-step WORD_SIMPLE_SUBWORD_CONV; the drain additionally needs     *)
+(* Q20/Q21 protected because its reduce takes ext(v18)->Q21 and pmull(v18)->Q17 *)
+(* at DIFFERENT steps (0xe74 vs 0xe3c), and if Q21's subwords are collapsed the *)
+(* two copies of the mid-accumulator v18 diverge and RECON_GRR can't match.     *)
+let is_ghash_acc_pp th =
+  let c = concl th in
+  can (find_term (fun t -> match t with
+      Comb(Const("read",_), r) ->
+        (match r with
+         | Const("Q17",_) | Const("Q18",_) | Const("Q19",_)
+         | Const("Q20",_) | Const("Q21",_) -> true
+         | _ -> false)
+    | _ -> false)) c;;
+
+let NSTEP_GP n =
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC [n] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
+    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
+  RULE_ASSUM_TAC NORMOFF_RULE THEN
+  RULE_ASSUM_TAC(fun th ->
+    if is_ghash_acc_pp th then th
+    else CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th);;
+
+(* The Q19 drain fold: Q19_FOLD_TAC with the accumulator index i -> k (the      *)
+(* drain folds the last in-flight 8-block group at loop-bound k, advancing Q19  *)
+(* from nist_ghash..(8*k) to nist_ghash..(8*(k+1))).  Structurally identical to *)
+(* the main-loop body fold; see Q19_FOLD_TAC above for the full route rationale.*)
+let Q19_FOLD_TAC_K =
+  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+    `word_xor (word_xor (x:int128) e) p = word_xor (word_xor x p) e`] THEN
+  REWRITE_TAC[RECON_GRR] THEN
+  REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_DIST8_PLAIN] THEN
+  REWRITE_TAC[NIST_GHASH_IS_POLYVAL] THEN
+  REWRITE_TAC[ARITH_RULE
+    `8 * (k + 1) = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * k))))))))`] THEN
+  REWRITE_TAC[list_of_seq] THEN REWRITE_TAC[GSYM APPEND_ASSOC] THEN
+  REWRITE_TAC[APPEND] THEN
+  REWRITE_TAC[GHASH_ACC_APPEND] THEN
+  REWRITE_TAC[ADD1; GSYM ADD_ASSOC] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+  MP_TAC(ISPECL
+    [`ghash_twist (aes256_cipher (word 0) rk)`;
+     `[nist_cipher_block nonce rk inblock (8*k+1);
+       nist_cipher_block nonce rk inblock (8*k+2);
+       nist_cipher_block nonce rk inblock (8*k+3);
+       nist_cipher_block nonce rk inblock (8*k+4);
+       nist_cipher_block nonce rk inblock (8*k+5);
+       nist_cipher_block nonce rk inblock (8*k+6);
+       nist_cipher_block nonce rk inblock (8*k+7)]:(int128)list`;
+     `ghash_polyval_acc (ghash_twist (aes256_cipher (word 0) rk)) tag0
+        (list_of_seq (nist_cipher_block nonce rk inblock) (8*k))`;
+     `nist_cipher_block nonce rk inblock (8*k)`]
+    GHASH_POLYVAL_ACC_BATCHED) THEN
+  REWRITE_TAC[LENGTH; ghash_wide] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
+  REWRITE_TAC[ADD_0] THEN
+  REWRITE_TAC[polyval_dot] THEN
+  REWRITE_TAC[GSYM PROP3_XOR] THEN
+  AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
+
+(* Q30 counter closer (drain does 3 `add v30`, so exit counter = 8*k+18). *)
+let PP_CTR_CLOSE =
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS_32; WORD_SUBWORD_CTR_BLOCK_32] THEN
+  REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+  REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV32] THEN
+  AP_TERM_TAC THEN AP_TERM_TAC THEN ARITH_TAC;;
+
+(* v0..v7 AES closer.  v0..v4 are pinned as word_reversefields 8 (ctr_block ..) *)
+(* so AES256_CIPHER_RECONSTRUCT + MAP + KEYLIST close directly.  v5..v7 are      *)
+(* freshly rev32'd from the incremented v30, so the AES reconstruct leaves a     *)
+(* plaintext residual word_reversefields 8 (aes256_cipher <rev-lanes> rk) =      *)
+(* ..(ctr_block ..) which the counter-lane reconstruct (WORD_SUBWORD_*32 +       *)
+(* CTR_BLOCK_RECONSTRUCT_REV8 + REVERSEFIELDS_REVERSEFIELDS) folds; the TRY      *)
+(* makes it a no-op for v0..v4 (already closed).                                *)
+let PP_AES_CLOSE =
+  ASM_REWRITE_TAC[AES256_CIPHER_RECONSTRUCT; MAP;
+                  WORD_REVERSEFIELDS_REVERSEFIELDS; AES256_CIPHER_KEYLIST] THEN
+  TRY(REWRITE_TAC[GSYM WORD_ADD] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+      REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS_32; WORD_SUBWORD_CTR_BLOCK_32] THEN
+      REWRITE_TAC[GSYM WORD_ADD] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+      REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8] THEN
+      REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+      REWRITE_TAC[GSYM ADD_ASSOC] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+      REFL_TAC);;
+
+(* Shape-routed per-goal dispatcher over the 10 post-FINAL_STATE residuals:     *)
+(* nist_ghash-RHS -> Q19 fold; word_join=word_reversefields -> Q30 counter;     *)
+(* the 8 v-register AES eqs -> PP_AES_CLOSE; anything else -> ASM_REWRITE.       *)
+let PP_DISPATCH : tactic = fun (asl,w as gl) ->
+  if is_eq w then
+    let l,r = dest_eq w in
+    let rhd = try fst(dest_const(fst(strip_comb r))) with _ -> "?" in
+    let lhd = try fst(dest_const(fst(strip_comb l))) with _ -> "?" in
+    if rhd = "nist_ghash" then Q19_FOLD_TAC_K gl
+    else if lhd = "word_join" && rhd = "word_reversefields" then PP_CTR_CLOSE gl
+    else PP_AES_CLOSE gl
+  else ASM_REWRITE_TAC[] gl;;
+
 let AESV8_GCM_8X_ENC_256_PREPRETAIL = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
@@ -4291,11 +4389,17 @@ let AESV8_GCM_8X_ENC_256_PREPRETAIL = prove
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
        MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
        MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
-  (* SESSION 037: body CHEAT'd — see the block comment above for the drive     *)
-  (* (MAP_EVERY NSTEP_G (1--308) reaches pc+0xeb8) and the Q19-accumulator      *)
-  (* retention fix required for the fill.  Q19_FOLD_TAC closes the drain fold   *)
-  (* once Q19 survives to FINAL_STATE.  The counter Q30 (8*k+18) closes via     *)
-  (* SETUP_Q30_LANES + CTR_BLOCK_RECONSTRUCT_REV32; v0..v7 via                  *)
-  (* XOR_AES256_CIPHER_RECONSTRUCT (matching AES_SETUP); GPRs/memory/foralls    *)
-  (* are unchanged (no writes in the drain) so they close by ASM_REWRITE.       *)
-  CHEAT_TAC);;
+  (* SESSION 038: body CLOSED CHEAT-FREE.  Drive the 308-instr drain with the   *)
+  (* extended-guard stepper NSTEP_GP (protects Q17..Q21 so the reduce's mid      *)
+  (* accumulator v18 stays un-normalized in both the pmull and ext positions),   *)
+  (* then FINAL_STATE + REPEAT CONJ_TAC + the shape-routed dispatcher            *)
+  (* PP_DISPATCH (Q19 fold / Q30 counter / v0..v7 AES / ASM_REWRITE).            *)
+  REWRITE_TAC[htable_mem_8; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+              ALLPAIRS; ALL; NONOVERLAPPING_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_EXEC]
+    `LENGTH aesv8_gcm_8x_enc_256_mc`]) THEN
+  MAP_EVERY NSTEP_GP (1--308) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REPEAT CONJ_TAC THEN PP_DISPATCH);;
