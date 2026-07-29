@@ -4063,3 +4063,239 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   REWRITE_TAC[htable_mem_8] THEN
   REPEAT CONJ_TAC THEN SETUP_RECON_TAC);;
+
+(* ========================================================================= *)
+(* P7 - PREPRETAIL (pipeline DRAIN):  pc+0x9e8  ->  pc+0xeb8 (.L256_enc_tail) *)
+(*                                                                           *)
+(* The software pipeline runs one 8-block GHASH group BEHIND the ciphertext  *)
+(* stores.  At MAIN_LOOP exit (i = k) the last in-flight group (ciphertext   *)
+(* blocks 8k..8k+7, held in v8..v15) has been STORED but NOT yet GHASHed;     *)
+(* Q19 still holds nist_ghash..(8*k).  PREPRETAIL is the drain that folds     *)
+(* that final group into Q19, advancing it to nist_ghash..(8*(k+1)), and     *)
+(* finishes the AES of the NEXT 8 counter blocks (v0..v7, pre-rk14) that the  *)
+(* tail cascade will consume.  It performs NO ciphertext stores and NO        *)
+(* plaintext loads (all `[x0]`/`[x2]` access is in the tail, >= 0xeb8), and   *)
+(* leaves every GPR (X0,X2,X3,X4,X5,X6,X10,X11,X16) UNCHANGED (objdump-       *)
+(* verified: no add/sub/mov to those regs in 0x9e8..0xeb4).                   *)
+(*                                                                           *)
+(* The PREPRETAIL precondition is EXACTLY the MAIN_LOOP postcondition at      *)
+(* i = k (the state at pc+0x9e8), plus aligned_bytes_loaded; they are bridged *)
+(* at P9 by ENSURES_SEQUENCE_TAC.  The Q19 drain fold is STRUCTURALLY         *)
+(* IDENTICAL to the MAIN_LOOP body's (same leading `ext v19`@0xa50 PRE-       *)
+(* byteswap, same pmull/pmull2/eor3 Karatsuba chain, same trailing raw        *)
+(* MODULO `eor3 v19,v19,v21,v17`@0xe98, NO trailing `ext v19`), so it closes  *)
+(* via the ALREADY-PROVEN Q19_FOLD_TAC (route-c plain form).                  *)
+(*                                                                           *)
+(* SESSION 037 STATUS — scaffolded, body CHEAT'd so the file loads.  The      *)
+(* drive `MAP_EVERY NSTEP_G (1--308)` steps cleanly to pc+0xeb8 (308 instrs,  *)
+(* exit PC = pc+3768 = pc+0xeb8 VERIFIED on gate033b).  ONE retention issue   *)
+(* to solve when filling the body:                                           *)
+(*                                                                           *)
+(*   THE GHASH ACCUMULATORS Q17/Q18/Q19 DROP mid-drive.  The final Q19 write  *)
+(*   is step 301 (`eor3 v19,v19,v21,v17`@0xe98), followed by 7 trailing       *)
+(*   `aese v0..v7`@0xe9c..0xeb4 (steps 302-308) that do NOT touch v19.  After  *)
+(*   step 301, `read Q19 s301 = word_xor(word_xor(read Q19 s300)(read Q21     *)
+(*   s300))(read Q17 s300)` — it REFERENCES s300 registers.  Q17/Q19/Q21 at   *)
+(*   s300 are THEMSELVES already dropped (verified: Q17 gone by s60, Q19 gone  *)
+(*   by s100; only Q18 stays concrete — sz 3022, no old-state refs — because   *)
+(*   its update chain fully resolves to the pinned Q8..Q15 inputs).  So the    *)
+(*   cascade of cross-state accumulator refs is never resolved to a concrete   *)
+(*   (state-free) form, and DISCARD_OLDSTATE erases the whole Q19 chain.       *)
+(*   In the MAIN_LOOP BODY this is a non-issue: the final `eor3 v19`@0x9c8 is  *)
+(*   the LAST body step (339), so its `read Q19 s339` references s338 which    *)
+(*   is still the CURRENT (un-discarded) state at FINAL_STATE — Q19 survives.  *)
+(*   The drain's 7 trailing aese are what break this.                         *)
+(*                                                                           *)
+(*   FIX OPTIONS for the fill (next session): (a) drive NSTEP_G (1--301), then *)
+(*   step the trailing 302-308 with `ARM_VERBOSE_STEP_TAC` (NO auto-discard)   *)
+(*   so `read Q19 s301` is never dropped, THEN ENSURES_FINAL_STATE_TAC (which  *)
+(*   resolves the s300/s301 refs at the end, exactly as the body does at       *)
+(*   s339); OR (b) an accumulator-retention tactic that resolves the Q17/Q19/  *)
+(*   Q21 cross-refs to concrete Q8..Q15-based forms as each is written (the    *)
+(*   Q18 chain already does this automatically — find why Q17/Q19 don't and    *)
+(*   mirror it; likely a scratch-reg (v16/v20/v29) intermediate that references *)
+(*   a just-superseded state).  Option (a) is the smaller, lower-risk change.  *)
+(*   Once Q19 survives to FINAL_STATE as the raw fold, Q19_FOLD_TAC closes it  *)
+(*   verbatim (plain route c).                                                *)
+(*                                                                           *)
+(* Exit forms VERIFIED on gate033b (drive to s308):                          *)
+(*   PC = pc+0xeb8; X0..X16 all preserved; Q31 preserved;                     *)
+(*   Q28 = word_reversefields 8 (EL 14 rk)  (rk14, the tail's fused round key);*)
+(*   Q30 exit = word_join lane-decomp of the +3-incremented counter =         *)
+(*     word_reversefields 32 (ctr_block nonce (8*k+18))  (3 `add v30`@0x9f0/  *)
+(*     0x9fc/0xe80; the high 32-lane gets +2+1);                              *)
+(*   Q0..Q4 = 13-round aese/aesmc chain over word_reversefields 8 (ctr_block  *)
+(*     nonce (8*k+10+j))  (the pre-loaded counters, pre-rk14 AES state);       *)
+(*   Q5..Q7 = same chain over the rev32 word_join decomp of ctr_block nonce   *)
+(*     (8*k+15)  (freshly rev32'd from the incremented v30).                  *)
+(* The v0..v7 postcondition below states them as XOR_AES256_CIPHER_RECONSTRUCT-*)
+(* reducible forms (word_xor (read Qj) rk14 = word_reversefields 8 (aes256_   *)
+(* cipher ...)), matching the AES_SETUP convention and what the tail consumes  *)
+(* (tail's first `eor3 v9,v8,v0,v28` XORs v0 with v28=rk14).                  *)
+(* ========================================================================= *)
+let AESV8_GCM_8X_ENC_256_PREPRETAIL = prove
+ (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
+     tag0 nonce rk inblock nb k pc.
+    ~(k = 0) /\
+    8 * (k + 1) <= nb /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_mc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb)]
+      [(in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (tag_p, 16); (ivec_p, 16); (mod_p, 8)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
+           read PC s = word (pc + 0x9e8) /\
+           read X0 s = word_add in_p (word (128 * (k + 1))) /\
+           read X2 s = word_add out_p (word (128 * (k + 1))) /\
+           read X3 s = tag_p /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * k + 15)) /\
+           read Q31 s = word 79228162514264337593543950336 /\
+           read Q19 s =
+             nist_ghash (aes256_cipher (word 0) rk) tag0
+                 (list_of_seq (nist_cipher_block nonce rk inblock) (8 * k)) /\
+           read Q8 s = word_xor (aes_ctr_block nonce rk (8 * k + 0)) (inblock (8 * k + 0)) /\
+           read Q9 s = word_xor (aes_ctr_block nonce rk (8 * k + 1)) (inblock (8 * k + 1)) /\
+           read Q10 s = word_xor (aes_ctr_block nonce rk (8 * k + 2)) (inblock (8 * k + 2)) /\
+           read Q11 s = word_xor (aes_ctr_block nonce rk (8 * k + 3)) (inblock (8 * k + 3)) /\
+           read Q12 s = word_xor (aes_ctr_block nonce rk (8 * k + 4)) (inblock (8 * k + 4)) /\
+           read Q13 s = word_xor (aes_ctr_block nonce rk (8 * k + 5)) (inblock (8 * k + 5)) /\
+           read Q14 s = word_xor (aes_ctr_block nonce rk (8 * k + 6)) (inblock (8 * k + 6)) /\
+           read Q15 s = word_xor (aes_ctr_block nonce rk (8 * k + 7)) (inblock (8 * k + 7)) /\
+           read Q0 s = word_reversefields 8 (ctr_block nonce (8 * k + 10)) /\
+           read Q1 s = word_reversefields 8 (ctr_block nonce (8 * k + 11)) /\
+           read Q2 s = word_reversefields 8 (ctr_block nonce (8 * k + 12)) /\
+           read Q3 s = word_reversefields 8 (ctr_block nonce (8 * k + 13)) /\
+           read Q4 s = word_reversefields 8 (ctr_block nonce (8 * k + 14)) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           (!j. j < 8 * (k + 1)
+                ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
+                    word_xor (aes_ctr_block nonce rk j) (inblock j)))
+      (\s. read PC s = word (pc + 0xeb8) /\
+           read X0 s = word_add in_p (word (128 * (k + 1))) /\
+           read X2 s = word_add out_p (word (128 * (k + 1))) /\
+           read X3 s = tag_p /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2) /\
+           read Q28 s = word_reversefields 8 (EL 14 rk) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * k + 18)) /\
+           read Q31 s = word 79228162514264337593543950336 /\
+           read Q19 s =
+             nist_ghash (aes256_cipher (word 0) rk) tag0
+                 (list_of_seq (nist_cipher_block nonce rk inblock) (8 * (k + 1))) /\
+           word_xor (read Q0 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 10)) rk) /\
+           word_xor (read Q1 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 11)) rk) /\
+           word_xor (read Q2 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 12)) rk) /\
+           word_xor (read Q3 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 13)) rk) /\
+           word_xor (read Q4 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 14)) rk) /\
+           word_xor (read Q5 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 15)) rk) /\
+           word_xor (read Q6 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 16)) rk) /\
+           word_xor (read Q7 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * k + 17)) rk) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           (!j. j < 8 * (k + 1)
+                ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
+                    word_xor (aes_ctr_block nonce rk j) (inblock j)))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
+  (* SESSION 037: body CHEAT'd — see the block comment above for the drive     *)
+  (* (MAP_EVERY NSTEP_G (1--308) reaches pc+0xeb8) and the Q19-accumulator      *)
+  (* retention fix required for the fill.  Q19_FOLD_TAC closes the drain fold   *)
+  (* once Q19 survives to FINAL_STATE.  The counter Q30 (8*k+18) closes via     *)
+  (* SETUP_Q30_LANES + CTR_BLOCK_RECONSTRUCT_REV32; v0..v7 via                  *)
+  (* XOR_AES256_CIPHER_RECONSTRUCT (matching AES_SETUP); GPRs/memory/foralls    *)
+  (* are unchanged (no writes in the drain) so they close by ASM_REWRITE.       *)
+  CHEAT_TAC);;
