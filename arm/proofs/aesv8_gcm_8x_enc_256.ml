@@ -2386,6 +2386,62 @@ let SETUP_BRANCH_COND_FALSE = prove
     REWRITE_TAC[MATCH_MP SETUP_GE_FALSE (ASSUME
       `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`)]]);;
 
+(* Second-guard variant (session 033): the prepretail-check b.ge@0x494 fires   *)
+(* AFTER the 4 ldp[x0],#32 plaintext loads, so the running pointer is          *)
+(* X0 = in_p + 128 (one 8-block group consumed) — NOT in_p.  end_p is strictly *)
+(* above in_p+128 (signed) since 128*(k+1) > 128 for k>=1, so the branch again *)
+(* falls through.  SETUP_GE_FALSE_2 is the in_p+128 analogue of SETUP_GE_FALSE;*)
+(* SETUP_BRANCH_COND_FALSE_2 collapses the exact NF!=VF biconditional the       *)
+(* stepper emits at step 282 to F.                                             *)
+let SETUP_GE_FALSE_2 = prove
+ (`!(in_p:int64) k.
+     ~(k = 0) /\ val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> ~(ival (word_add in_p (word (128 * (k + 1)))) <=
+           ival (word_add in_p (word 128)))`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`in_p:int64`; `128 * (k + 1)`] IV_ADD) THEN
+  ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  MP_TAC(SPECL [`in_p:int64`; `128`] IV_ADD) THEN
+  ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  DISCH_THEN SUBST_ALL_TAC THEN DISCH_THEN SUBST_ALL_TAC THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[INT_OF_NUM_LE]) THEN ASM_ARITH_TAC);;
+
+let SETUP_BRANCH_COND_FALSE_2 = prove
+ (`!(in_p:int64) k nb.
+     ~(k = 0) /\ 8 * (k + 2) = nb /\
+     val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> ((ival (word_sub (word_add in_p (word 128))
+                  (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p)) < &0 <=>
+           ~(ival (word_add in_p (word 128)) -
+             ival (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p) =
+             ival (word_sub (word_add in_p (word 128))
+                    (word_add
+                      (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                                (word 18446744073709551488))
+                      in_p)))) <=> F)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN
+   `word_add
+      (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                (word 18446744073709551488))
+      in_p =
+    word_add in_p (word (128 * (k + 1))):int64`
+   SUBST1_TAC THENL
+   [FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN
+    REWRITE_TAC[ARITH_RULE `(128 * (8 * (k + 2))) DIV 8 = 16 * 8 * (k + 2)`] THEN
+    MATCH_MP_TAC X5_END_PTR THEN
+    MP_TAC(SPEC `in_p:int64` VAL_BOUND_64) THEN
+    UNDISCH_TAC `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63` THEN ARITH_TAC;
+    REWRITE_TAC[BRIDGE_GE] THEN
+    REWRITE_TAC[MATCH_MP SETUP_GE_FALSE_2 (CONJ (ASSUME `~(k = 0)`) (ASSUME
+      `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`))]]);;
+
 (* SETUP-specific input-block re-derivation and ldp stepper.  In the setup    *)
 (* the 8 plaintext blocks live at in_p + 16*j (j=0..7) — NOT the loop body's  *)
 (* 128*(i+1)+off.  SETUP_INBLOCKS_TAC re-asserts all 8 reads at state `sname` *)
