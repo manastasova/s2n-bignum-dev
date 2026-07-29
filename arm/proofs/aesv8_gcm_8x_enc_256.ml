@@ -2272,6 +2272,155 @@ let FLAG_LEM = prove
   REWRITE_TAC[INT_OF_NUM_LE] THEN ASM_ARITH_TAC);;
 
 (* ------------------------------------------------------------------------- *)
+(* SETUP branch-discharge lemmas (P7, session 032).                          *)
+(*                                                                           *)
+(* The pipeline-fill setup has two `cmp x0,x5; b.ge` guards — the tail check *)
+(* at 0x420/0x424 and the prepretail check at 0x458/0x494 — both comparing   *)
+(* the running input pointer X0 against the loop-end pointer                  *)
+(*   X5 = ((byte_len DIV 8) - 1) & ~127  +  in_p                             *)
+(* (hardware: sub x5,x5,#1; and x5,x5,#0xffffffffffffff80; add x5,x5,x0 at    *)
+(* 0x44/0x48/0x4c, with x5 initialised to x9 = word(byte_len DIV 8)).  Both   *)
+(* guards must fall through (b.ge NOT taken) when k >= 1, i.e. when more than *)
+(* one 8-block group remains.                                                 *)
+(*                                                                           *)
+(* X5_END_PTR: under block-aligned byte_len = 128*nb with nb = 8*(k+2), the   *)
+(* round-down-to-128 mask collapses X5 to the loop-end pointer end_p =        *)
+(* in_p + 128*(k+1) — the SAME end_p MAIN_LOOP's antecedent pins.  The key    *)
+(* arithmetic: (16*nb - 1) & ~127 = 128*(k+1) because 16*nb = 128*(k+2) =     *)
+(* 128*(k+1) + 128, so (128*(k+1)+127) rounds down to 128*(k+1).  This        *)
+(* CONFIRMS the k = nb DIV 8 - 2 accounting (the last 8-group is drained by   *)
+(* prepretail, hence -2 not -1). Proof via WORD_AND_NOT_MASK_WORD (the        *)
+(* clear-low-7-bits lemma) + VAL_WORD_SUB_CASES.                              *)
+let X5_END_PTR = prove
+ (`!(in_p:int64) k.
+     16 * (8 * (k + 2)) < 2 EXP 64
+     ==> word_add
+           (word_and (word_sub (word (16 * (8 * (k + 2)))) (word 1))
+                     (word 18446744073709551488))
+           in_p =
+         word_add in_p (word (128 * (k + 1)))`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN
+   `val(word_sub (word (16 * (8 * (k + 2)))) (word 1):int64) = 128 * (k + 1) + 127`
+   ASSUME_TAC THENL
+   [SUBGOAL_THEN `val(word (16 * (8 * (k + 2))):int64) = 16 * (8 * (k + 2))`
+      ASSUME_TAC THENL
+     [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+      ALL_TAC] THEN
+    ASM_REWRITE_TAC[VAL_WORD_SUB_CASES; VAL_WORD_1] THEN
+    COND_CASES_TAC THEN ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  REWRITE_TAC[WORD_ADD_SYM] THEN AP_TERM_TAC THEN
+  SUBGOAL_THEN
+   `word_and (word_sub (word (16 * (8 * (k + 2)))) (word 1))
+             (word 18446744073709551488):int64 =
+    word(2 EXP 7 * (val(word_sub (word (16 * (8 * (k + 2)))) (word 1):int64)
+                    DIV 2 EXP 7))`
+   SUBST1_TAC THENL
+   [SUBGOAL_THEN `word 18446744073709551488:int64 = word_not(word(2 EXP 7 - 1))`
+      SUBST1_TAC THENL
+     [CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_BLAST; ALL_TAC] THEN
+    REWRITE_TAC[WORD_AND_NOT_MASK_WORD];
+    ASM_REWRITE_TAC[] THEN AP_TERM_TAC THEN
+    REWRITE_TAC[ARITH_RULE `128 * (k + 1) + 127 = (k + 1) * 2 EXP 7 + 127`] THEN
+    SIMP_TAC[DIV_MULT_ADD; EXP_EQ_0; ARITH_EQ] THEN
+    CONV_TAC NUM_REDUCE_CONV THEN ARITH_TAC]);;
+
+(* end_p = in_p + 128*(k+1) is strictly ABOVE in_p (signed), since 128*(k+1)  *)
+(* >= 128 > 0 and there is no signed wrap.  So the `cmp x0,x5; b.ge` with     *)
+(* X0 = in_p (or in_p+128) at the guards does NOT take the branch.            *)
+let SETUP_GE_FALSE = prove
+ (`!(in_p:int64) k.
+     val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> ~(ival (word_add in_p (word (128 * (k + 1)))) <= ival in_p)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`in_p:int64`; `128 * (k + 1)`] IV_ADD) THEN
+  ANTS_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `ival(in_p:int64) = &(val in_p)` ASSUME_TAC THENL
+   [REWRITE_TAC[INT_IVAL; DIMINDEX_64] THEN
+    COND_CASES_TAC THEN REWRITE_TAC[] THEN
+    POP_ASSUM MP_TAC THEN REWRITE_TAC[INT_OF_NUM_POW; INT_OF_NUM_LT] THEN
+    ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  DISCH_THEN SUBST_ALL_TAC THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[INT_OF_NUM_LE]) THEN ASM_ARITH_TAC);;
+
+(* Collapse the first-guard conditional (the exact NF!=VF biconditional the   *)
+(* stepper emits for `cmp x0,x5; b.ge` with X0 = in_p) to F, so the           *)
+(* conditional PC resolves to the fall-through.  X5 here is the raw hardware  *)
+(* form ((128*nb DIV 8) - 1) & ~127 + in_p; the lemma normalises it to end_p  *)
+(* via X5_END_PTR and finishes with BRIDGE_GE + SETUP_GE_FALSE.               *)
+let SETUP_BRANCH_COND_FALSE = prove
+ (`!(in_p:int64) k nb.
+     8 * (k + 2) = nb /\
+     val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> ((ival (word_sub in_p
+                  (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p)) < &0 <=>
+           ~(ival in_p -
+             ival (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p) =
+             ival (word_sub in_p
+                    (word_add
+                      (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                                (word 18446744073709551488))
+                      in_p)))) <=> F)`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN
+   `word_add
+      (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                (word 18446744073709551488))
+      in_p =
+    word_add in_p (word (128 * (k + 1))):int64`
+   SUBST1_TAC THENL
+   [FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN
+    REWRITE_TAC[ARITH_RULE `(128 * (8 * (k + 2))) DIV 8 = 16 * 8 * (k + 2)`] THEN
+    MATCH_MP_TAC X5_END_PTR THEN
+    MP_TAC(SPEC `in_p:int64` VAL_BOUND_64) THEN
+    UNDISCH_TAC `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63` THEN ARITH_TAC;
+    REWRITE_TAC[BRIDGE_GE] THEN
+    REWRITE_TAC[MATCH_MP SETUP_GE_FALSE (ASSUME
+      `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`)]]);;
+
+(* SETUP-specific input-block re-derivation and ldp stepper.  In the setup    *)
+(* the 8 plaintext blocks live at in_p + 16*j (j=0..7) — NOT the loop body's  *)
+(* 128*(i+1)+off.  SETUP_INBLOCKS_TAC re-asserts all 8 reads at state `sname` *)
+(* from the persistent quantified input-forall; LDP_SETUP_TAC is LDP_STEP4    *)
+(* with that variant (needed for the post-incremented ldp [x0],#32 2nd loads).*)
+let SETUP_INBLOCKS_TAC sname =
+  let sv = mk_var(sname,`:armstate`) in
+  let concl_tm = subst[sv,`s:armstate`]
+   `read (memory :> bytes128 (word_add in_p (word (16 * 0)))) s = inblock 0 /\
+    read (memory :> bytes128 (word_add in_p (word (16 * 1)))) s = inblock 1 /\
+    read (memory :> bytes128 (word_add in_p (word (16 * 2)))) s = inblock 2 /\
+    read (memory :> bytes128 (word_add in_p (word (16 * 3)))) s = inblock 3 /\
+    read (memory :> bytes128 (word_add in_p (word (16 * 4)))) s = inblock 4 /\
+    read (memory :> bytes128 (word_add in_p (word (16 * 5)))) s = inblock 5 /\
+    read (memory :> bytes128 (word_add in_p (word (16 * 6)))) s = inblock 6 /\
+    read (memory :> bytes128 (word_add in_p (word (16 * 7)))) s = inblock 7` in
+  SUBGOAL_THEN concl_tm STRIP_ASSUME_TAC THENL
+   [REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC;
+    ALL_TAC];;
+
+let LDP_SETUP_TAC n =
+  let sprev = "s"^string_of_int (n-1) in
+  let sn = "s"^string_of_int n in
+  SETUP_INBLOCKS_TAC sprev THEN
+  ARM_VERBOSE_STEP_TAC AESV8_GCM_8X_ENC_256_EXEC sn THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
+    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
+  RULE_ASSUM_TAC NORMOFF_RULE THEN
+  (fun (asl,w as gl) ->
+     let memfacts = filter is_inp_memfact (map snd asl) in
+     RULE_ASSUM_TAC(REWRITE_RULE memfacts) gl) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  DISCARD_OLDSTATE_TAC sn;;
+
+(* ------------------------------------------------------------------------- *)
 (* GF(2)-linearity (additivity over word_xor) of the reduction primitives.    *)
 (*                                                                           *)
 (* Both polyval_reduce_prop3 and ghash_reduce_raw are compositions of         *)
