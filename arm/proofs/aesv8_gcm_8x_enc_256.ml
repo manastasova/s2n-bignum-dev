@@ -3587,6 +3587,123 @@ let SETUP_Q30_LANES = prove
     = word_subword nonce (64,32))`,
   REWRITE_TAC[ctr_block] THEN CONV_TAC WORD_BLAST);;
 
+(* ------------------------------------------------------------------------- *)
+(* SETUP FINAL_STATE reconstruction dispatcher (session 036).                 *)
+(*                                                                           *)
+(* After the SETUP drive reaches pc+0x498 and ENSURES_FINAL_STATE_TAC +       *)
+(* ASM_REWRITE + REWRITE_TAC[htable_mem_8] + REPEAT CONJ_TAC splits the       *)
+(* postcondition, the residual goals are dispatched by conclusion shape.      *)
+(*                                                                           *)
+(* CIPHER_ID_TAC: the AES-INPUT IDENTITY residual, block j (j=1..7):          *)
+(*   word_xor (RF8 (aes256_cipher (RF8 <KS_j>) rk)) (inblock j) =             *)
+(*   word_xor (RF8 (aes256_cipher (ctr_block nonce (j+2)) rk)) (inblock j)    *)
+(* where <KS_j> is SETUP's rev32-built next-group keystream counter.  Peel    *)
+(* the outer word_xor(-)(inblock j) + RF8 + aes256_cipher(-)rk via AP_THM/    *)
+(* AP_TERM, leaving RF8<KS_j> = ctr_block nonce (j+2), which ctr_block +      *)
+(* WORD_BLAST closes DIRECTLY (~60s).  NB the s034/s035 "monolithic BLAST     *)
+(* hangs / type-ambiguity" was a floating-type-var artifact of find_term      *)
+(* capture — on the real goal (fully typed) WORD_BLAST is fine because the    *)
+(* symbolic 96-bit nonce appears identically on both sides.                   *)
+let CIPHER_ID_TAC =
+  AP_THM_TAC THEN AP_TERM_TAC THEN AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
+  REWRITE_TAC[ctr_block] THEN CONV_TAC WORD_BLAST;;
+
+(* CIPHER_CLOSE: the MAIN_LOOP body ciphertext chain (file ~3442-3465)         *)
+(* specialized to SETUP.  Reduces the raw eor3/aese form                       *)
+(*   word_xor (word_xor (inblock j) (aese..aese..rk13)) rk14                   *)
+(* to the aes256_cipher form.  For block 0 (counter ctr_block nonce 2, no      *)
+(* rev32 rebuild) it closes outright; for the out-forall's j=1..7 it leaves    *)
+(* the AES-INPUT IDENTITY residual that CIPHER_ID_TAC then peels.              *)
+let CIPHER_CLOSE =
+  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+    `word_xor (word_xor (inb:int128) ch) rk14 =
+     word_xor ch (word_xor rk14 inb)`] THEN
+  REWRITE_TAC[XOR_AES256_CIPHER_RECONSTRUCT] THEN
+  ASM_REWRITE_TAC[MAP; WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+  REWRITE_TAC[aes_ctr_block; GSYM ADD_ASSOC] THEN
+  CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
+  CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
+  REWRITE_TAC[GSYM cipher_block] THEN
+  REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REPEAT(CONJ_TAC THENL [CONV_TAC WORD_RULE; ALL_TAC]) THEN
+  REWRITE_TAC[AES256_CIPHER_KEYLIST];;
+
+(* CTR_CLOSE: Q0..Q4 (rev8) + Q30 (rev32) fresh-counter reconstruction. *)
+let CTR_CLOSE =
+  CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[SETUP_Q30_LANES; CTR_BLOCK_RECONSTRUCT_REV8;
+              CTR_BLOCK_RECONSTRUCT_REV32] THEN
+  REWRITE_TAC[ctr_block] THEN CONV_TAC WORD_BLAST;;
+
+(* FLAG_CLOSE: the prepretail-check flag conjunct ((NF<=>VF)<=>(0=k)) at i=0.  *)
+(* Rewrite the raw round-down X5 pointer to end_p (X5_END_PTR after the DIV    *)
+(* bridge), then discharge the signed compare with SETUP_GE_FALSE_2 (k>=1).    *)
+let FLAG_CLOSE =
+  REWRITE_TAC[BRIDGE_GE] THEN
+  SUBGOAL_THEN
+    `word_add (word_and (word_sub (word ((128 * nb) DIV 8):int64) (word 1))
+                        (word 18446744073709551488)) in_p =
+     word_add in_p (word (128 * (k + 1)))`
+    SUBST1_TAC THENL
+   [ONCE_REWRITE_TAC[GSYM(ASSUME `8 * (k + 2) = nb`)] THEN
+    REWRITE_TAC[ARITH_RULE `(128 * (8 * (k + 2))) DIV 8 = 16 * 8 * (k + 2)`] THEN
+    MATCH_MP_TAC X5_END_PTR THEN
+    MP_TAC(SPEC `in_p:int64` VAL_BOUND_64) THEN
+    UNDISCH_TAC `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63` THEN ARITH_TAC;
+    ASM_SIMP_TAC[MATCH_MP SETUP_GE_FALSE_2
+      (CONJ (ASSUME `~(k = 0)`)
+            (ASSUME `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`))]];;
+
+(* Shape-routed dispatcher (NOT blind FIRST[] — that thrashes WORD_BLAST). *)
+let SETUP_RECON_TAC : tactic =
+  fun (asl,w as gl) ->
+    if is_neg w then FLAG_CLOSE gl
+    else if is_forall w then
+      (REWRITE_TAC[ARITH_RULE `j < 8 * (0 + 1) <=>
+                     j = 0 \/ j = 1 \/ j = 2 \/ j = 3 \/
+                     j = 4 \/ j = 5 \/ j = 6 \/ j = 7`] THEN
+       REWRITE_TAC[TAUT `(p \/ q ==> r) <=> (p ==> r) /\ (q ==> r)`] THEN
+       REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
+       CONV_TAC(DEPTH_CONV NUM_MULT_CONV) THEN ASM_REWRITE_TAC[] THEN
+       REWRITE_TAC[WORD_ADD_0] THEN
+       REPEAT CONJ_TAC THEN CIPHER_CLOSE THEN TRY CIPHER_ID_TAC THEN
+       TRY CIPHER_CLOSE) gl
+    else if is_eq w then
+      let l,r = dest_eq w in
+      let rhd = try fst(dest_const(fst(strip_comb r))) with _ -> "?" in
+      let lhd = try fst(dest_const(fst(strip_comb l))) with _ -> "?" in
+      if rhd = "nist_ghash" then
+        (CONV_TAC NUM_REDUCE_CONV THEN
+         REWRITE_TAC[list_of_seq; NIST_GHASH_NIL] THEN CONV_TAC WORD_BLAST) gl
+      else if lhd = "word_xor" && rhd = "word_xor" then
+        (CIPHER_CLOSE THEN TRY CIPHER_ID_TAC THEN TRY CIPHER_CLOSE) gl
+      else if lhd = "word_join" && rhd = "word_reversefields" then
+        CTR_CLOSE gl
+      else if lhd = "word_add" then
+        FIRST
+          [CONV_TAC WORD_RULE;
+           (AP_TERM_TAC THEN REWRITE_TAC[word_ushr; VAL_WORD; DIMINDEX_64] THEN
+            AP_TERM_TAC THEN ASM_SIMP_TAC[MOD_LT] THEN ARITH_TAC);
+           (ONCE_REWRITE_TAC[GSYM(ASSUME `8 * (k + 2) = nb`)] THEN
+            REWRITE_TAC[ARITH_RULE
+              `(128 * (8 * (k + 2))) DIV 8 = 16 * 8 * (k + 2)`] THEN
+            MATCH_MP_TAC X5_END_PTR THEN
+            MP_TAC(SPEC `in_p:int64` VAL_BOUND_64) THEN
+            UNDISCH_TAC `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63` THEN
+            ARITH_TAC)] gl
+      else (* read = ... : surviving read-only reads (keys/htable/ivec/tag/stack) *)
+        (ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV) gl
+    else ASM_REWRITE_TAC[] gl;;
+
 (* ========================================================================= *)
 (* P7 - SETUP (pipeline fill).  Core entry pc+0x30 (just after the prologue's *)
 (* stack adjust + callee-save spills + mod-const store + X9/X16/X11/X10       *)
@@ -3656,9 +3773,9 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
     nonoverlapping (out_p, 16 * nb)
                    (word pc, LENGTH aesv8_gcm_8x_enc_256_mc) /\
     ALLPAIRS nonoverlapping
-      [(out_p, 16 * nb); (word_add stackpointer (word 0x40), 8)]
+      [(out_p, 16 * nb)]
       [(in_p, 16 * nb); (key_p, 240); (htable_p, 192);
-       (tag_p, 16); (ivec_p, 16)]
+       (tag_p, 16); (ivec_p, 16); (word_add stackpointer (word 0x40), 8)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
            read PC s = word (pc + 0x30) /\
@@ -3908,7 +4025,41 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
   (*     read=word (stack mod const, 1): ASM_REWRITE + numeral-normalize          *)
   (*       (word 0xc2..0 vs word 13979173243358019584 — same value).             *)
   (* SETUP_Q30_LANES is now a committed lemma (@~line 3567).  The LDP fix is      *)
-  (* committed in LDP_SETUP_TAC.  REMAINING: the ciphertext-chain residual +      *)
-  (* the 4 small closers (htable/forall/flag/stack), then commit CHEAT-free.     *)
+  (* committed in LDP_SETUP_TAC.                                                  *)
+  (* ~~~ SESSION 036: SETUP CLOSED CHEAT-FREE ~~~                                 *)
+  (* Two remaining-goal root causes fixed this session:                          *)
+  (*  (1) CIPHERTEXT (7 goals): the AES-INPUT IDENTITY residual RF8<KS_j> =       *)
+  (*      ctr_block nonce (j+2) closes via CIPHER_ID_TAC (AP_THM/AP_TERM peel +   *)
+  (*      ctr_block+WORD_BLAST).  The s034/s035 "monolithic BLAST hangs" was a    *)
+  (*      floating-type-var artifact of find_term capture; on the real fully-     *)
+  (*      typed goal WORD_BLAST closes each in ~60s.                              *)
+  (*  (2) STACK mod-const: the ALLPAIRS had (stack+0x40,8) in the WRITABLE list,  *)
+  (*      so nonoverlapping(out_p, stack+0x40) was never generated and the        *)
+  (*      read fact was dropped at the ciphertext stores.  FIXED by moving it to  *)
+  (*      the read-only list (mirrors MAIN_LOOP's mod_p).                         *)
+  (*  (3) htable: the drive now RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) +      *)
+  (*      REWRITE_TAC[htable_mem_8] so the 12 read-only reads propagate to s282   *)
+  (*      (mirrors MAIN_LOOP:3300/3307).                                          *)
+  (* Dispatcher = SETUP_RECON_TAC (shape-routed, @~line 3590).                    *)
   (* ========================================================================= *)
-  CHEAT_TAC);;
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; ALLPAIRS; ALL;
+              NONOVERLAPPING_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_EXEC]
+      `LENGTH aesv8_gcm_8x_enc_256_mc`]) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
+  MAP_EVERY NSTEP (1--253) THEN NSTEP 254 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE
+    (CONJ (ASSUME `8 * (k + 2) = nb`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`)); COND_CLAUSES]) THEN
+  LDP_SETUP_TAC 255 THEN LDP_SETUP_TAC 256 THEN MAP_EVERY NSTEP (257--263) THEN
+  LDP_SETUP_TAC 264 THEN LDP_SETUP_TAC 265 THEN MAP_EVERY NSTEP (266--281) THEN
+  NSTEP 282 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_2
+    (CONJ (ASSUME `~(k = 0)`) (CONJ (ASSUME `8 * (k + 2) = nb`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`)));
+    COND_CLAUSES]) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[htable_mem_8] THEN
+  REPEAT CONJ_TAC THEN SETUP_RECON_TAC);;
