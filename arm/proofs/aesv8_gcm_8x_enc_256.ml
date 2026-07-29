@@ -3003,6 +3003,7 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
        MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; ALLPAIRS; ALL] THEN
   REPEAT STRIP_TAC THEN
@@ -3314,7 +3315,22 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
           REWRITE_TAC[GSYM WORD_ADD] THEN
           DISCH_THEN SUBST1_TAC THEN DISCH_THEN SUBST1_TAC THEN
           REWRITE_TAC[INT_OF_NUM_LE] THEN flag_arith)
-        else CHEAT_TAC) gl);
+        (* BLOCKER B RESOLVED (session 030): the sole residual reaching this
+           branch is the MAYCHANGE FRAME-subsumption goal `(<accumulated>) s0
+           s339` (NOT the out-forall — that closes in the first dispatcher's
+           cheap-close, since it SURVIVES to s339: re-observed s030, the
+           s015/016 "dropped at store 330" finding was stale).  The body
+           physically clobbers the FULL Q8..Q15 (the in-flight ciphertext
+           blocks), whose low 64 bits the ABI frame forbids (v8-v15 are
+           callee-saved).  The MAIN_LOOP conclusion frame was therefore
+           widened with `MAYCHANGE [Q8;..;Q15]` (mirroring the proved x4
+           kernel aes_gcm_enc_kernel_x4_reload_round_keys_full.ml:764); the
+           low-half writes are restored by the d8-d15 epilogue at the
+           subroutine wrapper (P10).  With the widened frame,
+           MONOTONE_MAYCHANGE_TAC discharges the subsumption (the 8 ciphertext
+           stores bytes128(out_p+128*(i+1)+16m) <= bytes(out_p,16*nb) follow
+           from the `8*(k+1)<=nb` antecedent via CONTAINED_TAC).  *)
+        else MONOTONE_MAYCHANGE_TAC) gl);
 
     (* Subgoal 4: back-edge taken (0 < i < k => b.lt branches back) *)
     REPEAT STRIP_TAC THEN
