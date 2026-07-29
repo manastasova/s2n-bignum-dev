@@ -2471,7 +2471,21 @@ let LDP_SETUP_TAC n =
     `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
   RULE_ASSUM_TAC NORMOFF_RULE THEN
   (fun (asl,w as gl) ->
-     let memfacts = filter is_inp_memfact (map snd asl) in
+     (* Normalize the SETUP input memfacts so their addresses MATCH the ldp     *)
+     (* reads: reduce `16*j`->literal (NUM_MULT_CONV) and collapse              *)
+     (* `word_add in_p (word 0)`->in_p (WORD_ADD_0).  Without this the block-0  *)
+     (* ldp read (at BARE `in_p`) fails to match SETUP_INBLOCKS_TAC's memfact   *)
+     (* address `word_add in_p (word (16*0))`, so that load stays opaque        *)
+     (* (`read Q8 s = read(memory:>bytes128 in_p) s_prev`) and DISCARD_OLDSTATE *)
+     (* drops the register fact.  SESSION 035: this LOAD-side mismatch (NOT the *)
+     (* stp store, as s034 wrongly diagnosed) is why Q8..Q15 were lost — Q8 is  *)
+     (* already absent at s255 (right after the first ldp@0x428), BEFORE any    *)
+     (* store.  With the norm, all 8 ciphertext regs survive to s282 (validated *)
+     (* /tmp/s035_probe4).                                                      *)
+     let norm th =
+       REWRITE_RULE[WORD_ADD_0]
+         (try CONV_RULE(TOP_DEPTH_CONV NUM_MULT_CONV) th with _ -> th) in
+     let memfacts = map norm (filter is_inp_memfact (map snd asl)) in
      RULE_ASSUM_TAC(REWRITE_RULE memfacts) gl) THEN
   RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
   DISCARD_OLDSTATE_TAC sn;;
