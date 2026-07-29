@@ -4428,6 +4428,53 @@ let AESV8_GCM_8X_ENC_256_WB_PREPRETAIL = prove
 (* last crypto store, and the wrapper handles the ldp epilogue + ret.         *)
 (* ========================================================================= *)
 
+(* Store-permutation lemmas (ported from x4 fast_tail @437/457):              *)
+(* TAG_STORE_REV64 = the `ext v19;#8` + `rev64 v19` byte-permutation the tail  *)
+(* applies before st1 [x3] equals word_reversefields 8; IVEC_STORE_REV32 = the *)
+(* rev32 v30 permutation before str [x16].  Both pure BITBLAST (session 040).  *)
+let TAG_STORE_REV64 = prove
+ (`!x:int128.
+    word_join
+     (word_join
+      (word_join
+       (word_join (word_subword x (0,8):byte) (word_subword x (8,8):byte):int16)
+       (word_join (word_subword x (16,8):byte) (word_subword x (24,8):byte):int16):int32)
+      (word_join
+       (word_join (word_subword x (32,8):byte) (word_subword x (40,8):byte):int16)
+       (word_join (word_subword x (48,8):byte) (word_subword x (56,8):byte):int16):int32):int64)
+     (word_join
+      (word_join
+       (word_join (word_subword x (64,8):byte) (word_subword x (72,8):byte):int16)
+       (word_join (word_subword x (80,8):byte) (word_subword x (88,8):byte):int16):int32)
+      (word_join
+       (word_join (word_subword x (96,8):byte) (word_subword x (104,8):byte):int16)
+       (word_join (word_subword x (112,8):byte) (word_subword x (120,8):byte):int16):int32):int64):int128
+    = word_reversefields 8 x`,
+  CONV_TAC BITBLAST_RULE);;
+
+let IVEC_STORE_REV32 = prove
+ (`!y:int128.
+    word_join
+     (word_join
+      (word_reversefields 8 (word_subword (word_reversefields 32 y) (96,32):int32):int32)
+      (word_reversefields 8 (word_subword (word_reversefields 32 y) (64,32):int32):int32):int64)
+     (word_join
+      (word_reversefields 8 (word_subword (word_reversefields 32 y) (32,32):int32):int32)
+      (word_reversefields 8 (word_subword (word_reversefields 32 y) (0,32):int32):int32):int64):int128
+    = word_reversefields 8 y`,
+  CONV_TAC BITBLAST_RULE);;
+
+(* x5 at the tail entry (sub x5,x4,x0@0xec4) = (in_p+16*nb) - (in_p+128*(k+1)) *)
+(* = 128 under block-aligned nb = 8*(k+2); once rewritten to `word 128` the    *)
+(* NSTEP_GP over cmp x5,#0x70 ; b.gt@0xee4 resolves the branch to pc+0xfa0     *)
+(* automatically (concrete flag), so NO separate branch-discharge lemma.       *)
+let TAIL_X5_128 = prove
+ (`!(in_p:int64) nb k.
+     8 * (k + 2) = nb
+     ==> word_sub (word_add in_p (word (16 * nb)))
+                  (word_add in_p (word (128 * (k + 1)))) = word 128:int64`,
+  REPEAT STRIP_TAC THEN FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN CONV_TAC WORD_RULE);;
+
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
@@ -4435,12 +4482,12 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
     8 * (k + 2) = nb /\
     end_p = word_add in_p (word (128 * (k + 1))) /\
     val in_p + 128 * (k + 1) < 2 EXP 63 /\
-    nonoverlapping (out_p, 16 * nb)
-                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_mc) /\
     ALLPAIRS nonoverlapping
-      [(out_p, 16 * nb)]
-      [(in_p, 16 * nb); (key_p, 240); (htable_p, 192);
-       (tag_p, 16); (ivec_p, 16); (mod_p, 8)]
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_mc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
            read PC s = word (pc + 0xec0) /\
