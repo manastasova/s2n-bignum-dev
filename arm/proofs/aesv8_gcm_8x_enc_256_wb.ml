@@ -4475,6 +4475,22 @@ let TAIL_X5_128 = prove
                   (word_add in_p (word (128 * (k + 1)))) = word 128:int64`,
   REPEAT STRIP_TAC THEN FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN CONV_TAC WORD_RULE);;
 
+(* KS_SOLVE (session 041): invert a keystream precondition fact                 *)
+(* `word_xor (read Vm s) rk14 = KS` into register-concrete form                 *)
+(* `read Vm s = word_xor KS rk14`.  This is THE store-retention key for the      *)
+(* tail: the 8 `st1 {v9},[x2],#16` ciphertext stores produce facts              *)
+(* `read(mem out+off) s = read Q9 s_prev` whose RHS references the keystream     *)
+(* register via the eor3; only known in XORed form the store RHS stays          *)
+(* state-dependent and DISCARD_OLDSTATE drops it.  Inverting the 8 keystream     *)
+(* facts at s0 (before stepping) makes each read Vm register-CONCRETE, so every  *)
+(* eor3 ciphertext output (and thus each store fact RHS) is state-independent    *)
+(* and survives.  (The x8-tail analogue of why x4 fast_tail, whose AES is inline *)
+(* so keystreams are concrete, needs no store retention.)                        *)
+let KS_SOLVE = prove
+ (`!a b c:int128. word_xor a b = c ==> a = word_xor c b`,
+  REPEAT STRIP_TAC THEN FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN
+  CONV_TAC WORD_BITWISE_RULE);;
+
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
@@ -4635,4 +4651,115 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
   (* The x4 template for the streaming tail is aes_gcm_enc_kernel_x4_fast_tail. *)
   (* ml @~897-1210 (its per-block store+pmull+the final reduce + TAG_STORE_REV64*)
   (* / IVEC_STORE_REV32 closers @437/457).                                      *)
-  CHEAT_TAC);;
+  (*                                                                           *)
+  (* SESSION 041: store-retention SOLVED (ivec + out-forall CLOSED; only the    *)
+  (* tag GHASH-reduce fold remains CHEAT'd — see the tag branch below).         *)
+  (*   (1) INIT unfolds PAIRWISE (NOT just ALLPAIRS) — the tail stores to        *)
+  (*       out_p AND ivec_p AND tag_p, so it needs the PAIRWISE-disjointness of  *)
+  (*       those three; without PAIRWISE the ivec/tag stores drop ALL the        *)
+  (*       accumulated out-stores (they can't be shown disjoint from the store   *)
+  (*       target).  (2) KS_SOLVE inverts the 8 keystream facts at s0 so the      *)
+  (*       eor3 ciphertext outputs (hence the store RHS) are state-independent.  *)
+  REWRITE_TAC[htable_mem_8; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+              ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
+    `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN
+  (* Assert the 8 tail input blocks at s0 (in_p+128*(k+1)+16*m = inblock(8*(k+1)+m)). *)
+  SUBGOAL_THEN
+   `read (memory :> bytes128 (word_add in_p (word (128 * (k + 1))))) s0 =
+    inblock (8 * (k + 1)) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (k + 1) + 16)))) s0 =
+    inblock (8 * (k + 1) + 1) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (k + 1) + 32)))) s0 =
+    inblock (8 * (k + 1) + 2) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (k + 1) + 48)))) s0 =
+    inblock (8 * (k + 1) + 3) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (k + 1) + 64)))) s0 =
+    inblock (8 * (k + 1) + 4) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (k + 1) + 80)))) s0 =
+    inblock (8 * (k + 1) + 5) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (k + 1) + 96)))) s0 =
+    inblock (8 * (k + 1) + 6) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * (k + 1) + 112)))) s0 =
+    inblock (8 * (k + 1) + 7)`
+  STRIP_ASSUME_TAC THENL
+   [REWRITE_TAC[ARITH_RULE
+     `128 * (k + 1) + 16 = 16 * (8 * (k + 1) + 1) /\
+      128 * (k + 1) + 32 = 16 * (8 * (k + 1) + 2) /\
+      128 * (k + 1) + 48 = 16 * (8 * (k + 1) + 3) /\
+      128 * (k + 1) + 64 = 16 * (8 * (k + 1) + 4) /\
+      128 * (k + 1) + 80 = 16 * (8 * (k + 1) + 5) /\
+      128 * (k + 1) + 96 = 16 * (8 * (k + 1) + 6) /\
+      128 * (k + 1) + 112 = 16 * (8 * (k + 1) + 7)`] THEN
+    REWRITE_TAC[ARITH_RULE `128 * a = 16 * 8 * a`] THEN
+    REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN
+    ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  (* KEY: invert the 8 keystream facts so registers are concrete (store retention). *)
+  RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
+  (* Steps 1..9: to the computed b.gt@0xee4.  Rewrite x5 -> word 128 so the       *)
+  (* branch resolves concretely (b.gt 0x80>0x70 TAKEN -> pc+0xfa0).               *)
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP TAIL_X5_128 (ASSUME `8 * (k + 2) = nb`)]) THEN
+  (* Steps 10..139: the full 8-block drain + reduce + 2 writebacks.               *)
+  MAP_EVERY NSTEP_GP (10--139) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  (* 3 conjuncts: ivec store / tag store / out-forall.                            *)
+  CONJ_TAC THENL
+   [(* ivec: word_join(rev8 lanes of rev32 (ctr_block .. 8k+18)) = rev8(ctr .. nb+2) *)
+    REWRITE_TAC[IVEC_STORE_REV32] THEN AP_TERM_TAC THEN AP_TERM_TAC THEN
+    UNDISCH_TAC `8 * (k + 2) = nb` THEN ARITH_TAC;
+    ALL_TAC] THEN
+  CONJ_TAC THENL
+   [(* tag store: the final GHASH reduce v19 (folded to nist_ghash..nb) stored     *)
+    (* rev64.  BLOCKED on reduce-chain retention: NSTEP_GP drops the reduce        *)
+    (* scratch (Q17/Q18/Q19/Q21) at 0x1178-0x119c because the TAIL reduce has a    *)
+    (* different schedule from PREPRETAIL (trailing ext v19@0x1198 + rev64@0x119c, *)
+    (* and eor3 v19,v19,v17,v21@0x1194 mixes Q19 with dropped Q17/Q21), so the tag *)
+    (* store RHS `read Q19 s138` is unresolvable.  FIX (next session): verbose-step*)
+    (* the reduce region (~steps 127-139) with no discard (keep the full chain),   *)
+    (* or a targeted reduce-scratch retention, so Q19 s138 stays the raw fold; then*)
+    (* TAG_STORE_REV64 peel + Q19_FOLD_TAC_K (reindexed to fold to nb=8*(k+2)).    *)
+    CHEAT_TAC;
+    ALL_TAC] THEN
+  (* out-forall (j<nb): OLD blocks j<8*(k+1) via the incoming out-forall; the 8    *)
+  (* NEW blocks via the retained ciphertext stores + the MAIN_LOOP ciphertext      *)
+  (* closer (XOR_AES256_CIPHER_RECONSTRUCT + AES256_CIPHER_KEYLIST).               *)
+  FIRST_X_ASSUM(fun th ->
+    if concl th = `8 * (k + 2) = nb` then SUBST_ALL_TAC(SYM th) else failwith "") THEN
+  REWRITE_TAC[ARITH_RULE `j < 8 * (k + 2) <=>
+                       j < 8 * (k+1) \/ j = 8*(k+1) \/ j = 8*(k+1) + 1 \/
+                       j = 8*(k+1) + 2 \/ j = 8*(k+1) + 3 \/ j = 8*(k+1) + 4 \/
+                       j = 8*(k+1) + 5 \/ j = 8*(k+1) + 6 \/ j = 8*(k+1) + 7`] THEN
+  ASM_REWRITE_TAC[TAUT `p \/ q ==> r <=> (p ==> r) /\ (q ==> r)`] THEN
+  REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
+  REWRITE_TAC[ARITH_RULE `16 * (8 * (k+1) + b) = 128 * (k+1) + 16 * b`] THEN
+  REWRITE_TAC[ARITH_RULE `16 * 8 * (k+1) = 128 * (k+1)`] THEN
+  CONV_TAC(DEPTH_CONV NUM_MULT_CONV) THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS_32; WORD_SUBWORD_CTR_BLOCK_32] THEN
+  REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN
+  REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8; CTR_BLOCK_RECONSTRUCT_REV32] THEN
+  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+    `word_xor (word_xor (inb:int128) ch) rk14 = word_xor ch (word_xor rk14 inb)`] THEN
+  REWRITE_TAC[XOR_AES256_CIPHER_RECONSTRUCT] THEN
+  ASM_REWRITE_TAC[MAP; WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+  REWRITE_TAC[aes_ctr_block; GSYM ADD_ASSOC] THEN
+  CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
+  CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[WORD_ADD; GSYM WORD_ADD_ASSOC] THEN
+  REWRITE_TAC[ADD_ASSOC; ARITH] THEN
+  REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
+  REWRITE_TAC[GSYM cipher_block] THEN
+  REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REPEAT(CONJ_TAC THENL [CONV_TAC WORD_RULE; ALL_TAC]) THEN
+  CONV_TAC WORD_RULE);;
