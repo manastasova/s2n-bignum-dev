@@ -4491,8 +4491,52 @@ let KS_SOLVE = prove
   REPEAT STRIP_TAC THEN FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN
   CONV_TAC WORD_BITWISE_RULE);;
 
+(* The TAIL Q19 drain fold: folds the FINAL in-flight 8-block group                *)
+(* 8*(k+1)..8*(k+1)+7, advancing Q19 from nist_ghash..(8*(k+1)) to                  *)
+(* nist_ghash..(8*(k+2)) = ..nb.  Structurally Q19_FOLD_TAC_K with every block      *)
+(* index reindexed k -> k+1 (one more GHASH_ACC_APPEND round than PREPRETAIL).      *)
+let TAIL_Q19_FOLD =
+  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+    `word_xor (word_xor (x:int128) e) p = word_xor (word_xor x p) e`] THEN
+  REWRITE_TAC[RECON_GRR] THEN
+  REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_DIST8_PLAIN] THEN
+  REWRITE_TAC[NIST_GHASH_IS_POLYVAL] THEN
+  REWRITE_TAC[ARITH_RULE
+    `8 * (k + 2) = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * (k+1)))))))))`] THEN
+  REWRITE_TAC[list_of_seq] THEN REWRITE_TAC[GSYM APPEND_ASSOC] THEN
+  REWRITE_TAC[APPEND] THEN
+  REWRITE_TAC[GHASH_ACC_APPEND] THEN
+  REWRITE_TAC[ADD1; GSYM ADD_ASSOC] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+  MP_TAC(ISPECL
+    [`ghash_twist (aes256_cipher (word 0) rk)`;
+     `[nist_cipher_block nonce rk inblock (8*(k+1)+1);
+       nist_cipher_block nonce rk inblock (8*(k+1)+2);
+       nist_cipher_block nonce rk inblock (8*(k+1)+3);
+       nist_cipher_block nonce rk inblock (8*(k+1)+4);
+       nist_cipher_block nonce rk inblock (8*(k+1)+5);
+       nist_cipher_block nonce rk inblock (8*(k+1)+6);
+       nist_cipher_block nonce rk inblock (8*(k+1)+7)]:(int128)list`;
+     `ghash_polyval_acc (ghash_twist (aes256_cipher (word 0) rk)) tag0
+        (list_of_seq (nist_cipher_block nonce rk inblock) (8*(k+1)))`;
+     `nist_cipher_block nonce rk inblock (8*(k+1))`]
+    GHASH_POLYVAL_ACC_BATCHED) THEN
+  REWRITE_TAC[LENGTH; ghash_wide] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
+  REWRITE_TAC[ADD_0] THEN
+  REWRITE_TAC[polyval_dot] THEN
+  REWRITE_TAC[GSYM PROP3_XOR] THEN
+  AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
+
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
- (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
+ (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
     ~(k = 0) /\
     8 * (k + 2) = nb /\
@@ -4507,6 +4551,8 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
            read PC s = word (pc + 0xec0) /\
+           read Q18 s = q18_init /\
+           read Q27 s = q27_init /\
            read X0 s = word_add in_p (word (128 * (k + 1))) /\
            read X2 s = word_add out_p (word (128 * (k + 1))) /\
            read X3 s = tag_p /\
@@ -4713,15 +4759,28 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
     UNDISCH_TAC `8 * (k + 2) = nb` THEN ARITH_TAC;
     ALL_TAC] THEN
   CONJ_TAC THENL
-   [(* tag store: the final GHASH reduce v19 (folded to nist_ghash..nb) stored     *)
-    (* rev64.  BLOCKED on reduce-chain retention: NSTEP_GP drops the reduce        *)
-    (* scratch (Q17/Q18/Q19/Q21) at 0x1178-0x119c because the TAIL reduce has a    *)
-    (* different schedule from PREPRETAIL (trailing ext v19@0x1198 + rev64@0x119c, *)
-    (* and eor3 v19,v19,v17,v21@0x1194 mixes Q19 with dropped Q17/Q21), so the tag *)
-    (* store RHS `read Q19 s138` is unresolvable.  FIX (next session): verbose-step*)
-    (* the reduce region (~steps 127-139) with no discard (keep the full chain),   *)
-    (* or a targeted reduce-scratch retention, so Q19 s138 stays the raw fold; then*)
-    (* TAG_STORE_REV64 peel + Q19_FOLD_TAC_K (reindexed to fold to nb=8*(k+2)).    *)
+   [(* tag store: read(mem tag_p) s139 = rev64(ext(read Q19 s136)) where             *)
+    (* read Q19 s136 is the raw modulo-reduced GHASH fold (eor3 v19,v19,v17,v21      *)
+    (* @0x1194).  SESSION 042 root cause of the s041 drop: the reduce scratch        *)
+    (* Q17/Q18/Q21 were dropped because the tail's Karatsuba starts Q18 and Q27 with *)
+    (* PARTIAL-lane writes `mov v18.d[0],v24.d[1]`@0xfb8 / `mov v27.d[0],v8.d[1]`    *)
+    (* @0xfb4 that read the DEAD upper lane of the uninitialized register, so the    *)
+    (* stepper's `read Q18 s17 = word_insert (read Q18 s16) ...` references          *)
+    (* uninitialized state and DISCARD_OLDSTATE drops it (cascading to Q17/Q21 which *)
+    (* derive from Q18, hence Q19's fold input dangles).  FIX (VALIDATED s042, now   *)
+    (* in the precondition): pin `read Q18 = q18_init` and `read Q27 = q27_init` at   *)
+    (* tail entry (mirrors x4 fast_tail which pins read Q18).  With both pinned,      *)
+    (* Q17/Q18/Q19/Q21 are all PRESENT + CONCRETE (no dangling state refs) at s136    *)
+    (* (probed).  Then the store perm rev64(ext(_)) = word_reversefields 8, i.e.      *)
+    (* TAG_STORE_REV64, peels; AP_TERM_TAC exposes `<raw fold> = nist_ghash..nb`;     *)
+    (* TAIL_Q19_FOLD (= Q19_FOLD_TAC_K reindexed k->k+1) closes it.  The postcond is  *)
+    (* independent of q18_init/q27_init (dead lane overwritten before use), so STEP 5 *)
+    (* instantiates them to PREPRETAIL's exit Q18/Q27 values.                         *)
+    (* CLOSER (validated mechanism; end-to-end run pending a free server — the s042    *)
+    (* pinfull validation client timed out while gate042 kept churning, so the full    *)
+    (* FINAL_STATE + this close is NOT yet machine-confirmed; kept CHEAT'd so the file  *)
+    (* stays loadable):                                                                *)
+    (*   REWRITE_TAC[TAG_STORE_REV64] THEN AP_TERM_TAC THEN TAIL_Q19_FOLD               *)
     CHEAT_TAC;
     ALL_TAC] THEN
   (* out-forall (j<nb): OLD blocks j<8*(k+1) via the incoming out-forall; the 8    *)
