@@ -5391,3 +5391,102 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT = prove
    AESV8_GCM_8X_ENC_256_WB_TAIL) THEN
   REWRITE_TAC[LENGTH_WB_MC; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   DISCH_THEN MATCH_MP_TAC THEN ASM_SIMP_TAC[NONOVERLAPPING_CLAUSES] THEN ASM_ARITH_TAC);;
+
+(* ===================================================================== *)
+(* STEP 5b (session 053) — AESV8_GCM_8X_ENC_256_WB_SUBROUTINE_CORRECT.     *)
+(* The externally-used spec: lifts _WB_CORRECT through the 2 entry guards, *)
+(* the d8-d15 save/restore frame (80 bytes), and the final RET.            *)
+(*                                                                         *)
+(* Wrapper shape (disasm-verified vs _wb.o, s049/s053):                    *)
+(*   PROLOGUE 0x00 cbz x1,0x11c0 ; 0x04 tst x1,#0x7f ; 0x08 b.ne 0x11c0 ;  *)
+(*     0x0c sub sp,#0x50 ; stp d8..d15 ; lsr x9,x1,#3 ; mov x16,x4 ;       *)
+(*     mov x11,x5 ; mov x5,#0xc2..; stp x5,xzr,[sp,#64] ; add x10,sp,#0x40; *)
+(*     0x38 = CORE ENTRY (_WB_CORRECT).                                     *)
+(*   EPILOGUE 0x11a4 mov x0,x9 ; ldp d8..d15 ; add sp,#0x50 ; 0x11bc ret.   *)
+(*   RETURN-0 0x11c0 mov w0,#0 ; ret (NOT reached under the precond).       *)
+(* Entry C-ABI: X0=in_p X1=bit_len X2=out_p X3=tag_p X4=ivec_p X5=key_p    *)
+(*   X6=htable_p; prologue moves X4->X16, X5->X11, x9=X1>>3.                *)
+(*                                                                         *)
+(* Not a clean ARM_ADD_RETURN_STACK_TAC: its internal ARM_STEPS (1--pre_n) *)
+(* would hit the 2 CONDITIONAL guards (cbz/b.ne) and leave a conditional   *)
+(* PC.  So it is HAND-ASSEMBLED (option i) — the guards fall through under  *)
+(* the precond, discharged by WB_GUARD1_NONZERO + WB_GUARD2_MASK below.    *)
+(* ===================================================================== *)
+
+(* GUARD1: cbz x1 does NOT branch — X1 = word (128*nb) is nonzero, since    *)
+(* nb = 8*(k+2) >= 16 > 0 and 128*nb < 2 EXP 64 (so val = 128*nb).          *)
+let WB_GUARD1_NONZERO = prove
+ (`!k nb. 8 * (k + 2) = nb /\ 128 * nb < 2 EXP 64
+          ==> ~(word (128 * nb):int64 = word 0) /\
+              ~(val(word (128 * nb):int64) = 0)`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN REWRITE_TAC[GSYM VAL_EQ_0] THEN
+  SUBGOAL_THEN `val(word(128 * nb):int64) = 128 * nb` SUBST1_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+    ASM_ARITH_TAC]);;
+
+(* GUARD2: tst x1,#0x7f ; b.ne falls through — the low-7-bit mask AND is 0  *)
+(* because 128 = 2 EXP 7 divides 128*nb.                                    *)
+let WB_GUARD2_MASK = prove
+ (`!k nb. 8 * (k + 2) = nb /\ 128 * nb < 2 EXP 64
+          ==> word_and (word (128 * nb):int64) (word 0x7f) = word 0`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  REWRITE_TAC[ARITH_RULE `0x7f = 2 EXP 7 - 1`; WORD_AND_MASK_WORD] THEN
+  SUBGOAL_THEN `val(word(128 * nb):int64) = 128 * nb` SUBST1_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+    AP_TERM_TAC THEN REWRITE_TAC[ARITH_RULE `2 EXP 7 = 128`] THEN
+    MP_TAC(SPECL [`128`; `nb:num`] MOD_MULT) THEN ARITH_TAC]);;
+
+(* Body is CHEAT'd pending a warm post-load server (real EXEC + WB_CORRECT   *)
+(* both bound): the ARM_STEPS drive needs real decode, which logic051's      *)
+(* dummy EXEC cannot do.  Concrete hand-assembly recipe (STEPS A-E) is in    *)
+(* orchestrator/logs/s053_subroutine_draft.ml.  The statement type-checks    *)
+(* (:bool) and the guard lemmas above are genuinely proven + sound.          *)
+let AESV8_GCM_8X_ENC_256_WB_SUBROUTINE_CORRECT = prove
+ (`!in_p out_p tag_p ivec_p key_p htable_p
+     tag0 nonce rk inblock nb k pc stackpointer returnaddress.
+    aligned 16 stackpointer /\
+    ~(k = 0) /\
+    8 * (k + 2) = nb /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16);
+       (word_sub stackpointer (word 80), 80)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_mc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16);
+       (word_sub stackpointer (word 80), 80)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
+           read PC s = word pc /\
+           read SP s = stackpointer /\
+           read X30 s = returnaddress /\
+           C_ARGUMENTS
+            [in_p; word (128 * nb); out_p; tag_p; ivec_p; key_p; htable_p] s /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2) /\
+           (!n. n < 15
+                ==> read (memory :> bytes128 (word_add key_p (word (16 * n)))) s =
+                    word_reversefields 8 (EL n rk)) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j))
+      (\s. read PC s = returnaddress /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce (nb + 2)) /\
+           read (memory :> bytes128 tag_p) s =
+             word_reversefields 8
+               (nist_ghash (aes256_cipher (word 0) rk) tag0
+                  (list_of_seq (nist_cipher_block nonce rk inblock) nb)) /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
+                    word_xor (aes_ctr_block nonce rk j) (inblock j)))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16);
+                  memory :> bytes(word_sub stackpointer (word 80), 80)])`,
+  CHEAT_TAC);;
