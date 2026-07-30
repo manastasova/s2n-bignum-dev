@@ -4781,7 +4781,9 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
     (* FINAL_STATE + this close is NOT yet machine-confirmed; kept CHEAT'd so the file  *)
     (* stays loadable):                                                                *)
     (*   REWRITE_TAC[TAG_STORE_REV64] THEN AP_TERM_TAC THEN TAIL_Q19_FOLD               *)
-    CHEAT_TAC;
+    FIRST_X_ASSUM(fun th ->
+      if concl th = `8 * (k + 2) = nb` then SUBST_ALL_TAC(SYM th) else failwith "") THEN
+    REWRITE_TAC[TAG_STORE_REV64] THEN AP_TERM_TAC THEN TAIL_Q19_FOLD;
     ALL_TAC] THEN
   (* out-forall (j<nb): OLD blocks j<8*(k+1) via the incoming out-forall; the 8    *)
   (* NEW blocks via the retained ciphertext stores + the MAIN_LOOP ciphertext      *)
