@@ -5436,11 +5436,24 @@ let WB_GUARD2_MASK = prove
     AP_TERM_TAC THEN REWRITE_TAC[ARITH_RULE `2 EXP 7 = 128`] THEN
     MP_TAC(SPECL [`128`; `nb:num`] MOD_MULT) THEN ARITH_TAC]);;
 
-(* Body is CHEAT'd pending a warm post-load server (real EXEC + WB_CORRECT   *)
-(* both bound): the ARM_STEPS drive needs real decode, which logic051's      *)
-(* dummy EXEC cannot do.  Concrete hand-assembly recipe (STEPS A-E) is in    *)
-(* orchestrator/logs/s053_subroutine_draft.ml.  The statement type-checks    *)
-(* (:bool) and the guard lemmas above are genuinely proven + sound.          *)
+(* GUARD3 (X9): the prologue `lsr x9,x1,#3` leaves X9 = word_ushr (word bit_len) *)
+(* 3; the core entry precond needs X9 = word (bit_len DIV 8).  Reconcile them    *)
+(* (val(word(128*nb)) = 128*nb since 128*nb < 2 EXP 64, and 2 EXP 3 = 8).        *)
+let WB_X9_NORM = prove
+ (`128 * nb < 2 EXP 64
+   ==> word_ushr (word (128 * nb):int64) 3 = word ((128 * nb) DIV 8)`,
+  STRIP_TAC THEN REWRITE_TAC[word_ushr] THEN AP_TERM_TAC THEN
+  REWRITE_TAC[ARITH_RULE `2 EXP 3 = 8`] THEN AP_THM_TAC THEN AP_TERM_TAC THEN
+  MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC);;
+
+(* Hand-assembled wrapper (not a clean ARM_ADD_RETURN_STACK_TAC: the 2 entry   *)
+(* guards leave a conditional PC that the tactic's internal ARM_STEPS cannot    *)
+(* consume).  The drive (STEPS A-E, machine-validated session 055 on a real-    *)
+(* EXEC server): A unfold ABI+preserve d8-d15/SP/X30+INIT+unfold htable_mem_8;  *)
+(* B step the 3 guards, collapsing the cbz/b.ne fall-throughs via WB_GUARD1/2;  *)
+(* C step the 11-instr prologue to pc+0x38, normalizing X9 via WB_X9_NORM;      *)
+(* D apply _WB_CORRECT as a big step (in-frame SP = stackpointer-0x50);         *)
+(* E step the 7-instr epilogue to the RET, restoring d8-d15.                    *)
 let AESV8_GCM_8X_ENC_256_WB_SUBROUTINE_CORRECT = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p
      tag0 nonce rk inblock nb k pc stackpointer returnaddress.
@@ -5489,4 +5502,58 @@ let AESV8_GCM_8X_ENC_256_WB_SUBROUTINE_CORRECT = prove
                   memory :> bytes(tag_p, 16);
                   memory :> bytes(ivec_p, 16);
                   memory :> bytes(word_sub stackpointer (word 80), 80)])`,
-  CHEAT_TAC);;
+  (* ---- STEP A: unfold ABI + preserve d8..d15/SP/X30 + INIT + unfold htable ---- *)
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
+  REWRITE_TAC[LENGTH_WB_MC; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
+  REWRITE_TAC[C_ARGUMENTS; C_RETURN; SOME_FLAGS] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_EXISTING_PRESERVED_TAC `SP` THEN
+  ENSURES_EXISTING_PRESERVED_TAC `X30` THEN
+  MAP_EVERY (fun c -> ENSURES_PRESERVED_DREG_TAC ("init_"^fst(dest_const c)) c)
+    [`D8`;`D9`;`D10`;`D11`;`D12`;`D13`;`D14`;`D15`] THEN
+  REWRITE_TAC(!simulation_precanon_thms) THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(
+    EXPAND_CASES_CONV THENC ONCE_DEPTH_CONV NUM_MULT_CONV THENC
+    REWRITE_CONV[WORD_ADD_0]))) THEN
+  (* ---- STEP B: step the 3 guards, discharging both fall-throughs ---- *)
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [1] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_GUARD1_NONZERO
+    (CONJ (ASSUME `8 * (k + 2) = nb`) (ASSUME `128 * nb < 2 EXP 64`));
+    COND_CLAUSES]) THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [2] THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [3] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_GUARD2_MASK
+    (CONJ (ASSUME `8 * (k + 2) = nb`) (ASSUME `128 * nb < 2 EXP 64`));
+    VAL_WORD_0; COND_CLAUSES]) THEN
+  (* ---- STEP C: step prologue 0xc..0x34 (steps 4-14) -> PC=pc+0x38 ---- *)
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC (4--14) THEN
+  (* normalize X9 (lsr x1,#3): word_ushr -> word(_ DIV 8) for the BIGSTEP match *)
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_X9_NORM (ASSUME `128 * nb < 2 EXP 64`)]) THEN
+  (* ---- STEP D: apply _WB_CORRECT via BIGSTEP (in-frame SP = stackpointer-0x50) ---- *)
+  MP_TAC(SPECL
+   [`in_p:int64`; `out_p:int64`; `tag_p:int64`; `ivec_p:int64`;
+    `key_p:int64`; `htable_p:int64`;
+    `word_sub stackpointer (word 0x50):int64`;
+    `128 * nb`;
+    `word_add in_p (word (128 * (k + 1))):int64`;
+    `tag0:int128`; `nonce:(96)word`; `rk:int128 list`;
+    `inblock:num->int128`; `nb:num`; `k:num`; `pc:num`]
+   AESV8_GCM_8X_ENC_256_WB_CORRECT) THEN
+  REWRITE_TAC[LENGTH_WB_MC] THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
+    REPEAT CONJ_TAC THEN
+    (NONOVERLAPPING_TAC ORELSE ASM_ARITH_TAC ORELSE CONV_TAC WORD_RULE ORELSE
+     ASM_REWRITE_TAC[]);
+    ALL_TAC] THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+    MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS;
+    htable_mem_8] THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s15" THEN
+  (* ---- STEP E: step epilogue 0x11a4..0x11bc (steps 16-22) -> ret ---- *)
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC (16--22) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  SIMP_TAC[WORD_ZX_ZX; DIMINDEX_64; DIMINDEX_128; LE_REFL; ARITH] THEN
+  CONV_TAC WORD_RULE);;
