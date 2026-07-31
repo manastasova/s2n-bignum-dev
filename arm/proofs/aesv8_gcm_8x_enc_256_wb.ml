@@ -2123,12 +2123,44 @@ let is_inp_memfact th =
         is_var(fst(strip_comb rhs))
   | _ -> false;;
 
+(* ------------------------------------------------------------------------- *)
+(* REPLAY-PERFORMANCE (session 057): the per-step subword normalisation is     *)
+(* O(n^2).  ASSUMPTION_STATE_UPDATE_TAC (common/components.ml:3341) re-stamps   *)
+(* EVERY surviving assumption from s(n-1) to sN each step with its RHS          *)
+(* UNCHANGED, so a fact already put in subword-normal form last step comes back *)
+(* still-normal — yet the bare CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_    *)
+(* CONV) below re-traverses all ~140 carried facts every step, rebuilding each  *)
+(* as theorems, a redundant no-op.  Over a 139-step drive that is ~19k          *)
+(* redundant deep-conv passes (the TAIL was ~2h; s057 STATE.md profiling).      *)
+(*                                                                             *)
+(* WORD_SIMPLE_SUBWORD_CONV (hol-light Library/words.ml:4566) can ONLY fire on  *)
+(* a `word_subword _ (NUMERAL,NUMERAL)` subterm — its outer match failwith's    *)
+(* otherwise.  So TOP_DEPTH_CONV of it on a term WITHOUT that shape returns      *)
+(* REFL (CONV_RULE is then the identity).  SUBWORD_NORM_RULE guards the conv     *)
+(* with a cheap short-circuiting find_term for exactly that shape: it is        *)
+(* PROOF-PRESERVING — for every theorem `th` it returns exactly what            *)
+(* `CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th` returns (identical    *)
+(* when the redex is present; th unchanged, = the conv's own no-op, when        *)
+(* absent) — but it skips the expensive multi-rule traversal on the stable      *)
+(* carried facts, restoring O(n).  Used by NSTEP / NSTEP_G / NSTEP_GP below.     *)
+let has_word_subword_numpair =
+  can (find_term (fun t -> match t with
+      Comb(Comb(Const("word_subword",_),_),
+           Comb(Comb(Const(",",_),Comb(Const("NUMERAL",_),_)),
+                Comb(Const("NUMERAL",_),_))) -> true
+    | _ -> false));;
+
+let SUBWORD_NORM_RULE th =
+  if has_word_subword_numpair (concl th)
+  then CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th
+  else th;;
+
 let NSTEP n =
   ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [n] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
     `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
   RULE_ASSUM_TAC NORMOFF_RULE THEN
-  RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV));;
+  RULE_ASSUM_TAC SUBWORD_NORM_RULE;;
 
 (* ------------------------------------------------------------------------- *)
 (* GUARDED body stepper (session 021/022 — the Q19-fold breakthrough).        *)
@@ -2162,7 +2194,7 @@ let NSTEP_G n =
   RULE_ASSUM_TAC NORMOFF_RULE THEN
   RULE_ASSUM_TAC(fun th ->
     if is_ghash_acc th then th
-    else CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th);;
+    else SUBWORD_NORM_RULE th);;
 
 let INBLOCKS_TAC sname =
   let sv = mk_var(sname,`:armstate`) in
@@ -2208,7 +2240,7 @@ let LDP_STEP4_TAC n =
   (fun (asl,w as gl) ->
      let memfacts = filter is_inp_memfact (map snd asl) in
      RULE_ASSUM_TAC(REWRITE_RULE memfacts) gl) THEN
-  RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  RULE_ASSUM_TAC SUBWORD_NORM_RULE THEN
   DISCARD_OLDSTATE_TAC sn;;
 
 (* ------------------------------------------------------------------------- *)
@@ -2478,7 +2510,7 @@ let LDP_SETUP_TAC n =
          (try CONV_RULE(TOP_DEPTH_CONV NUM_MULT_CONV) th with _ -> th) in
      let memfacts = map norm (filter is_inp_memfact (map snd asl)) in
      RULE_ASSUM_TAC(REWRITE_RULE memfacts) gl) THEN
-  RULE_ASSUM_TAC(CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV)) THEN
+  RULE_ASSUM_TAC SUBWORD_NORM_RULE THEN
   DISCARD_OLDSTATE_TAC sn;;
 
 (* ------------------------------------------------------------------------- *)
@@ -4139,7 +4171,7 @@ let NSTEP_GP n =
   RULE_ASSUM_TAC NORMOFF_RULE THEN
   RULE_ASSUM_TAC(fun th ->
     if is_ghash_acc_pp th then th
-    else CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th);;
+    else SUBWORD_NORM_RULE th);;
 
 (* The Q19 drain fold: Q19_FOLD_TAC with the accumulator index i -> k (the      *)
 (* drain folds the last in-flight 8-block group at loop-bound k, advancing Q19  *)
