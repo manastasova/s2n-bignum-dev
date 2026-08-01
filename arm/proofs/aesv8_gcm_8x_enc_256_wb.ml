@@ -2161,12 +2161,19 @@ let SUBWORD_NORM_RULE th =
 let WB_WADD_RULE = REWRITE_RULE[WORD_RULE
   `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`];;
 
+(* PERF (session 061): fold the three per-step RULE_ASSUM_TAC passes (word_add flatten,  *)
+(* NORMOFF, SUBWORD_NORM) into ONE assumption-list traversal.  This is a pure refactor —  *)
+(* the composed rule applied per fact is bit-identical to running the three rules in       *)
+(* sequence — but it walks the assumption list once per step instead of three times.  No   *)
+(* is_ghash_acc guard here: NSTEP drives SETUP, which carries NO large GHASH accumulators   *)
+(* (measured: max fact ~1900 chars, <=2 Q19 facts through step 253), so there is nothing    *)
+(* to skip; the win is purely the single traversal.  VALIDATED (session 061, warm           *)
+(* s2n-wbtail): on the SAME SETUP state, old vs new NSTEP give a BIT-IDENTICAL goal over a   *)
+(* block (41--120 hash=951408941 both), and block 41--200 21.9s->18.9s (~13.5%, ~3.0s),      *)
+(* reproduced twice.                                                                         *)
 let NSTEP n =
   ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [n] THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
-    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
-  RULE_ASSUM_TAC NORMOFF_RULE THEN
-  RULE_ASSUM_TAC SUBWORD_NORM_RULE;;
+  RULE_ASSUM_TAC(fun th -> SUBWORD_NORM_RULE (NORMOFF_RULE (WB_WADD_RULE th)));;
 
 (* ------------------------------------------------------------------------- *)
 (* GUARDED body stepper (session 021/022 — the Q19-fold breakthrough).        *)
