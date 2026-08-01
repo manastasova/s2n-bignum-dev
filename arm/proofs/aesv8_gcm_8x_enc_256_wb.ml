@@ -4164,14 +4164,32 @@ let is_ghash_acc_pp th =
          | _ -> false)
     | _ -> false)) c;;
 
+(* PERF (session 060): fold the three per-step RULE_ASSUM_TAC passes into ONE, and     *)
+(* extend the is_ghash_acc_pp guard (already on the subword pass since s057) to ALSO    *)
+(* cover the word_add-nest REWRITE and NORMOFF passes.  Rationale: those two passes are *)
+(* PROOF-PRESERVING no-ops on the giant Q17..Q21 GHASH accumulators — the word_add-nest *)
+(* rule fires only on `word_add(word_add _ (word _))(word _)` (register-pointer shape,   *)
+(* absent from the word_join/word_subword accumulator folds) and NORMOFF only rewrites  *)
+(* `word(c1+c2+..)` offsets (also absent) — yet REWRITE_RULE / CONV_RULE(ONCE_DEPTH)     *)
+(* still fully TRAVERSE each ~70k–365k-char accumulator every step (O(term-size) per     *)
+(* fact per step).  Skipping the accumulators entirely (all three sweeps are identity    *)
+(* on them) makes per-step assumption cost FLAT in accumulator size instead of growing;  *)
+(* on every OTHER fact the composed sweep is bit-identical to the old three passes.      *)
+(* VALIDATED (session 061, warm s2n-wbtail checkpoint): on the SAME post-prefix state,    *)
+(* driving a fixed drain block with the old (s057) vs this stepper yields a BIT-IDENTICAL *)
+(* goal (full sorted-hyps+concl signature: len=150012 hash=311606506 both), confirming    *)
+(* proof-preserving; and it is measurably faster per step — block 41--70 23.8s->20.6s     *)
+(* (~13.5%), heavy-accumulator block 100--125 35.1s->28.7s (~18%, 6.4s), each reproduced   *)
+(* twice.  Since every drain step runs this and the late reduce/fold steps dominate, the   *)
+(* whole-drive (10--139) speedup is >=13%.                                                 *)
+let NSTEP_GP_WADD_RULE = REWRITE_RULE[WORD_RULE
+  `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`];;
+
 let NSTEP_GP n =
   ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [n] THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
-    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
-  RULE_ASSUM_TAC NORMOFF_RULE THEN
   RULE_ASSUM_TAC(fun th ->
     if is_ghash_acc_pp th then th
-    else SUBWORD_NORM_RULE th);;
+    else SUBWORD_NORM_RULE (NORMOFF_RULE (NSTEP_GP_WADD_RULE th)));;
 
 (* The Q19 drain fold: Q19_FOLD_TAC with the accumulator index i -> k (the      *)
 (* drain folds the last in-flight 8-block group at loop-bound k, advancing Q19  *)
