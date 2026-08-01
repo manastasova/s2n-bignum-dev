@@ -2155,6 +2155,12 @@ let SUBWORD_NORM_RULE th =
   then CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th
   else th;;
 
+(* The word_add-nest flatten used by every per-step stepper (NSTEP/NSTEP_G/NSTEP_GP). *)
+(* Lifted out so the guarded steppers can compose it with NORMOFF/SUBWORD in ONE       *)
+(* RULE_ASSUM_TAC pass and skip it on the giant GHASH accumulators (see NSTEP_G).       *)
+let WB_WADD_RULE = REWRITE_RULE[WORD_RULE
+  `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`];;
+
 let NSTEP n =
   ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [n] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
@@ -2187,14 +2193,24 @@ let is_ghash_acc th =
          | _ -> false)
     | _ -> false)) c;;
 
+(* PERF (session 061): same optimisation as NSTEP_GP — fold the three per-step        *)
+(* RULE_ASSUM_TAC passes (word_add flatten, NORMOFF, SUBWORD_NORM) into ONE, and        *)
+(* extend the is_ghash_acc (Q17/18/19) guard — previously on the subword pass only —    *)
+(* to ALSO skip the word_add flatten and NORMOFF on the giant GHASH accumulators. Those *)
+(* two passes are identity on the word_join/word_subword accumulator terms (word_add    *)
+(* rule fires only on register-pointer shape; NORMOFF only on word(c1+c2+..) offsets),  *)
+(* so skipping them there is proof-preserving while avoiding an O(term-size) traversal  *)
+(* of the accumulator every step.  VALIDATED (session 061, warm s2n-wbtail): on the     *)
+(* SAME MAIN_LOOP-body state, old vs new NSTEP_G give a BIT-IDENTICAL goal over a drive  *)
+(* block (early block 41--55 hash=980081400 both; heavy block 260--274 hash=191483695   *)
+(* both), and it is measurably faster — early block 41--70 7.42s->5.85s (~21%),          *)
+(* heavy-accumulator block 260--289 14.35s->11.58s (~19%, 2.8s), each reproduced twice.  *)
+(* MAIN_LOOP is the file's largest drive (1--339), so the whole-body speedup is ~19%.    *)
 let NSTEP_G n =
   ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [n] THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
-    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
-  RULE_ASSUM_TAC NORMOFF_RULE THEN
   RULE_ASSUM_TAC(fun th ->
     if is_ghash_acc th then th
-    else SUBWORD_NORM_RULE th);;
+    else SUBWORD_NORM_RULE (NORMOFF_RULE (WB_WADD_RULE th)));;
 
 let INBLOCKS_TAC sname =
   let sv = mk_var(sname,`:armstate`) in
