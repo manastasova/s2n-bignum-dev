@@ -4566,14 +4566,76 @@ let KS_SOLVE = prove
   REPEAT STRIP_TAC THEN FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN
   CONV_TAC WORD_BITWISE_RULE);;
 
+(* Eta/beta collapse for the accumulator-block (block-0) artifact.  The batched   *)
+(* fold's block-0 index 8*(k+1)+0 reduces to 8*(k+1), and higher-order matching in *)
+(* GHASH_POLYVAL_ACC_BATCHED leaves the `inblock` slot as a CONSTANT lambda        *)
+(* `nist_cipher_block nonce rk (\x. inblock (8*(k+1))) (8*(k+1))` — beta-equal to   *)
+(* the clean form but opaque to WORD_BITWISE_RULE (which can't see through         *)
+(* nist_cipher_block).  ETA_CONV does NOT fire (the lambda is constant, not \x.f x)*)
+(* so a targeted beta-collapse lemma is needed before the final AP_TERM.           *)
+let NCB_ETA = prove
+ (`nist_cipher_block nonce rk (\x:num. inb (m:num)) m =
+   nist_cipher_block nonce rk inb m`,
+  REWRITE_TAC[nist_cipher_block; cipher_block] THEN CONV_TAC(DEPTH_CONV BETA_CONV));;
+
 (* The TAIL Q19 drain fold: folds the FINAL in-flight 8-block group                *)
 (* 8*(k+1)..8*(k+1)+7, advancing Q19 from nist_ghash..(8*(k+1)) to                  *)
-(* nist_ghash..(8*(k+2)) = ..nb.  Structurally Q19_FOLD_TAC_K with every block      *)
-(* index reindexed k -> k+1 (one more GHASH_ACC_APPEND round than PREPRETAIL).      *)
+(* nist_ghash..(8*(k+2)) = ..nb (one more GHASH_ACC_APPEND round than PREPRETAIL).  *)
+(*                                                                                 *)
+(* SESSION 065: this is NOT Q19_FOLD_TAC_K verbatim.  Two hardware divergences make *)
+(* the tail's reduce differ from PREPRETAIL's, both byte-verified via objdump:      *)
+(*                                                                                 *)
+(*  (1) OPERAND ORDER of the final reduce eor3.  PREPRETAIL@0x9d0 emits             *)
+(*      `eor3 v19,v19,v21,v17` (ext,pmull) = `word_xor (word_xor p3 ext) pmull`, so *)
+(*      it needs a leading AC-swap to reach ghash_reduce_raw's `word_xor(word_xor   *)
+(*      p3 pmull) ext` shape.  The TAIL@0x1194 emits `eor3 v19,v19,v17,v21`         *)
+(*      (pmull,ext) = ALREADY in ghash_reduce_raw order — so the copied leading     *)
+(*      acswap flips it OUT (RECON_GRR no-ops -> AP_TERM_TAC head mismatch = the     *)
+(*      full-file-gate `Failure "AP_TERM_TAC"`).  FIX: DROP the leading acswap.      *)
+(*                                                                                 *)
+(*  (2) BLOCK PROVENANCE.  PREPRETAIL folds the INVARIANT-CLEAN v8..v15 blocks       *)
+(*      (`word_xor (aes_ctr_block J) (inblock J)`).  The TAIL recomputes the last 8  *)
+(*      blocks fresh (eor3 v9,v8,v0,v28 + KS_SOLVE), so each block enters the reduce *)
+(*      as the RAW form `word_xor (word_xor inblock (word_xor aes rk14)) rk14`       *)
+(*      (double-rk14, inblock-first, aes NOT folded to aes_ctr_block).  It must be   *)
+(*      normalised to the clean `cipher_block` shape BEFORE the proven route:        *)
+(*        - blocknorm cancels the double rk14 (word_xor (word_xor i (word_xor a r))  *)
+(*          r = word_xor i a);                                                       *)
+(*        - WORD_REDUCE_CONV+WORD_XOR_0 clear a spurious word_subword(word 0)(64,64);*)
+(*        - comm_ib flips inblock-first -> aes-first (word_xor i (rev8 a) =          *)
+(*          word_xor (rev8 a) i);                                                    *)
+(*        - the ctr index 8*k+(10+m) = (8*(k+1)+m)+2 lets GSYM aes_ctr_block fold    *)
+(*          rev8(aes256_cipher (ctr_block nonce (J+2)) rk) -> aes_ctr_block J, then  *)
+(*          GSYM cipher_block + CIPHER_BLOCK_NIST reach nist_cipher_block.           *)
+(*                                                                                 *)
+(*  After cleaning, the tail's three Karatsuba lanes are ALIGNED (block order        *)
+(*  [7..0] paired with h^[0..7] uniformly across all lanes), so GHASH_REDUCE_RAW_XOR *)
+(*  (order-agnostic linearity) + KARATSUBA_IS_DOT_HW fire DIRECTLY into 8 clean      *)
+(*  polyval_dots — no DIST8_PLAIN (which bakes in the body's misaligned [1;0;3;2..]  *)
+(*  cross order and thus no-ops on the tail).  The proven batched-fold continuation  *)
+(*  then closes, modulo the block-0 NCB_ETA cleanup above.                           *)
 let TAIL_Q19_FOLD =
-  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
-    `word_xor (word_xor (x:int128) e) p = word_xor (word_xor x p) e`] THEN
+  GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+    [WORD_BITWISE_RULE
+      `word_xor (word_xor (i:int128) (word_xor a r)) r = word_xor i a`] THEN
   REWRITE_TAC[RECON_GRR] THEN
+  CONV_TAC(LAND_CONV(ONCE_DEPTH_CONV WORD_REDUCE_CONV)) THEN
+  REWRITE_TAC[WORD_XOR_0] THEN
+  GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+    [WORD_BITWISE_RULE `word_xor (word 0:int128) x = x`] THEN
+  GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+    [WORD_BITWISE_RULE
+      `word_xor (i:int128) (word_reversefields 8 a) =
+       word_xor (word_reversefields 8 a) i`] THEN
+  REWRITE_TAC[ARITH_RULE `8 * k + 10 = (8 * (k + 1) + 0) + 2`;
+              ARITH_RULE `8 * k + 11 = (8 * (k + 1) + 1) + 2`;
+              ARITH_RULE `8 * k + 12 = (8 * (k + 1) + 2) + 2`;
+              ARITH_RULE `8 * k + 13 = (8 * (k + 1) + 3) + 2`;
+              ARITH_RULE `8 * k + 14 = (8 * (k + 1) + 4) + 2`;
+              ARITH_RULE `8 * k + 15 = (8 * (k + 1) + 5) + 2`;
+              ARITH_RULE `8 * k + 16 = (8 * (k + 1) + 6) + 2`;
+              ARITH_RULE `8 * k + 17 = (8 * (k + 1) + 7) + 2`] THEN
+  REWRITE_TAC[GSYM aes_ctr_block] THEN
   REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
   REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
   SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
@@ -4582,7 +4644,8 @@ let TAIL_Q19_FOLD =
   REWRITE_TAC[WORD_SUBWORD_XOR] THEN
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN
-  REWRITE_TAC[GHASH_REDUCE_RAW_DIST8_PLAIN] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_XOR] THEN
+  REWRITE_TAC[KARATSUBA_IS_DOT_HW] THEN
   REWRITE_TAC[NIST_GHASH_IS_POLYVAL] THEN
   REWRITE_TAC[ARITH_RULE
     `8 * (k + 2) = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * (k+1)))))))))`] THEN
@@ -4608,6 +4671,7 @@ let TAIL_Q19_FOLD =
   REWRITE_TAC[ADD_0] THEN
   REWRITE_TAC[polyval_dot] THEN
   REWRITE_TAC[GSYM PROP3_XOR] THEN
+  REWRITE_TAC[NCB_ETA] THEN
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
