@@ -4674,6 +4674,32 @@ let TAIL_Q19_FOLD =
   REWRITE_TAC[NCB_ETA] THEN
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
+(* PERF (session 067): fold the raw GHASH accumulator to its compact nist_ghash form   *)
+(* the INSTANT the final reduce eor3@0x1194 lands (state s136, `read Q19 s136 = <raw    *)
+(* ~1.94M-char fold>`), BEFORE the ext@0x1198 / rev64@0x119c / st1@0x11a0 tail.  The    *)
+(* old drive `MAP_EVERY NSTEP_GP (10--139)` let ARM_STEPS_TAC substitute the raw ~4M    *)
+(* accumulator into the rev64's 16 word_subword slots (~64M term) — measured ~2.4h for  *)
+(* the rev64 step + ~39min for the st1, i.e. essentially the WHOLE ~3.08h WB_TAIL cost. *)
+(* Rewriting the s136 assumption to the compact `nist_ghash..(8*(k+2))` (via the proven  *)
+(* TAIL_Q19_FOLD equality, ~8s on the raw term) makes ext/rev64/st1 inline the small     *)
+(* compact term instead: steps 137--139 drop 2.4h+39min -> ~22s.  The tail's FINAL tag   *)
+(* closer (TAG_STORE_REV64 captures the ext;rev64 byte-perm as word_reversefields 8 of    *)
+(* the s136 value; AP_TERM_TAC exposes `read Q19 s136 = nist_ghash..nb`) then closes on   *)
+(* the compact value via the same TAIL_Q19_FOLD — now a near-REFL.  Proof-PRESERVING:     *)
+(* the substituted equality is exactly what the un-optimised closer proves, moved one     *)
+(* barrier earlier so the giant term is never built.  Validated end-to-end on the warm    *)
+(* s2n-wbtail checkpoint: full WB_TAIL drive+close 207s (was ~3.08h); tag conjunct closes.*)
+let FOLD_Q19_S136 : tactic =
+  RULE_ASSUM_TAC(fun th ->
+    let c = concl th in
+    if is_eq c && lhs c = `read Q19 s136 : int128`
+    then TRANS th (prove
+      (mk_eq(rhs c,
+        `nist_ghash (aes256_cipher (word 0) rk) tag0
+           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * (k + 2)))`),
+       TAIL_Q19_FOLD))
+    else th);;
+
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
  (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
@@ -4888,8 +4914,14 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
   (* branch resolves concretely (b.gt 0x80>0x70 TAKEN -> pc+0xfa0).               *)
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP TAIL_X5_128 (ASSUME `8 * (k + 2) = nb`)]) THEN
-  (* Steps 10..139: the full 8-block drain + reduce + 2 writebacks.               *)
-  MAP_EVERY NSTEP_GP (10--139) THEN
+  (* Steps 10..136: the full 8-block drain + Karatsuba + reduce, up to & incl the  *)
+  (* final reduce eor3@0x1194 (s136: read Q19 = raw ~1.94M-char GHASH fold).        *)
+  MAP_EVERY NSTEP_GP (10--136) THEN
+  (* PERF s067: fold Q19 to compact nist_ghash NOW, so the ext/rev64/st1 tail       *)
+  (* (steps 137--139) inlines a small term instead of the ~4M raw fold (was ~3h).   *)
+  FOLD_Q19_S136 THEN
+  (* Steps 137..139: ext@0x1198 ; rev64@0x119c ; st1@0x11a0 (2 writebacks).         *)
+  MAP_EVERY NSTEP_GP (137--139) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   (* 3 conjuncts: ivec store / tag store / out-forall.                            *)
   CONJ_TAC THENL
