@@ -5809,6 +5809,49 @@ let WB_X9_NORM = prove
   REWRITE_TAC[ARITH_RULE `2 EXP 3 = 8`] THEN AP_THM_TAC THEN AP_TERM_TAC THEN
   MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC);;
 
+(* ===================================================================== *)
+(* GENERALIZATION ARC (session 075) — full functional correctness over    *)
+(* ALL whole-block counts nblocks >= 0 (see orchestrator GENERALIZE_PLAN). *)
+(*                                                                         *)
+(* nblocks = 0 EARLY-RETURN leg.  When bit_len (X1) = 0 the entry guard    *)
+(*   `cbz x1, 0x11c0` is TAKEN, jumping to the return-0 path               *)
+(*   0x11c0 `mov w0,#0`; 0x11c4 `ret`.  No frame is set up, no memory is    *)
+(* written, so tag/ivec are preserved.  Spec: nist_ghash H tag0 [] = tag0  *)
+(* (empty ciphertext list), counter unchanged at ctr_block nonce 2, no     *)
+(* output blocks (the ciphertext forall is vacuous for j < 0).  X0 = 0     *)
+(* is the byte length returned (16*0).  This is a wrapper-level branch      *)
+(* (never enters the core), so it is stated at function entry `pc` and      *)
+(* composed into _WB_SUBROUTINE_CORRECT's nblocks=0 case-split.            *)
+let AESV8_GCM_8X_ENC_256_WB_RETURN0 = prove
+ (`!(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64) (key_p:int64)
+     (htable_p:int64) (tag0:int128) (nonce:(96)word) (rk:int128 list)
+     (inblock:num->int128) pc stackpointer returnaddress.
+    ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
+           read PC s = word pc /\
+           read SP s = stackpointer /\
+           read X30 s = returnaddress /\
+           read X1 s = word 0 /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2))
+      (\s. read PC s = returnaddress /\
+           read X0 s = word 0 /\
+           read SP s = stackpointer /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2) /\
+           read (memory :> bytes128 tag_p) s =
+             word_reversefields 8
+               (nist_ghash (aes256_cipher (word 0) rk) tag0
+                  (list_of_seq (nist_cipher_block nonce rk inblock) 0)))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
+  REPEAT STRIP_TAC THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [1;2;3] THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[list_of_seq; nist_ghash]);;
+
 (* Hand-assembled wrapper (not a clean ARM_ADD_RETURN_STACK_TAC: the 2 entry   *)
 (* guards leave a conditional PC that the tactic's internal ARM_STEPS cannot    *)
 (* consume).  The drive (STEPS A-E, machine-validated session 055 on a real-    *)
