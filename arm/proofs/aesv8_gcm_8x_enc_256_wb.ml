@@ -2155,6 +2155,48 @@ let SUBWORD_NORM_RULE th =
   then CONV_RULE(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) th
   else th;;
 
+(* PERF (session 068): the same short-circuit idea as SUBWORD_NORM_RULE, applied to  *)
+(* the word_add-nest flatten (WB_WADD_RULE / NSTEP_GP_WADD_RULE).  That REWRITE_RULE   *)
+(* rewrites `word_add (word_add b (word m)) (word nn) -> word_add b (word(m+nn))`,     *)
+(* which fires ONLY on a register-pointer fact carrying the doubly-nested word_add    *)
+(* shape (produced by a post-increment ldr/str advancing X0/X2).  On EVERY other       *)
+(* carried fact — the Q-register reads, the read-only key/mod/ivec/htable memory        *)
+(* facts, the non-incrementing state facts — the redex is absent, so REWRITE_RULE       *)
+(* still builds its net and TOP_DEPTH-traverses the whole term only to return it         *)
+(* unchanged.  Guarding with a cheap short-circuiting find_term for exactly that redex   *)
+(* is PROOF-PRESERVING (identical to the bare rule: unchanged when the shape is absent,  *)
+(* the rule's own no-op; identical rewrite when present) yet skips the net-walk on the   *)
+(* facts that can never match.  In the WB_TAIL drive the doubly-nested shape is present  *)
+(* on ~0 of ~110 carried facts at any given step (X0/X2 offsets are normalised away by   *)
+(* NORMOFF the same step), so this is nearly a full skip.  VALIDATED (session 068, warm   *)
+(* s2n-wbtail): over the full WB_TAIL drive MAP_EVERY NSTEP_GP (10--136) from the SAME    *)
+(* s9 set-point, old vs guarded give a BIT-IDENTICAL goal (sig len=4522863 hash=          *)
+(* 151882239 both) and 127.3s->121.9s / 127.2s->122.1s (~4.2% / ~4.0%, ~5.2s), reproduced *)
+(* twice.  Used by the guarded steppers below.                                            *)
+let has_wadd_nest =
+  can (find_term (fun t -> match t with
+      Comb(Comb(Const("word_add",_),
+             Comb(Comb(Const("word_add",_),_),
+                  Comb(Const("word",_),_))),
+           Comb(Const("word",_),_)) -> true
+    | _ -> false));;
+
+(* PERF (session 068): companion guard for NORMOFF_RULE, which is                        *)
+(* CONV_RULE(ONCE_DEPTH_CONV ..) firing only on a `word (t)` subterm whose argument t is  *)
+(* a sum (`_ + _`) it can renormalise — i.e. a not-yet-collapsed offset like              *)
+(* `word (128 * (k+1) + 16 + 32)`.  On every fact WITHOUT such a `word(sum)` the           *)
+(* ONCE_DEPTH_CONV still descends the whole term to find nothing.  has_word_of_sum is a    *)
+(* cheap short-circuiting find_term for `word (_ + _)`; guarding NORMOFF with it is         *)
+(* PROOF-PRESERVING (NORMOFF is a no-op on facts lacking `word(sum)`, exactly what the      *)
+(* guard skips) and stacks on top of the has_wadd_nest guard.  VALIDATED (session 068,       *)
+(* warm s2n-wbtail): guarding BOTH passes over the full (10--136) drive from the same s9     *)
+(* set-point gives a BIT-IDENTICAL goal (sig len=4522863 hash=151882239) and 127.3s->121.2s /*)
+(* 127.4s->121.4s (~4.8% / ~4.7%, ~6.1s), reproduced twice — ~0.9s beyond the WADD guard.   *)
+let has_word_of_sum =
+  can (find_term (fun t -> match t with
+      Comb(Const("word",_), Comb(Comb(Const("+",_),_),_)) -> true
+    | _ -> false));;
+
 (* The word_add-nest flatten used by every per-step stepper (NSTEP/NSTEP_G/NSTEP_GP). *)
 (* Lifted out so the guarded steppers can compose it with NORMOFF/SUBWORD in ONE       *)
 (* RULE_ASSUM_TAC pass and skip it on the giant GHASH accumulators (see NSTEP_G).       *)
@@ -4208,11 +4250,21 @@ let is_ghash_acc_pp th =
 let NSTEP_GP_WADD_RULE = REWRITE_RULE[WORD_RULE
   `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`];;
 
+(* PERF (session 068): guard BOTH the word_add-nest flatten (has_wadd_nest) and the      *)
+(* NORMOFF offset renormalisation (has_word_of_sum) with cheap short-circuiting            *)
+(* find_terms, so each REWRITE_RULE / CONV_RULE net-walk runs only on facts that actually  *)
+(* carry its redex.  Bit-identical to the bare passes per fact (each is a no-op on facts   *)
+(* lacking its shape, exactly what the guard skips), but avoids the traversal on the ~110   *)
+(* carried facts that lack it.  Measured ~4.7% on the full (10--136) WB_TAIL drive, twice,  *)
+(* bit-identical goal signature (see has_wadd_nest / has_word_of_sum above).                *)
 let NSTEP_GP n =
   ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [n] THEN
   RULE_ASSUM_TAC(fun th ->
     if is_ghash_acc_pp th then th
-    else SUBWORD_NORM_RULE (NORMOFF_RULE (NSTEP_GP_WADD_RULE th)));;
+    else
+      let th1 = if has_wadd_nest (concl th) then NSTEP_GP_WADD_RULE th else th in
+      let th2 = if has_word_of_sum (concl th1) then NORMOFF_RULE th1 else th1 in
+      SUBWORD_NORM_RULE th2);;
 
 (* The Q19 drain fold: Q19_FOLD_TAC with the accumulator index i -> k (the      *)
 (* drain folds the last in-flight 8-block group at loop-bound k, advancing Q19  *)
