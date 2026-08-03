@@ -4752,6 +4752,33 @@ let FOLD_Q19_S136 : tactic =
        TAIL_Q19_FOLD))
     else th);;
 
+(* PERF (session 069): DROP the now-DEAD GHASH-reduce scratch registers right after   *)
+(* FOLD_Q19_S136.  The final reduce `eor3 v19,v19,v17,v21`@0x1194 consumes Q17 (pmull)  *)
+(* and Q21 (ext) into Q19 (Q18/Q20 are the earlier mid-reduce scratch feeding them);    *)
+(* once Q19 is folded to its compact nist_ghash form, NONE of Q17/Q18/Q20/Q21 is read   *)
+(* again — steps 137--139 (ext/rev64/st1) touch only Q19, and neither the postcondition *)
+(* nor the MAYCHANGE frame mentions them.  But at s136 those four assumptions still      *)
+(* carry the RAW ~1.9M/620k/588k-char Karatsuba lane sums (measured: Q21=1.22M, Q17=620k,*)
+(* Q18=588k), and every downstream tactic that walks the assumption list pays for them:  *)
+(* ARM_STEPS_TAC re-stamps each of the three tail steps over them, and ENSURES_FINAL_    *)
+(* STATE_TAC + the out-forall closer traverse them.  Discarding them here is PROOF-       *)
+(* PRESERVING (they are unread after the reduce — verified: the full WB_TAIL still closes *)
+(* 0 subgoals with them gone) and cuts the post-fold tail (steps 137--139 + FINAL_STATE + *)
+(* closers) from ~21.2s to ~12.2s (~9s, measured twice on the warm s2n-wbtail checkpoint  *)
+(* from the shared post-fold set-point), i.e. ~6% of the whole WB_TAIL drive+close.        *)
+let DISCARD_DEAD_REDUCE_SCRATCH : tactic =
+  let dead = ["Q17"; "Q18"; "Q20"; "Q21"] in
+  let reg_of th =
+    try let c = concl th in
+        if not(is_eq c) then "" else
+        let f,args = strip_comb (lhs c) in
+        if fst(dest_const f) = "read"
+        then (match args with c::_ -> (try fst(dest_const c) with Failure _ -> "") | _ -> "")
+        else ""
+    with Failure _ -> "" in
+  REPEAT(FIRST_X_ASSUM(fun th ->
+    if List.mem (reg_of th) dead then K ALL_TAC th else fail()));;
+
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
  (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
@@ -4972,6 +4999,10 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
   (* PERF s067: fold Q19 to compact nist_ghash NOW, so the ext/rev64/st1 tail       *)
   (* (steps 137--139) inlines a small term instead of the ~4M raw fold (was ~3h).   *)
   FOLD_Q19_S136 THEN
+  (* PERF s069: Q19 is now the compact nist_ghash; the reduce scratch Q17/Q18/Q20/Q21 *)
+  (* (raw ~1.9M/620k/588k-char Karatsuba sums) is DEAD — drop it so the tail steps and *)
+  (* FINAL_STATE/closers stop walking it (post-fold tail ~21.2s->~12.2s, ~6% of TAIL).  *)
+  DISCARD_DEAD_REDUCE_SCRATCH THEN
   (* Steps 137..139: ext@0x1198 ; rev64@0x119c ; st1@0x11a0 (2 writebacks).         *)
   MAP_EVERY NSTEP_GP (137--139) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
