@@ -4766,8 +4766,10 @@ let FOLD_Q19_S136 : tactic =
 (* 0 subgoals with them gone) and cuts the post-fold tail (steps 137--139 + FINAL_STATE + *)
 (* closers) from ~21.2s to ~12.2s (~9s, measured twice on the warm s2n-wbtail checkpoint  *)
 (* from the shared post-fold set-point), i.e. ~6% of the whole WB_TAIL drive+close.        *)
-let DISCARD_DEAD_REDUCE_SCRATCH : tactic =
-  let dead = ["Q17"; "Q18"; "Q20"; "Q21"] in
+(* Drop every assumption whose read-component register is in `deadl` (the s069     *)
+(* reg_of logic, lifted out so both the mid-drive Q27 drop and the post-fold drop   *)
+(* below can share it).                                                             *)
+let DISCARD_REGS deadl : tactic =
   let reg_of th =
     try let c = concl th in
         if not(is_eq c) then "" else
@@ -4777,7 +4779,29 @@ let DISCARD_DEAD_REDUCE_SCRATCH : tactic =
         else ""
     with Failure _ -> "" in
   REPEAT(FIRST_X_ASSUM(fun th ->
-    if List.mem (reg_of th) dead then K ALL_TAC th else fail()));;
+    if List.mem (reg_of th) deadl then K ALL_TAC th else fail()));;
+
+(* PERF (session 070): s069 dropped only {Q17,Q18,Q20,Q21} and only at s136 (post-fold). *)
+(* Two extensions, both PROOF-PRESERVING (full WB_TAIL still closes 0 subgoals) and       *)
+(* MEASURED on the warm s2n-wbtail checkpoint (current-source steppers, WHOLE WB_TAIL,     *)
+(* twice): 140.94s -> 138.04s = -2.90s / -2.06% (both reps >= 2%).                          *)
+(*  (1) Drop Q27 MID-DRIVE at s115.  Q27 is the tail's Karatsuba partial-product lane      *)
+(*      (~87k chars by s115); its LAST read is at drive step ~112 (probed: dropping it at   *)
+(*      s95/100/105/110/111/112 all FAIL with `AP_TERM_TAC`, s115 closes 0 — so s115 is the *)
+(*      earliest proven-sound point).  s069's post-fold drop let ARM_STEPS_TAC re-stamp its *)
+(*      87k over steps 116..136 (~21 steps) + FINAL_STATE; dropping it at s115 is a multi-   *)
+(*      step win (the `DISCARD_REGS ["Q27"]` between (10--115) and (116--136) in the body).  *)
+(*  (2) After FOLD_Q19_S136 EVERY register except Q0..Q7 (the 8 out-block ciphertexts),     *)
+(*      Q19 (the folded compact tag) and Q30 (the ivec counter) is dead — none is read by    *)
+(*      steps 137..139 (ext/rev64/st1) nor referenced by the postcondition/MAYCHANGE.  So    *)
+(*      extend the post-fold drop from 4 regs to ALL 21 dead Q-registers, so steps 137..139  *)
+(*      + FINAL_STATE + the out-forall closer walk a minimal assumption list.  (Q27 is        *)
+(*      absent here — already dropped at s115.)                                               *)
+let DISCARD_DEAD_REDUCE_SCRATCH : tactic =
+  DISCARD_REGS
+    ["Q17"; "Q18"; "Q20"; "Q21"; "Q22"; "Q23"; "Q24"; "Q25"; "Q26";
+     "Q28"; "Q29"; "Q31"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q12";
+     "Q13"; "Q14"; "Q15"];;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
  (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -4995,7 +5019,12 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP TAIL_X5_128 (ASSUME `8 * (k + 2) = nb`)]) THEN
   (* Steps 10..136: the full 8-block drain + Karatsuba + reduce, up to & incl the  *)
   (* final reduce eor3@0x1194 (s136: read Q19 = raw ~1.94M-char GHASH fold).        *)
-  MAP_EVERY NSTEP_GP (10--136) THEN
+  (* PERF s070: drop the Karatsuba partial-product lane Q27 at s115 (its last read  *)
+  (* is drive step ~112; s115 is the earliest proven-sound drop point) so ARM_STEPS *)
+  (* stops re-stamping its ~87k chars over steps 116..136.  See DISCARD_REGS above.  *)
+  MAP_EVERY NSTEP_GP (10--115) THEN
+  DISCARD_REGS ["Q27"] THEN
+  MAP_EVERY NSTEP_GP (116--136) THEN
   (* PERF s067: fold Q19 to compact nist_ghash NOW, so the ext/rev64/st1 tail       *)
   (* (steps 137--139) inlines a small term instead of the ~4M raw fold (was ~3h).   *)
   FOLD_Q19_S136 THEN
