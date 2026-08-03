@@ -5886,6 +5886,68 @@ let WB_REM_BOUNDS = prove
   MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN REWRITE_TAC[ARITH_EQ] THEN
   ASM_ARITH_TAC);;
 
+(* ---- loop_count = 0 branch mechanics (nblocks in 1..8) --------------------- *)
+(* When groups = (nb-1) DIV 8 = 0 (i.e. nb <= 8), the round-down end pointer     *)
+(* x5 = in_p + ((16*nb - 1) AND ~0x7f) collapses to in_p, because 16*nb-1 <= 127 *)
+(* (< 128 = 2^7), so masking off the low 7 bits gives 0.  Then `cmp x0,x5;       *)
+(* b.ge`@0x42c (x0 = in_p) is TAKEN, skipping the whole main loop and jumping    *)
+(* straight to the tail cascade at pc+0xec0.  These two lemmas are the analogues *)
+(* of SETUP_BRANCH_COND_FALSE / X5_END_PTR for the groups=0 leg — there the      *)
+(* branch FALLS THROUGH (groups>=2); here it is TAKEN.                           *)
+
+(* x5 (rounded-down last-full-group ptr) = in_p for nb in 1..8.                  *)
+let WB_X5_GROUPS0 = prove
+ (`!(in_p:int64) nb.
+     1 <= nb /\ nb <= 8
+     ==> word_add
+           (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                     (word 18446744073709551488))
+           in_p = in_p`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `(128 * nb) DIV 8 = 16 * nb` SUBST1_TAC THENL
+   [ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `word_sub (word (16 * nb)) (word 1):int64 = word (16 * nb - 1)`
+    SUBST1_TAC THENL
+   [REWRITE_TAC[WORD_SUB] THEN COND_CASES_TAC THEN ASM_REWRITE_TAC[] THEN
+    ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `word 18446744073709551488:int64 = word_not (word (2 EXP 7 - 1))`
+    SUBST1_TAC THENL
+   [CONV_TAC(RAND_CONV(RAND_CONV(RAND_CONV NUM_REDUCE_CONV))) THEN
+    CONV_TAC WORD_BLAST; ALL_TAC] THEN
+  REWRITE_TAC[WORD_AND_NOT_MASK_WORD] THEN
+  SUBGOAL_THEN `val(word (16 * nb - 1):int64) DIV 2 EXP 7 = 0` SUBST1_TAC THENL
+   [MATCH_MP_TAC DIV_LT THEN
+    SUBGOAL_THEN `val(word (16 * nb - 1):int64) = 16 * nb - 1` SUBST1_TAC THENL
+     [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+      ASM_ARITH_TAC];
+    REWRITE_TAC[MULT_CLAUSES; WORD_ADD_0]]);;
+
+(* The b.ge@0x42c condition (the exact NF!=VF biconditional the stepper emits    *)
+(* for `cmp x0,x5` with x0 = in_p) collapses to T for nb in 1..8, so the         *)
+(* conditional PC resolves to the tail entry pc+0xec0.                           *)
+let WB_BRANCH_COND_TRUE = prove
+ (`!(in_p:int64) nb.
+     1 <= nb /\ nb <= 8
+     ==> ((ival (word_sub in_p
+                  (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p)) < &0 <=>
+           ~(ival in_p -
+             ival (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p) =
+             ival (word_sub in_p
+                    (word_add
+                      (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                                (word 18446744073709551488))
+                      in_p)))) <=> T)`,
+  REPEAT STRIP_TAC THEN
+  ASM_SIMP_TAC[WB_X5_GROUPS0] THEN
+  REWRITE_TAC[WORD_SUB_REFL; INT_SUB_REFL; IVAL_WORD_0] THEN
+  INT_ARITH_TAC);;
+
 (* Hand-assembled wrapper (not a clean ARM_ADD_RETURN_STACK_TAC: the 2 entry   *)
 (* guards leave a conditional PC that the tactic's internal ARM_STEPS cannot    *)
 (* consume).  The drive (STEPS A-E, machine-validated session 055 on a real-    *)
