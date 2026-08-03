@@ -5852,6 +5852,40 @@ let AESV8_GCM_8X_ENC_256_WB_RETURN0 = prove
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[list_of_seq; nist_ghash]);;
 
+(* ---- Block-count decomposition arithmetic (generalization arc, s075) ------ *)
+(* The kernel rounds the byte length DOWN to a whole 8-block group: the        *)
+(* prologue computes x5 = in_p + ((16*nb - 1) AND ~0x7f), i.e. the pointer at  *)
+(* the end of the last FULL 8-block group.  In block units that offset is      *)
+(* 128 * groups where groups = (nb - 1) DIV 8 (for nb >= 1).  The remainder    *)
+(* rem = nb - 8*groups then lies in 1..8 (never 0): an exact multiple of 8     *)
+(* still leaves a final full group for the tail cascade to drain.  These are   *)
+(* the arithmetic facts the general nblocks>=0 statement decomposes over;      *)
+(* current-proof k = groups - 1 (so 8*(k+2)=nb picks out rem=8, groups>=2).    *)
+
+(* (16*nb - 1) DIV 128 = (nb - 1) DIV 8 : the round-down to a full 8-group.    *)
+let WB_ROUNDDOWN = prove
+ (`!nb. 1 <= nb ==> (16 * nb - 1) DIV 128 = (nb - 1) DIV 8`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `16 * nb - 1 = 16 * (nb - 1) + 15` SUBST1_TAC THENL
+   [ASM_ARITH_TAC; ALL_TAC] THEN
+  MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN REWRITE_TAC[ARITH_EQ] THEN
+  ABBREV_TAC `q = (nb - 1) DIV 8` THEN ABBREV_TAC `r = (nb - 1) MOD 8` THEN
+  STRIP_TAC THEN ASM_REWRITE_TAC[] THEN MATCH_MP_TAC DIV_UNIQ THEN
+  EXISTS_TAC `16 * r + 15` THEN ASM_ARITH_TAC);;
+
+(* groups = 0  <=>  nb <= 8  (fewer than one full 8-group: main loop skipped). *)
+let WB_GROUPS0 = prove
+ (`!nb. 1 <= nb ==> ((nb - 1) DIV 8 = 0 <=> nb <= 8)`,
+  REPEAT STRIP_TAC THEN REWRITE_TAC[DIV_EQ_0; ARITH_EQ] THEN ASM_ARITH_TAC);;
+
+(* rem = nb - 8*groups lies in 1..8 : the tail always drains 1..8 blocks.      *)
+let WB_REM_BOUNDS = prove
+ (`!nb. 1 <= nb
+        ==> 8 * ((nb - 1) DIV 8) + 1 <= nb /\ nb <= 8 * ((nb - 1) DIV 8) + 8`,
+  REPEAT GEN_TAC THEN DISCH_TAC THEN
+  MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN REWRITE_TAC[ARITH_EQ] THEN
+  ASM_ARITH_TAC);;
+
 (* Hand-assembled wrapper (not a clean ARM_ADD_RETURN_STACK_TAC: the 2 entry   *)
 (* guards leave a conditional PC that the tactic's internal ARM_STEPS cannot    *)
 (* consume).  The drive (STEPS A-E, machine-validated session 055 on a real-    *)
