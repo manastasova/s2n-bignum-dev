@@ -4797,10 +4797,12 @@ let DISCARD_REGS deadl : tactic =
 (*      extend the post-fold drop from 4 regs to ALL 21 dead Q-registers, so steps 137..139  *)
 (*      + FINAL_STATE + the out-forall closer walk a minimal assumption list.  (Q27 is        *)
 (*      absent here — already dropped at s115.)                                               *)
+(* PERF s072: Q28/Q31 removed from this post-fold list — they are now dropped at    *)
+(* tail entry (dead from entry; see DISCARD_DEAD_HTABLE / the body).                 *)
 let DISCARD_DEAD_REDUCE_SCRATCH : tactic =
   DISCARD_REGS
     ["Q17"; "Q18"; "Q20"; "Q21"; "Q22"; "Q23"; "Q24"; "Q25"; "Q26";
-     "Q28"; "Q29"; "Q31"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q12";
+     "Q29"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q12";
      "Q13"; "Q14"; "Q15"];;
 
 (* PERF (session 071): DROP the 15 DEAD round-key memory facts at tail entry.        *)
@@ -4828,6 +4830,35 @@ let DISCARD_DEAD_KEYMEM : tactic =
        can (find_term (fun t -> t = `key_p:int64`)) (lhs c) &&
        can (find_term (fun t -> match t with Const("memory",_) -> true | _ -> false))
            (lhs c)
+    then K ALL_TAC th else fail()));;
+
+(* PERF (session 072): DROP the 6 DEAD htable (H-power) memory facts at tail entry.  *)
+(* htable_mem_8 (unfolded at INIT) contributes 12 `read (memory :> bytes128 (word_add *)
+(* htable_p (word off))) s = ..` facts, at offsets 0,16,..,176.  But the executed     *)
+(* 8-block tail path (0xfa0..0x11a4) loads x6 (= htable_p) ONLY at offsets            *)
+(* {0,16,32,48,64,80} (ldr q25..q20 @0x1080/0x109c/0x10c0/0x1100/0x112c/0x1140) — the *)
+(* single-accumulator whole-blocks tail uses only H^1..H^4 + the low Karatsuba mids.  *)
+(* The 6 facts at offsets {96,112,128,144,160,176} (byteswap128(h_power 4..7) and the *)
+(* word_join karatsuba_mid pairs for h 4..7) are NEVER read by any tail instruction,  *)
+(* and the postcondition mentions no htable memory — DEAD FROM ENTRY.  Like the s071  *)
+(* round-key drop, dropping them right after the s1..9 prefix removes 6 of the ~101   *)
+(* carried facts from every subsequent ARM_STEPS re-stamp.  PROOF-PRESERVING (full     *)
+(* WB_TAIL still closes 0 subgoals).  DISCARD_DEAD_KEYMEM/DISCARD_REGS miss them (one  *)
+(* keys on key_p, the other on register components).  MEASURED with the entry Q31/Q28  *)
+(* drop below — see the body.                                                         *)
+let dead_htable_offs = [96; 112; 128; 144; 160; 176];;
+let DISCARD_DEAD_HTABLE : tactic =
+  REPEAT(FIRST_X_ASSUM(fun th ->
+    let c = concl th in
+    if is_eq c &&
+       can (find_term (fun t -> t = `htable_p:int64`)) (lhs c) &&
+       can (find_term (fun t -> match t with Const("memory",_) -> true | _ -> false))
+           (lhs c) &&
+       can (find_term (fun t -> match t with
+              Comb(Const("word",_), n) ->
+                (try List.mem (dest_small_numeral n) dead_htable_offs
+                 with Failure _ -> false)
+            | _ -> false)) (lhs c)
     then K ALL_TAC th else fail()));;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
@@ -5048,6 +5079,17 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
   (* rounds run here); drop them before the drive so ARM_STEPS stops re-stamping     *)
   (* all 15 every step (whole WB_TAIL 137.8s->130.4s, -5.4%, twice).  See above.     *)
   DISCARD_DEAD_KEYMEM THEN
+  (* PERF s072: also drop the 6 dead htable H-power facts (offsets 96..176, never     *)
+  (* loaded by the whole-blocks tail) and the two dead precondition register pins      *)
+  (* Q31 (the const `word 0x1000..0` — never read by any tail instr) and Q28 (rk14 —   *)
+  (* first tail use is a `pmull2 v28`@0xfe4 WRITE, so its entry value is dead).  All 8  *)
+  (* are absent from the postcond (which pins no registers) and MAYCHANGE, so they are  *)
+  (* DEAD FROM ENTRY; dropping them here stops ARM_STEPS re-stamping them over ~127      *)
+  (* drive steps (whole WB_TAIL 129.5s->126.8s, -2.04%/-2.15%, twice).  Q28/Q31 were     *)
+  (* previously dropped only post-fold by DISCARD_DEAD_REDUCE_SCRATCH; the entry drop     *)
+  (* subsumes that (a no-op there now).                                                  *)
+  DISCARD_DEAD_HTABLE THEN
+  DISCARD_REGS ["Q31"; "Q28"] THEN
   (* Steps 10..136: the full 8-block drain + Karatsuba + reduce, up to & incl the  *)
   (* final reduce eor3@0x1194 (s136: read Q19 = raw ~1.94M-char GHASH fold).        *)
   (* PERF s070: drop the Karatsuba partial-product lane Q27 at s115 (its last read  *)
