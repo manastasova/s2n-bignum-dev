@@ -2291,7 +2291,16 @@ let INBLOCKS_TAC sname =
       128 * (i + 1) + 112 = 16 * (8 * (i + 1) + 7)`] THEN
     REWRITE_TAC[ARITH_RULE `128 * a = 16 * 8 * a`] THEN
     REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN
-    ASM_ARITH_TAC;
+    (* PERF (session 074): the block-index obligation is `8*(i+1)+b < nb`, closed  *)
+    (* by just {i < k, 8*(k+1) <= nb}.  ASM_ARITH_TAC here MP_TAC'd EVERY hyp into  *)
+    (* the goal — at the LDP store steps (295/303/304) the assumption list carries  *)
+    (* the ~163k-char Q17/Q18/Q19 GHASH accumulators, so each INBLOCKS call spent    *)
+    (* ~24s dragging+scanning the giants (3 calls = ~76s, 36% of the body drive).    *)
+    (* Targeted UNDISCH of exactly the two needed hyps + bare ARITH_TAC is the same  *)
+    (* idiom the body's flag-close already uses (see the flag_arith note below); it  *)
+    (* closes in ~1.2s (proof-preserving: goal signature bit-identical).  Whole      *)
+    (* MAIN_LOOP 342s->270s (-21%), measured twice on warm s2n-wbtail.               *)
+    UNDISCH_TAC `8 * (k + 1) <= nb` THEN UNDISCH_TAC `(i:num) < k` THEN ARITH_TAC;
     ALL_TAC];;
 
 let LDP_STEP4_TAC n =
