@@ -4803,6 +4803,33 @@ let DISCARD_DEAD_REDUCE_SCRATCH : tactic =
      "Q28"; "Q29"; "Q31"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q12";
      "Q13"; "Q14"; "Q15"];;
 
+(* PERF (session 071): DROP the 15 DEAD round-key memory facts at tail entry.        *)
+(* The precondition carries `read (memory :> bytes128 (word_add key_p (word 16*i))) s *)
+(* = word_reversefields 8 (EL i rk)` for i=0..14 (the AES-256 expanded round keys in  *)
+(* memory).  DISCARD_REGS only drops REGISTER facts (its reg_of returns "" for a       *)
+(* `memory :> ..` component), so these 15 facts otherwise survive ALL ~127 drive       *)
+(* steps, and ARM_STEPS_TAC re-stamps each one every step (cost is per-CARRIED-FACT,    *)
+(* not just per-term-size).  But the tail is a streaming GHASH DRAIN: it runs NO AES    *)
+(* rounds (the 8 keystreams Q0..Q7 are already computed at tail entry — see the pre-    *)
+(* condition `word_xor (read Qj) rk14 = word_reversefields 8 (aes256_cipher ..)`), so   *)
+(* the round keys in memory are DEAD from tail entry onward — no instruction reads      *)
+(* key_p memory, and neither the postcondition nor the MAYCHANGE frame mentions it.     *)
+(* Dropping them right after the s1..9 prefix (before the 10--136 drive) is PROOF-       *)
+(* PRESERVING (full WB_TAIL still closes 0 subgoals) and removes 15 of ~101 carried      *)
+(* facts from every subsequent ARM_STEPS re-stamp.  MEASURED on the warm s2n-wbtail     *)
+(* checkpoint (current-source steppers, WHOLE WB_TAIL, interleaved A/B, twice): OLD      *)
+(* 137.74/137.79s vs NEW 130.30/130.48s = -5.40%/-5.30% (both >= 2%), both closed=true.  *)
+(* Complements the s069/s070 register discards (those shrink the reduce scratch; this    *)
+(* drops the drive-long dead memory operands the register-only reg_of never reached).     *)
+let DISCARD_DEAD_KEYMEM : tactic =
+  REPEAT(FIRST_X_ASSUM(fun th ->
+    let c = concl th in
+    if is_eq c &&
+       can (find_term (fun t -> t = `key_p:int64`)) (lhs c) &&
+       can (find_term (fun t -> match t with Const("memory",_) -> true | _ -> false))
+           (lhs c)
+    then K ALL_TAC th else fail()));;
+
 let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
  (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
@@ -5017,6 +5044,10 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
   (* branch resolves concretely (b.gt 0x80>0x70 TAKEN -> pc+0xfa0).               *)
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP TAIL_X5_128 (ASSUME `8 * (k + 2) = nb`)]) THEN
+  (* PERF s071: the round-key memory facts are DEAD in this GHASH drain (no AES     *)
+  (* rounds run here); drop them before the drive so ARM_STEPS stops re-stamping     *)
+  (* all 15 every step (whole WB_TAIL 137.8s->130.4s, -5.4%, twice).  See above.     *)
+  DISCARD_DEAD_KEYMEM THEN
   (* Steps 10..136: the full 8-block drain + Karatsuba + reduce, up to & incl the  *)
   (* final reduce eor3@0x1194 (s136: read Q19 = raw ~1.94M-char GHASH fold).        *)
   (* PERF s070: drop the Karatsuba partial-product lane Q27 at s115 (its last read  *)
