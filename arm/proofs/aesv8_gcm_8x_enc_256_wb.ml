@@ -2715,7 +2715,21 @@ let SETUP_INBLOCKS_TAC sname =
     read (memory :> bytes128 (word_add in_p (word (16 * 6)))) s = inblock 6 /\
     read (memory :> bytes128 (word_add in_p (word (16 * 7)))) s = inblock 7` in
   SUBGOAL_THEN concl_tm STRIP_ASSUME_TAC THENL
-   [REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC;
+   [(* PERF (session 090): after FIRST_ASSUM MATCH_MP_TAC each of the 8       *)
+    (* obligations is the trivial `b < nb` (b = literal 0..7), closed by      *)
+    (* just the bound `8 * (k + 1) <= nb` (b < 8 <= 8*(k+1) <= nb).  The old  *)
+    (* ASM_ARITH_TAC dragged ALL ~67 carried facts into the arith decision    *)
+    (* procedure, spending ~17.7s PER conjunct = ~142s per SETUP_INBLOCKS     *)
+    (* call; with 4 LDP_SETUP_TAC calls (255/256/264/265) that was ~570s =     *)
+    (* 83% of the whole WB_SETUP proof.  Targeted UNDISCH of exactly the one   *)
+    (* needed hyp + bare ARITH_TAC (the same idiom the body's INBLOCKS_TAC     *)
+    (* uses, session 074) closes each in ~0.005s — proof-preserving (the       *)
+    (* resulting STRIP_ASSUME_TAC state is bit-identical: goal signature       *)
+    (* len=26063 hash=312405345 old vs new, warm s2n-wbtail).  142.7s->0.04s   *)
+    (* per call, measured twice.  All three callers (WB_SETUP/_GEN/_G1) carry  *)
+    (* `8 * (k + 1) <= nb` verbatim.                                          *)
+    REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN
+    UNDISCH_TAC `8 * (k + 1) <= nb` THEN ARITH_TAC;
     ALL_TAC];;
 
 let LDP_SETUP_TAC n =
