@@ -10812,6 +10812,29 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_ALL = prove
     (NONOVERLAPPING_TAC ORELSE CONV_TAC WORD_RULE ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);;
 
 
+(* Generalized entry-guard lemmas (session 085) for the general nblocks>=0     *)
+(* wrapper's nb>=1 leg: GUARD1 (cbz x1 does not branch, word(128*nb) nonzero    *)
+(* for nb>=1) and GUARD2 (tst x1,#0x7f falls through, 128 | 128*nb).  These     *)
+(* generalize WB_GUARD1_NONZERO / WB_GUARD2_MASK from `8*(k+2)=nb` to `1<=nb`.  *)
+let WB_GUARD1_NONZERO_GEN = prove
+ (`!nb. 1 <= nb /\ 128 * nb < 2 EXP 64
+        ==> ~(word (128 * nb):int64 = word 0) /\
+            ~(val(word (128 * nb):int64) = 0)`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN REWRITE_TAC[GSYM VAL_EQ_0] THEN
+  SUBGOAL_THEN `val(word(128 * nb):int64) = 128 * nb` SUBST1_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+    ASM_ARITH_TAC]);;
+
+let WB_GUARD2_MASK_GEN = prove
+ (`!nb. 1 <= nb /\ 128 * nb < 2 EXP 64
+        ==> word_and (word (128 * nb):int64) (word 0x7f) = word 0`,
+  REPEAT GEN_TAC THEN STRIP_TAC THEN
+  REWRITE_TAC[ARITH_RULE `0x7f = 2 EXP 7 - 1`; WORD_AND_MASK_WORD] THEN
+  SUBGOAL_THEN `val(word(128 * nb):int64) = 128 * nb` SUBST1_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+    AP_TERM_TAC THEN REWRITE_TAC[ARITH_RULE `2 EXP 7 = 128`] THEN
+    MP_TAC(SPECL [`128`; `nb:num`] MOD_MULT) THEN ARITH_TAC]);;
+
 (* Hand-assembled wrapper (not a clean ARM_ADD_RETURN_STACK_TAC: the 2 entry   *)
 (* guards leave a conditional PC that the tactic's internal ARM_STEPS cannot    *)
 (* consume).  The drive (STEPS A-E, machine-validated session 055 on a real-    *)
