@@ -2590,6 +2590,84 @@ let SETUP_BRANCH_COND_FALSE_2 = prove
     REWRITE_TAC[MATCH_MP SETUP_GE_FALSE_2 (CONJ (ASSUME `~(k = 0)`) (ASSUME
       `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`))]]);;
 
+(* ------ g-general SETUP branch discharges (session 082) --------------------- *)
+(* The g>=2 reassembly sub-leg reuses WB_SETUP's drive but with rem in 1..8      *)
+(* (8*(k+1) < nb <= 8*(k+2)) instead of the rem=8-only 8*(k+2)=nb.  The two      *)
+(* main-loop-skip guard discharges must then use groups=(nb-1)DIV8=k+1 (via      *)
+(* X5_END_PTR_GEN) rather than the exact-multiple X5_END_PTR.  SETUP_X5_END_GEN   *)
+(* is the round-down=end_p reduction; BRANCH_COND_FALSE{,_2}_GEN collapse the     *)
+(* two b.ge biconditionals to F for the fall-through (groups>=2).                 *)
+(* The generalized round-down = end_p reduction (verified interactively s082). *)
+let SETUP_X5_END_GEN = prove
+ (`!(in_p:int64) k nb.
+     8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+     val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> word_add
+           (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                     (word 18446744073709551488)) in_p =
+         word_add in_p (word (128 * (k + 1)):int64)`,
+  REPEAT STRIP_TAC THEN
+  MP_TAC(SPECL [`in_p:int64`; `nb:num`] X5_END_PTR_GEN) THEN
+  ANTS_TAC THENL
+   [CONJ_TAC THENL
+     [ASM_ARITH_TAC;
+      UNDISCH_TAC `nb <= 8 * (k + 2)` THEN
+      UNDISCH_TAC `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63` THEN ARITH_TAC];
+    ALL_TAC] THEN
+  SUBGOAL_THEN `(nb - 1) DIV 8 = k + 1` SUBST1_TAC THENL
+   [ASM_ARITH_TAC; DISCH_THEN ACCEPT_TAC]);;
+
+let SETUP_BRANCH_COND_FALSE_GEN = prove
+ (`!(in_p:int64) k nb.
+     8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+     val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> ((ival (word_sub in_p
+                  (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p)) < &0 <=>
+           ~(ival in_p -
+             ival (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p) =
+             ival (word_sub in_p
+                    (word_add
+                      (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                                (word 18446744073709551488))
+                      in_p)))) <=> F)`,
+  REPEAT STRIP_TAC THEN
+  ASM_SIMP_TAC[SETUP_X5_END_GEN] THEN
+  REWRITE_TAC[BRIDGE_GE] THEN
+  REWRITE_TAC[MATCH_MP SETUP_GE_FALSE (ASSUME
+    `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`)]);;
+
+let SETUP_BRANCH_COND_FALSE_2_GEN = prove
+ (`!(in_p:int64) k nb.
+     ~(k = 0) /\ 8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+     val in_p + 128 * (k + 1) < 2 EXP 63
+     ==> ((ival (word_sub (word_add in_p (word 128))
+                  (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p)) < &0 <=>
+           ~(ival (word_add in_p (word 128)) -
+             ival (word_add
+                    (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                              (word 18446744073709551488))
+                    in_p) =
+             ival (word_sub (word_add in_p (word 128))
+                    (word_add
+                      (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                                (word 18446744073709551488))
+                      in_p)))) <=> F)`,
+  REPEAT STRIP_TAC THEN
+  ASM_SIMP_TAC[SETUP_X5_END_GEN] THEN
+  REWRITE_TAC[BRIDGE_GE] THEN
+  REWRITE_TAC[MATCH_MP SETUP_GE_FALSE_2 (CONJ (ASSUME `~(k = 0)`) (ASSUME
+    `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`))]);;
+
+
 (* SETUP-specific input-block re-derivation and ldp stepper.  In the setup    *)
 (* the 8 plaintext blocks live at in_p + 16*j (j=0..7) — NOT the loop body's  *)
 (* 128*(i+1)+off.  SETUP_INBLOCKS_TAC re-asserts all 8 reads at state `sname` *)
