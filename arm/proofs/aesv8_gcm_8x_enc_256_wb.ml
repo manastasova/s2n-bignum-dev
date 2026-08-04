@@ -3327,6 +3327,23 @@ let Q19_FOLD_TAC =
   (* (parity 0), and the fold closes via GHASH_REDUCE_RAW_DIST8_PLAIN + the     *)
   (* flat-sum route with NO byteswap crossing.  See the new Q19_FOLD_TAC above. *)
 
+(* PERF (session 088): the body cheap-close dispatcher rewrites the out-forall  *)
+(* bound `j < 8*((i+1)+1)` into its 9-way disjunction split via an INLINE       *)
+(* `ARITH_RULE`.  That ARITH_RULE costs ~5.85s to PROVE, and the dispatcher is  *)
+(* run under `REPEAT CONJ_TAC` over ~19 residual goals — so the SAME lemma was  *)
+(* re-proven ~18 times (~105s), i.e. essentially the ENTIRE post-drive close    *)
+(* cost (profiled: every other sub-tactic in the cheap-close is ~0.02s).  Hoist *)
+(* it to a single top-level theorem computed ONCE and REWRITE_TAC[..] with it   *)
+(* per goal — byte-identical rewrite, hence proof-preserving.  MEASURED (warm    *)
+(* s2n-wbtail, shared drive+FINAL_STATE setpoint, interleaved A/B, twice): the   *)
+(* whole post-drive closer 113.34s/109.95s -> 12.44s/12.41s (NEW closes hyps=0), *)
+(* i.e. whole MAIN_LOOP ~270s -> ~171s (~-37%).                                  *)
+let MAIN_LOOP_OUT_DISJSPLIT = ARITH_RULE
+  `j < 8 * ((i + 1) + 1) <=>
+   j < 8 * (i+1) \/ j = 8*(i+1) \/ j = 8*(i+1) + 1 \/
+   j = 8*(i+1) + 2 \/ j = 8*(i+1) + 3 \/ j = 8*(i+1) + 4 \/
+   j = 8*(i+1) + 5 \/ j = 8*(i+1) + 6 \/ j = 8*(i+1) + 7`;;
+
 let AESV8_GCM_8X_ENC_256_WB_MAIN_LOOP = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb k pc.
@@ -3684,10 +3701,7 @@ let AESV8_GCM_8X_ENC_256_WB_MAIN_LOOP = prove
           with _ -> false)
       then Q19_FOLD_TAC gl
       else
-       (REWRITE_TAC[ARITH_RULE `j < 8 * ((i + 1) + 1) <=>
-                            j < 8 * (i+1) \/ j = 8*(i+1) \/ j = 8*(i+1) + 1 \/
-                            j = 8*(i+1) + 2 \/ j = 8*(i+1) + 3 \/ j = 8*(i+1) + 4 \/
-                            j = 8*(i+1) + 5 \/ j = 8*(i+1) + 6 \/ j = 8*(i+1) + 7`] THEN
+       (REWRITE_TAC[MAIN_LOOP_OUT_DISJSPLIT] THEN
         ASM_REWRITE_TAC[TAUT `p \/ q ==> r <=> (p ==> r) /\ (q ==> r)`] THEN
         REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
         REWRITE_TAC[ARITH_RULE `16 * (8 * (i+1) + b) = 128 * (i+1) + 16 * b`] THEN
