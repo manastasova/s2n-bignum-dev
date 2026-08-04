@@ -2423,6 +2423,57 @@ let X5_END_PTR = prove
     SIMP_TAC[DIV_MULT_ADD; EXP_EQ_0; ARITH_EQ] THEN
     CONV_TAC NUM_REDUCE_CONV THEN ARITH_TAC]);;
 
+(* X5_END_PTR_GEN (session 082): the g-general round-down lemma.  For ANY     *)
+(* nb>=1 the mask-off-low-7-bits of (16*nb - 1) yields 128 * groups where      *)
+(* groups = (nb-1) DIV 8 — the last-full-8-group pointer.  Subsumes X5_END_PTR *)
+(* (nb = 8*(k+2) => (nb-1) DIV 8 = k+1) and WB_X5_GROUPS0 (nb<=8 => groups=0).  *)
+(* Needed by the loop_count>=1 reassembly leg where rem may be 1..8 (not just 8).*)
+let X5_END_PTR_GEN = prove
+ (`!(in_p:int64) nb.
+     1 <= nb /\ 16 * nb < 2 EXP 64
+     ==> word_add
+           (word_and (word_sub (word ((128 * nb) DIV 8)) (word 1))
+                     (word 18446744073709551488))
+           in_p =
+         word_add in_p (word (128 * ((nb - 1) DIV 8)))`,
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `(128 * nb) DIV 8 = 16 * nb` SUBST1_TAC THENL
+   [ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN
+   `val(word_sub (word (16 * nb)) (word 1):int64) = 16 * nb - 1`
+   ASSUME_TAC THENL
+   [SUBGOAL_THEN `val(word (16 * nb):int64) = 16 * nb` ASSUME_TAC THENL
+     [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC;
+      ALL_TAC] THEN
+    ASM_REWRITE_TAC[VAL_WORD_SUB_CASES; VAL_WORD_1] THEN
+    COND_CASES_TAC THEN ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  REWRITE_TAC[WORD_ADD_SYM] THEN AP_TERM_TAC THEN
+  SUBGOAL_THEN
+   `word_and (word_sub (word (16 * nb)) (word 1))
+             (word 18446744073709551488):int64 =
+    word(2 EXP 7 * (val(word_sub (word (16 * nb)) (word 1):int64)
+                    DIV 2 EXP 7))`
+   SUBST1_TAC THENL
+   [SUBGOAL_THEN `word 18446744073709551488:int64 = word_not(word(2 EXP 7 - 1))`
+      SUBST1_TAC THENL
+     [CONV_TAC NUM_REDUCE_CONV THEN CONV_TAC WORD_BLAST; ALL_TAC] THEN
+    REWRITE_TAC[WORD_AND_NOT_MASK_WORD];
+    ASM_REWRITE_TAC[] THEN AP_TERM_TAC THEN
+    REWRITE_TAC[ARITH_RULE `2 EXP 7 = 128`] THEN
+    SUBGOAL_THEN `16 * nb - 1 = 128 * ((nb-1) DIV 8) + (16 * ((nb-1) MOD 8) + 15)`
+      SUBST1_TAC THENL
+     [MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN REWRITE_TAC[ARITH_EQ] THEN
+      ASM_ARITH_TAC;
+      ALL_TAC] THEN
+    SUBGOAL_THEN `128 * ((nb-1) DIV 8) = ((nb-1) DIV 8) * 128` SUBST1_TAC THENL
+     [ARITH_TAC; ALL_TAC] THEN
+    SIMP_TAC[DIV_MULT_ADD; ARITH_EQ] THEN
+    SUBGOAL_THEN `(16 * ((nb-1) MOD 8) + 15) DIV 128 = 0` SUBST1_TAC THENL
+     [REWRITE_TAC[DIV_EQ_0; ARITH_EQ] THEN
+      MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN ARITH_TAC;
+      ARITH_TAC]]);;
+
 (* end_p = in_p + 128*(k+1) is strictly ABOVE in_p (signed), since 128*(k+1)  *)
 (* >= 128 > 0 and there is no signed wrap.  So the `cmp x0,x5; b.ge` with     *)
 (* X0 = in_p (or in_p+128) at the guards does NOT take the branch.            *)
