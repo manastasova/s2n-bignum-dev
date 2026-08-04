@@ -13,9 +13,9 @@
 //
 // WHOLE-BLOCKS-ONLY variant, derived from aesv8_gcm_8x_enc_256.S with two
 // intentional divergences: (1) a whole-blocks guard at entry
-// (tst x1,#127; b.ne .L256_enc_ret) that returns 0 having touched no memory
+// (tst x1,#127; b.ne L256_enc_ret) that returns 0 having touched no memory
 // unless bit_len is a nonzero multiple of 128; (2) the partial-block masking
-// machinery in .L256_enc_blocks_less_than_1 is deleted as dead under the
+// machinery in L256_enc_blocks_less_than_1 is deleted as dead under the
 // contract — including the ld1 of existing output bytes (a 16-byte overread of
 // the output buffer) and the read-modify-write bif blend. The final block is a
 // plain full block. The aws-lc caller already satisfies the contract (gcm.c
@@ -50,9 +50,9 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
     // AARCH64_VALID_CALL_TARGET
         CFI_START
 
-        cbz	x1, .L256_enc_ret
+        cbz	x1, L256_enc_ret
         tst	x1, #127				//whole-blocks contract: bit_len % 128 == 0
-        b.ne	.L256_enc_ret				//not whole blocks: process nothing, return 0
+        b.ne	L256_enc_ret				//not whole blocks: process nothing, return 0
 
         CFI_DEC_SP(STACK_SIZE)
         CFI_STACKSAVE2X(d8,d9,0,8)
@@ -381,7 +381,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	add	x4, x0, x1, lsr #3		//end_input_ptr
 	cmp	x0, x5				//check if we have <= 8 blocks
-	b.ge	.L256_enc_tail						//handle tail
+	b.ge	L256_enc_tail						//handle tail
 
 	ldp	q8, q9, [x0], #32			//AES block 0, 1 - load plaintext
 
@@ -422,9 +422,9 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	stp	q14, q15, [x2], #32			//AES block 6, 7 - store result
 	add	v30.4s, v30.4s, v31.4s		//CTR block 12
-	b.ge	.L256_enc_prepretail					//do prepretail
+	b.ge	L256_enc_prepretail					//do prepretail
 
-.L256_enc_main_loop:	//main	loop start
+L256_enc_main_loop:	//main	loop start
 	ldp	q26, q27, [x11, #0]					//load rk0, rk1
 
 	rev32	v5.16b, v30.16b				//CTR block 8k+13
@@ -843,9 +843,9 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	stp	q14, q15, [x2], #32			//AES block 6, 7 - store result
 	mov	v0.16b, v20.16b					//CTR block 8k+16
-	b.lt	.L256_enc_main_loop
+	b.lt	L256_enc_main_loop
 
-.L256_enc_prepretail:	//PREPRETAIL
+L256_enc_prepretail:	//PREPRETAIL
 	rev32	v5.16b, v30.16b				//CTR block 8k+13
 	ldp	q26, q27, [x11, #0]					//load rk0, rk1
 	add	v30.4s, v30.4s, v31.4s		//CTR block 8k+13
@@ -1225,7 +1225,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	aese	v2.16b, v27.16b						//AES block 8k+10 - round 13
 	aese	v6.16b, v27.16b						//AES block 8k+14 - round 13
-.L256_enc_tail:	//TAIL
+L256_enc_tail:	//TAIL
 
 	ldp	q24, q25, [x6, #160]			//load h8l | h8h
 	sub	x5, x4, x0		//main_end_input_ptr is number of bytes left to process
@@ -1240,7 +1240,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	cmp	x5, #112
 .inst	0xce007509	//eor3 v9.16b, v8.16b, v0.16b, v29.16b				//AES block 8k+8 - result
-	b.gt	.L256_enc_blocks_more_than_7
+	b.gt	L256_enc_blocks_more_than_7
 
 	movi	v19.8b, #0
 	mov	v7.16b, v6.16b
@@ -1256,7 +1256,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	movi	v18.8b, #0
 	cmp	x5, #96
-	b.gt	.L256_enc_blocks_more_than_6
+	b.gt	L256_enc_blocks_more_than_6
 
 	mov	v7.16b, v6.16b
 	mov	v6.16b, v5.16b
@@ -1267,7 +1267,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 	mov	v3.16b, v1.16b
 
 	sub	v30.4s, v30.4s, v31.4s
-	b.gt	.L256_enc_blocks_more_than_5
+	b.gt	L256_enc_blocks_more_than_5
 
 	mov	v7.16b, v6.16b
 	sub	v30.4s, v30.4s, v31.4s
@@ -1277,7 +1277,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	cmp	x5, #64
 	mov	v4.16b, v1.16b
-	b.gt	.L256_enc_blocks_more_than_4
+	b.gt	L256_enc_blocks_more_than_4
 
 	cmp	x5, #48
 	mov	v7.16b, v6.16b
@@ -1285,7 +1285,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	mov	v5.16b, v1.16b
 	sub	v30.4s, v30.4s, v31.4s
-	b.gt	.L256_enc_blocks_more_than_3
+	b.gt	L256_enc_blocks_more_than_3
 
 	cmp	x5, #32
 	mov	v7.16b, v6.16b
@@ -1293,18 +1293,18 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	mov	v6.16b, v1.16b
 	sub	v30.4s, v30.4s, v31.4s
-	b.gt	.L256_enc_blocks_more_than_2
+	b.gt	L256_enc_blocks_more_than_2
 
 	mov	v7.16b, v1.16b
 
 	sub	v30.4s, v30.4s, v31.4s
 	cmp	x5, #16
-	b.gt	.L256_enc_blocks_more_than_1
+	b.gt	L256_enc_blocks_more_than_1
 
 	sub	v30.4s, v30.4s, v31.4s
 	ldr	q21, [x6, #16]				//load h2k | h1k
-	b	.L256_enc_blocks_less_than_1
-.L256_enc_blocks_more_than_7:	//blocks	left >  7
+	b	L256_enc_blocks_less_than_1
+L256_enc_blocks_more_than_7:	//blocks	left >  7
 	st1	{ v9.16b}, [x2], #16				//AES final-7 block  - store result
 
 	rev64	v8.16b, v9.16b						//GHASH final-7 block
@@ -1324,7 +1324,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	pmull	v18.1q, v27.1d, v18.1d				//GHASH final-7 block - mid
 	pmull	v19.1q, v8.1d, v25.1d				//GHASH final-7 block - low
-.L256_enc_blocks_more_than_6:	//blocks	left >  6
+L256_enc_blocks_more_than_6:	//blocks	left >  6
 
 	st1	{ v9.16b}, [x2], #16				//AES final-6 block - store result
 
@@ -1349,7 +1349,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-6 block - mid
 	eor	v17.16b, v17.16b, v28.16b					//GHASH final-6 block - high
-.L256_enc_blocks_more_than_5:	//blocks	left >  5
+L256_enc_blocks_more_than_5:	//blocks	left >  5
 
 	st1	{ v9.16b}, [x2], #16				//AES final-5 block - store result
 
@@ -1375,7 +1375,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-5 block - mid
 .inst	0xce037529	//eor3 v9.16b, v9.16b, v3.16b, v29.16b			//AES final-4 block - result
-.L256_enc_blocks_more_than_4:	//blocks	left >  4
+L256_enc_blocks_more_than_4:	//blocks	left >  4
 
 	st1	{ v9.16b}, [x2], #16				//AES final-4 block - store result
 
@@ -1400,7 +1400,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-4 block - mid
 	eor	v17.16b, v17.16b, v28.16b					//GHASH final-4 block - high
-.L256_enc_blocks_more_than_3:	//blocks	left >  3
+L256_enc_blocks_more_than_3:	//blocks	left >  3
 
 	st1	{ v9.16b}, [x2], #16				//AES final-3 block - store result
 
@@ -1427,7 +1427,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-3 block - mid
 	eor	v19.16b, v19.16b, v26.16b					//GHASH final-3 block - low
-.L256_enc_blocks_more_than_2:	//blocks	left >  2
+L256_enc_blocks_more_than_2:	//blocks	left >  2
 
 	ldr	q23, [x6, #48]				//load h3l | h3h
 
@@ -1454,7 +1454,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-2 block - mid
 	eor	v19.16b, v19.16b, v26.16b					//GHASH final-2 block - low
-.L256_enc_blocks_more_than_1:	//blocks	left >  1
+L256_enc_blocks_more_than_1:	//blocks	left >  1
 
 	st1	{ v9.16b}, [x2], #16				//AES final-1 block - store result
 
@@ -1482,7 +1482,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 	pmull2	v27.1q, v27.2d, v21.2d				//GHASH final-1 block - mid
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-1 block - mid
-.L256_enc_blocks_less_than_1:	//final whole block (whole-blocks contract: never partial)
+L256_enc_blocks_less_than_1:	//final whole block (whole-blocks contract: never partial)
 
 	ldr	q20, [x6]				//load h1l | h1h
 
@@ -1532,7 +1532,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
         CFI_INC_SP(STACK_SIZE)
         ret
 
-.L256_enc_ret:
+L256_enc_ret:
         mov	w0, #0x0
         CFI_RET
 
