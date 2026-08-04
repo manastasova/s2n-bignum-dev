@@ -3931,6 +3931,68 @@ let SETUP_RECON_TAC : tactic =
         (ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV) gl
     else ASM_REWRITE_TAC[] gl;;
 
+(* ------ generalized SETUP reconstruction (session 083) --------------------- *)
+(* The g>=2 reassembly sub-leg reuses WB_SETUP's drive under the generalized    *)
+(* precond `8*(k+1)<nb /\ nb<=8*(k+2)` (rem 1..8) instead of the rem=8-only     *)
+(* `8*(k+2)=nb`.  Two recon closers hardcode `8*(k+2)=nb` + X5_END_PTR and must  *)
+(* be generalized to SETUP_X5_END_GEN (valid for the whole rem 1..8 range):     *)
+(*  (a) the flag conjunct closer FLAG_CLOSE (routed via the is_neg branch), and *)
+(*  (b) the X5=end_p word_add closer (the 3rd FIRST alternative).               *)
+(* FLAG_CLOSE_GEN mirrors FLAG_CLOSE but reduces the round-down X5 pointer to    *)
+(* end_p via SETUP_X5_END_GEN.  Discovered s083 as the sole `Failure "ABS"`     *)
+(* source (the committed FLAG_CLOSE's `GSYM(ASSUME 8*(k+2)=nb)` rewrite of nb    *)
+(* raises ABS under the generalized precond); DIAG-probe-validated that with     *)
+(* FLAG_CLOSE_GEN + the SETUP_X5_END_GEN word_add closer ALL ~34 recon conjuncts *)
+(* close (No subgoals).                                                          *)
+let FLAG_CLOSE_GEN =
+  REWRITE_TAC[BRIDGE_GE] THEN
+  SUBGOAL_THEN
+    `word_add (word_and (word_sub (word ((128 * nb) DIV 8):int64) (word 1))
+                        (word 18446744073709551488)) in_p =
+     word_add in_p (word (128 * (k + 1)))`
+    SUBST1_TAC THENL
+   [MATCH_MP_TAC SETUP_X5_END_GEN THEN
+    ASM_REWRITE_TAC[];
+    ASM_SIMP_TAC[MATCH_MP SETUP_GE_FALSE_2
+      (CONJ (ASSUME `~(k = 0)`)
+            (ASSUME `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63`))]];;
+
+(* SETUP_RECON_TAC_GEN = SETUP_RECON_TAC with (1) is_neg -> FLAG_CLOSE_GEN and   *)
+(* (2) the word_add X5 branch's 3rd alternative -> ASM_SIMP_TAC[SETUP_X5_END_GEN].*)
+let SETUP_RECON_TAC_GEN : tactic =
+  fun (asl,w as gl) ->
+    if is_neg w then FLAG_CLOSE_GEN gl
+    else if is_forall w then
+      (REWRITE_TAC[ARITH_RULE `j < 8 * (0 + 1) <=>
+                     j = 0 \/ j = 1 \/ j = 2 \/ j = 3 \/
+                     j = 4 \/ j = 5 \/ j = 6 \/ j = 7`] THEN
+       REWRITE_TAC[TAUT `(p \/ q ==> r) <=> (p ==> r) /\ (q ==> r)`] THEN
+       REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
+       CONV_TAC(DEPTH_CONV NUM_MULT_CONV) THEN ASM_REWRITE_TAC[] THEN
+       REWRITE_TAC[WORD_ADD_0] THEN
+       REPEAT CONJ_TAC THEN CIPHER_CLOSE THEN TRY CIPHER_ID_TAC THEN
+       TRY CIPHER_CLOSE) gl
+    else if is_eq w then
+      let l,r = dest_eq w in
+      let rhd = try fst(dest_const(fst(strip_comb r))) with _ -> "?" in
+      let lhd = try fst(dest_const(fst(strip_comb l))) with _ -> "?" in
+      if rhd = "nist_ghash" then
+        (CONV_TAC NUM_REDUCE_CONV THEN
+         REWRITE_TAC[list_of_seq; NIST_GHASH_NIL] THEN CONV_TAC WORD_BLAST) gl
+      else if lhd = "word_xor" && rhd = "word_xor" then
+        (CIPHER_CLOSE THEN TRY CIPHER_ID_TAC THEN TRY CIPHER_CLOSE) gl
+      else if lhd = "word_join" && rhd = "word_reversefields" then
+        CTR_CLOSE gl
+      else if lhd = "word_add" then
+        FIRST
+          [CONV_TAC WORD_RULE;
+           (AP_TERM_TAC THEN REWRITE_TAC[word_ushr; VAL_WORD; DIMINDEX_64] THEN
+            AP_TERM_TAC THEN ASM_SIMP_TAC[MOD_LT] THEN ARITH_TAC);
+           (ASM_SIMP_TAC[SETUP_X5_END_GEN])] gl
+      else (* read = ... : surviving read-only reads (keys/htable/ivec/tag/stack) *)
+        (ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV) gl
+    else ASM_REWRITE_TAC[] gl;;
+
 (* ========================================================================= *)
 (* P7 - SETUP (pipeline fill).  Core entry pc+0x30 (just after the prologue's *)
 (* stack adjust + callee-save spills + mod-const store + X9/X16/X11/X10       *)
@@ -4290,6 +4352,183 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP = prove
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   REWRITE_TAC[htable_mem_8] THEN
   REPEAT CONJ_TAC THEN SETUP_RECON_TAC);;
+
+(* ========================================================================= *)
+(* WB_SETUP_GEN (session 083) — the generalized pipeline-fill SETUP for the   *)
+(* loop_count>=1 reassembly leg.  Identical to WB_SETUP EXCEPT the precond     *)
+(* relaxes the rem=8-only `8*(k+2)=nb` to `8*(k+1)<nb /\ nb<=8*(k+2)` (rem in   *)
+(* 1..8, groups=k+1), so the drive covers any leftover-block count the tail     *)
+(* cascade drains.  The postcondition is IDENTICAL to WB_SETUP's (all `8*0+N`   *)
+(* counter/keystream indices are rem-independent; only X4, the in-forall bound  *)
+(* nb, and end_p reference nb).  Drive = WB_SETUP verbatim EXCEPT the two b.ge   *)
+(* guard discharges use SETUP_BRANCH_COND_FALSE_GEN / _2_GEN (@~2620/2645) and  *)
+(* the reconstruction uses SETUP_RECON_TAC_GEN (generalized flag + X5 closers). *)
+(* The two guards fall through (b.ge NOT taken) for groups=k+1>=2, exactly as   *)
+(* in WB_SETUP; the round-down end-ptr collapses to in_p+128*(k+1) via          *)
+(* X5_END_PTR_GEN for the whole rem range.  Composes into the g>=2 leg as       *)
+(* SETUP_GEN -> MAIN_LOOP -> PREPRETAIL -> WB_TAIL_REM(g=k+1, r=nb-8*(k+1)).     *)
+let AESV8_GCM_8X_ENC_256_WB_SETUP_GEN = prove
+ (`!in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
+     tag0 nonce rk inblock nb k pc.
+    ~(k = 0) /\
+    8 * (k + 1) <= nb /\
+    bit_len = 128 * nb /\
+    8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_mc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb)]
+      [(in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (tag_p, 16); (ivec_p, 16); (word_add stackpointer (word 0x40), 8)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j))
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
+           read PC s = word (pc + 0x4a0) /\
+           read X0 s = word_add in_p (word (128 * (0 + 1))) /\
+           read X2 s = word_add out_p (word (128 * (0 + 1))) /\
+           read X3 s = tag_p /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read X11 s = key_p /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 15)) /\
+           read Q31 s = word 79228162514264337593543950336 /\
+           read Q19 s =
+             nist_ghash (aes256_cipher (word 0) rk) tag0
+                 (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0)) /\
+           read Q8 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 0)) (inblock (8 * 0 + 0)) /\
+           read Q9 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 1)) (inblock (8 * 0 + 1)) /\
+           read Q10 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 2)) (inblock (8 * 0 + 2)) /\
+           read Q11 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 3)) (inblock (8 * 0 + 3)) /\
+           read Q12 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 4)) (inblock (8 * 0 + 4)) /\
+           read Q13 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 5)) (inblock (8 * 0 + 5)) /\
+           read Q14 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 6)) (inblock (8 * 0 + 6)) /\
+           read Q15 s = word_xor (aes_ctr_block nonce rk (8 * 0 + 7)) (inblock (8 * 0 + 7)) /\
+           read Q0 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 10)) /\
+           read Q1 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 11)) /\
+           read Q2 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 12)) /\
+           read Q3 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 13)) /\
+           read Q4 s = word_reversefields 8 (ctr_block nonce (8 * 0 + 14)) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           (!j. j < 8 * (0 + 1)
+                ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
+                    word_xor (aes_ctr_block nonce rk j) (inblock j)) /\
+           ((read NF s <=> read VF s) <=> (0 = k)))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; ALLPAIRS; ALL;
+              NONOVERLAPPING_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
+      `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
+  MAP_EVERY NSTEP (1--253) THEN NSTEP 254 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_GEN
+    (CONJ (ASSUME `8 * (k + 1) < nb`) (CONJ (ASSUME `nb <= 8 * (k + 2)`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))); COND_CLAUSES]) THEN
+  LDP_SETUP_TAC 255 THEN LDP_SETUP_TAC 256 THEN MAP_EVERY NSTEP (257--263) THEN
+  LDP_SETUP_TAC 264 THEN LDP_SETUP_TAC 265 THEN MAP_EVERY NSTEP (266--281) THEN
+  NSTEP 282 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_2_GEN
+    (CONJ (ASSUME `~(k = 0)`) (CONJ (ASSUME `8 * (k + 1) < nb`)
+      (CONJ (ASSUME `nb <= 8 * (k + 2)`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))));
+    COND_CLAUSES]) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[htable_mem_8] THEN
+  REPEAT CONJ_TAC THEN SETUP_RECON_TAC_GEN);;
 
 (* ========================================================================= *)
 (* P7 - PREPRETAIL (pipeline DRAIN):  pc+0x9e8  ->  pc+0xeb8 (.L256_enc_tail) *)
