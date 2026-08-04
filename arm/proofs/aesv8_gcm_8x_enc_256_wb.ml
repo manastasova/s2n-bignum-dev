@@ -6762,6 +6762,312 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM7 = prove
   REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
   CONV_TAC NUM_REDUCE_CONV THEN
   CONV_TAC WORD_BITWISE_RULE);;
+(* ===================================================================== *)
+(* SESSION 081 — TAIL CASCADE arm rem=8 (nblocks = 8*g+8), g-GENERAL.       *)
+(*                                                                         *)
+(* WB_TAIL (rem=8) above is stated with `~(k=0) /\ 8*(k+2)=nb`, i.e.        *)
+(* groups = k+1 >= 2 (nblocks >= 24).  But the reassembly needs the rem=8   *)
+(* arm at g=0 (nblocks=8) and g=1 (nblocks=16) too (both hit rem=8 in the   *)
+(* (nblocks-1)DIV8 decomposition).  This is WB_TAIL's body reparametrized    *)
+(* k+1 -> g so it holds for ALL g>=0; the drive is g-independent (x5=128     *)
+(* regardless of g), so the proof transfers verbatim modulo two fixes:       *)
+(*  - the fold reindex `8*g+8=(8*g+6)+2` must be LHS-scoped (else it eats     *)
+(*    the RHS list-count 8*g+8 before its SUC^8 expansion — the s080 bug);   *)
+(*  - block 8*g+6's keystream ctr 8*g+8 collapses to `nb` during the drive   *)
+(*    (the 8*g+8=nb hyp rewrites 8*g+8->nb L->R), so re-expand nb->8*g+8 in   *)
+(*    ONLY the Q19 fact before the fold (leaving the 8*g+8=nb hyp for the     *)
+(*    tag/out closers); and the first new out-block (j=8*g) leaves a          *)
+(*    constant-lambda inblock slot closed by unfold+BETA+rev-rev+BITWISE.     *)
+(* ===================================================================== *)
+
+let TAIL_X5_128_G = prove
+ (`!(in_p:int64) nb g.
+     8 * g + 8 = nb
+     ==> word_sub (word_add in_p (word (16 * nb)))
+                  (word_add in_p (word (128 * g))) = word 128:int64`,
+  REPEAT STRIP_TAC THEN FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN CONV_TAC WORD_RULE);;
+
+let TAIL_Q19_FOLD_G =
+  GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+    [WORD_BITWISE_RULE
+      `word_xor (word_xor (i:int128) (word_xor a r)) r = word_xor i a`] THEN
+  REWRITE_TAC[RECON_GRR] THEN
+  CONV_TAC(LAND_CONV(ONCE_DEPTH_CONV WORD_REDUCE_CONV)) THEN
+  REWRITE_TAC[WORD_XOR_0] THEN
+  GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+    [WORD_BITWISE_RULE `word_xor (word 0:int128) x = x`] THEN
+  GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+    [WORD_BITWISE_RULE
+      `word_xor (i:int128) (word_reversefields 8 a) =
+       word_xor (word_reversefields 8 a) i`] THEN
+  GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
+    [ARITH_RULE `8 * g + 2 = (8 * g + 0) + 2`;
+              ARITH_RULE `8 * g + 3 = (8 * g + 1) + 2`;
+              ARITH_RULE `8 * g + 4 = (8 * g + 2) + 2`;
+              ARITH_RULE `8 * g + 5 = (8 * g + 3) + 2`;
+              ARITH_RULE `8 * g + 6 = (8 * g + 4) + 2`;
+              ARITH_RULE `8 * g + 7 = (8 * g + 5) + 2`;
+              ARITH_RULE `8 * g + 8 = (8 * g + 6) + 2`;
+              ARITH_RULE `8 * g + 9 = (8 * g + 7) + 2`] THEN
+  REWRITE_TAC[GSYM aes_ctr_block] THEN
+  REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[GHASH_REDUCE_RAW_XOR] THEN
+  REWRITE_TAC[KARATSUBA_IS_DOT_HW] THEN
+  REWRITE_TAC[NIST_GHASH_IS_POLYVAL] THEN
+  REWRITE_TAC[ARITH_RULE
+    `8 * g + 8 = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * g))))))))`] THEN
+  REWRITE_TAC[list_of_seq] THEN REWRITE_TAC[GSYM APPEND_ASSOC] THEN
+  REWRITE_TAC[APPEND] THEN
+  REWRITE_TAC[GHASH_ACC_APPEND] THEN
+  REWRITE_TAC[ADD1; GSYM ADD_ASSOC] THEN CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+  MP_TAC(ISPECL
+    [`ghash_twist (aes256_cipher (word 0) rk)`;
+     `[nist_cipher_block nonce rk inblock (8 * g+1);
+       nist_cipher_block nonce rk inblock (8 * g+2);
+       nist_cipher_block nonce rk inblock (8 * g+3);
+       nist_cipher_block nonce rk inblock (8 * g+4);
+       nist_cipher_block nonce rk inblock (8 * g+5);
+       nist_cipher_block nonce rk inblock (8 * g+6);
+       nist_cipher_block nonce rk inblock (8 * g+7)]:(int128)list`;
+     `ghash_polyval_acc (ghash_twist (aes256_cipher (word 0) rk)) tag0
+        (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g))`;
+     `nist_cipher_block nonce rk inblock (8 * g)`]
+    GHASH_POLYVAL_ACC_BATCHED) THEN
+  REWRITE_TAC[LENGTH; ghash_wide] THEN CONV_TAC NUM_REDUCE_CONV THEN
+  DISCH_THEN(fun th -> REWRITE_TAC[th]) THEN
+  REWRITE_TAC[ADD_0] THEN
+  REWRITE_TAC[polyval_dot] THEN
+  REWRITE_TAC[GSYM PROP3_XOR] THEN
+  REWRITE_TAC[NCB_ETA] THEN
+  AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
+
+let FOLD_Q19_S136_G : tactic =
+  RULE_ASSUM_TAC(fun th ->
+    let c = concl th in
+    if is_eq c && lhs c = `read Q19 s136 : int128`
+    then TRANS th (prove
+      (mk_eq(rhs c,
+        `nist_ghash (aes256_cipher (word 0) rk) tag0
+           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 8))`),
+       TAIL_Q19_FOLD_G))
+    else th);;
+
+let AESV8_GCM_8X_ENC_256_WB_TAIL_REM8 = prove
+ (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
+     tag0 nonce rk inblock nb g pc.
+    8 * g + 8 = nb /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_mc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
+           read PC s = word (pc + 0xec0) /\
+           read Q18 s = q18_init /\
+           read Q27 s = q27_init /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce 2) /\
+           read Q28 s = word_reversefields 8 (EL 14 rk) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 10)) /\
+           read Q31 s = word 79228162514264337593543950336 /\
+           read Q19 s =
+             nist_ghash (aes256_cipher (word 0) rk) tag0
+                 (list_of_seq (nist_cipher_block nonce rk inblock)
+                              (8 * g)) /\
+           word_xor (read Q0 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 2)) rk) /\
+           word_xor (read Q1 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 3)) rk) /\
+           word_xor (read Q2 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 4)) rk) /\
+           word_xor (read Q3 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 5)) rk) /\
+           word_xor (read Q4 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 6)) rk) /\
+           word_xor (read Q5 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 7)) rk) /\
+           word_xor (read Q6 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 8)) rk) /\
+           word_xor (read Q7 s) (word_reversefields 8 (EL 14 rk)) =
+             word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 9)) rk) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           (!j. j < 8 * g
+                ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
+                    word_xor (aes_ctr_block nonce rk j) (inblock j)))
+      (\s. read PC s = word (pc + 0x11a4) /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce (nb + 2)) /\
+           read (memory :> bytes128 tag_p) s =
+             word_reversefields 8
+               (nist_ghash (aes256_cipher (word 0) rk) tag0
+                  (list_of_seq (nist_cipher_block nonce rk inblock) nb)) /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
+                    word_xor (aes_ctr_block nonce rk j) (inblock j)))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[htable_mem_8; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+              ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
+    `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN
+  SUBGOAL_THEN
+   `read (memory :> bytes128 (word_add in_p (word (128 * g)))) s0 =
+    inblock (8 * g) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * g + 16)))) s0 =
+    inblock (8 * g + 1) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * g + 32)))) s0 =
+    inblock (8 * g + 2) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * g + 48)))) s0 =
+    inblock (8 * g + 3) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * g + 64)))) s0 =
+    inblock (8 * g + 4) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * g + 80)))) s0 =
+    inblock (8 * g + 5) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * g + 96)))) s0 =
+    inblock (8 * g + 6) /\
+    read (memory :> bytes128 (word_add in_p (word (128 * g + 112)))) s0 =
+    inblock (8 * g + 7)`
+  STRIP_ASSUME_TAC THENL
+   [REWRITE_TAC[ARITH_RULE
+     `128 * g + 16 = 16 * (8 * g + 1) /\
+      128 * g + 32 = 16 * (8 * g + 2) /\
+      128 * g + 48 = 16 * (8 * g + 3) /\
+      128 * g + 64 = 16 * (8 * g + 4) /\
+      128 * g + 80 = 16 * (8 * g + 5) /\
+      128 * g + 96 = 16 * (8 * g + 6) /\
+      128 * g + 112 = 16 * (8 * g + 7)`] THEN
+    REWRITE_TAC[ARITH_RULE `128 * a = 16 * 8 * a`] THEN
+    REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN
+    ASM_ARITH_TAC;
+    ALL_TAC] THEN
+  RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP TAIL_X5_128_G (ASSUME `8 * g + 8 = nb`)]) THEN
+  DISCARD_DEAD_KEYMEM THEN
+  DISCARD_DEAD_HTABLE THEN
+  DISCARD_REGS ["Q31"; "Q28"] THEN
+  MAP_EVERY NSTEP_GP (10--115) THEN
+  DISCARD_REGS ["Q27"] THEN
+  MAP_EVERY NSTEP_GP (116--136) THEN
+  (* block 8*g+6's keystream ctr 8*g+8 collapsed to nb during the drive (the 8*g+8=nb hyp   *)
+  (* rewrites 8*g+8 -> nb L->R); re-expand nb -> 8*g+8 in ONLY the Q19 fact (leave the       *)
+  (* 8*g+8=nb hyp intact for the tag/out closers) so the fold reindex fires on all 8 blocks. *)
+  RULE_ASSUM_TAC(fun th ->
+    if (try lhs(concl th) = `read Q19 s136:int128` with Failure _ -> false)
+    then REWRITE_RULE[SYM(ASSUME `8 * g + 8 = nb`)] th else th) THEN
+  FOLD_Q19_S136_G THEN
+  DISCARD_DEAD_REDUCE_SCRATCH THEN
+  MAP_EVERY NSTEP_GP (137--139) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  CONJ_TAC THENL
+   [
+    REWRITE_TAC[IVEC_STORE_REV32] THEN AP_TERM_TAC THEN AP_TERM_TAC THEN
+    UNDISCH_TAC `8 * g + 8 = nb` THEN ARITH_TAC;
+    ALL_TAC] THEN
+  CONJ_TAC THENL
+   [
+    FIRST_X_ASSUM(fun th ->
+      if concl th = `8 * g + 8 = nb` then SUBST_ALL_TAC(SYM th) else failwith "") THEN
+    REWRITE_TAC[TAG_STORE_REV64] THEN AP_TERM_TAC THEN TAIL_Q19_FOLD_G;
+    ALL_TAC] THEN
+  FIRST_X_ASSUM(fun th ->
+    if concl th = `8 * g + 8 = nb` then SUBST_ALL_TAC(SYM th) else failwith "") THEN
+  REWRITE_TAC[ARITH_RULE `j < 8 * g + 8 <=>
+                       j < 8 * g \/ j = 8 * g \/ j = 8 * g + 1 \/
+                       j = 8 * g + 2 \/ j = 8 * g + 3 \/ j = 8 * g + 4 \/
+                       j = 8 * g + 5 \/ j = 8 * g + 6 \/ j = 8 * g + 7`] THEN
+  ASM_REWRITE_TAC[TAUT `p \/ q ==> r <=> (p ==> r) /\ (q ==> r)`] THEN
+  REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
+  REWRITE_TAC[ARITH_RULE `16 * (8 * g + b) = 128 * g + 16 * b`] THEN
+  REWRITE_TAC[ARITH_RULE `16 * 8 * g = 128 * g`] THEN
+  CONV_TAC(DEPTH_CONV NUM_MULT_CONV) THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS_32; WORD_SUBWORD_CTR_BLOCK_32] THEN
+  REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN
+  REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8; CTR_BLOCK_RECONSTRUCT_REV32] THEN
+  ONCE_REWRITE_TAC[WORD_BITWISE_RULE
+    `word_xor (word_xor (inb:int128) ch) rk14 = word_xor ch (word_xor rk14 inb)`] THEN
+  REWRITE_TAC[XOR_AES256_CIPHER_RECONSTRUCT] THEN
+  ASM_REWRITE_TAC[MAP; WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+  REWRITE_TAC[aes_ctr_block; GSYM ADD_ASSOC] THEN
+  CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
+  CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[WORD_ADD; GSYM WORD_ADD_ASSOC] THEN
+  REWRITE_TAC[ADD_ASSOC; ARITH] THEN
+  REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
+  REWRITE_TAC[GSYM cipher_block] THEN
+  REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
+  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
+  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
+  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
+  (* block 8*g (first new out-block) leaves a nist_cipher_block with a constant-lambda inblock *)
+  (* slot; unfold+BETA+rev-rev-cancel exposes the clean word_xor cancellation for all 8 blocks. *)
+  REWRITE_TAC[nist_cipher_block; cipher_block] THEN CONV_TAC(DEPTH_CONV BETA_CONV) THEN
+  REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+  REPEAT CONJ_TAC THEN CONV_TAC WORD_BITWISE_RULE);;
+
 
 (* ===================================================================== *)
 (* STEP 5 (session 045) — AESV8_GCM_8X_ENC_256_WB_CORRECT full body draft. *)
