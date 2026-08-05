@@ -5461,16 +5461,25 @@ let TAIL_Q19_FOLD =
 (* the substituted equality is exactly what the un-optimised closer proves, moved one     *)
 (* barrier earlier so the giant term is never built.  Validated end-to-end on the warm    *)
 (* s2n-wbtail checkpoint: full WB_TAIL drive+close 207s (was ~3.08h); tag conjunct closes.*)
-let FOLD_Q19_S136 : tactic =
+
+(* Shared closure for the whole FOLD_Q19_* family: rewrite the `read Q19 sN` reduce   *)
+(* assumption in place to the compact `nist_ghash..cnt`, using foldtac to prove the    *)
+(* raw==compact equality.  Every WB_TAIL / TAIL_REM* fold is one instance, differing   *)
+(* only in the state var (lhstm), the block-count term (cnt), and the fold lemma.      *)
+let fold_q19_at lhstm cnt foldtac : tactic =
   RULE_ASSUM_TAC(fun th ->
     let c = concl th in
-    if is_eq c && lhs c = `read Q19 s136 : int128`
+    if is_eq c && lhs c = lhstm
     then TRANS th (prove
       (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * (k + 2)))`),
-       TAIL_Q19_FOLD))
+        vsubst [cnt, `n_blocks_fold:num`]
+          `nist_ghash (aes256_cipher (word 0) rk) tag0
+             (list_of_seq (nist_cipher_block nonce rk inblock) n_blocks_fold)`),
+       foldtac))
     else th);;
+
+let FOLD_Q19_S136 : tactic =
+  fold_q19_at `read Q19 s136 : int128` `8 * (k + 2)` TAIL_Q19_FOLD;;
 
 (* PERF (session 069): DROP the now-DEAD GHASH-reduce scratch registers right after   *)
 (* FOLD_Q19_S136.  The final reduce `eor3 v19,v19,v17,v21`@0x1194 consumes Q17 (pmull)  *)
@@ -5978,15 +5987,7 @@ let TAIL_Q19_FOLD_REM1 =
 (* Fold `read Q19 s78` (raw single-block reduce) -> compact nist_ghash..(8*g+1) *)
 (* in place, mirroring WB_TAIL's FOLD_Q19_S136.                                 *)
 let FOLD_Q19_REM1 : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s78 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 1))`),
-       TAIL_Q19_FOLD_REM1))
-    else th);;
+  fold_q19_at `read Q19 s78 : int128` `8 * g + 1` TAIL_Q19_FOLD_REM1;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM1 = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6193,15 +6194,7 @@ let TAIL_Q19_FOLD_REM2 =
 (* Fold `read Q19 s92` (raw 2-block reduce) -> compact nist_ghash..(8*g+2)     *)
 (* in place BEFORE ext/rev64/store (mirror FOLD_Q19_S136/FOLD_Q19_REM1).       *)
 let FOLD_Q19_REM2 : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s92 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 2))`),
-       TAIL_Q19_FOLD_REM2))
-    else th);;
+  fold_q19_at `read Q19 s92 : int128` `8 * g + 2` TAIL_Q19_FOLD_REM2;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM2 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6420,15 +6413,7 @@ let TAIL_Q19_FOLD_REM3 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM3 : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s103 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 3))`),
-       TAIL_Q19_FOLD_REM3))
-    else th);;
+  fold_q19_at `read Q19 s103 : int128` `8 * g + 3` TAIL_Q19_FOLD_REM3;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM3 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6635,15 +6620,7 @@ let TAIL_Q19_FOLD_REM4 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM4 : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s114 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 4))`),
-       TAIL_Q19_FOLD_REM4))
-    else th);;
+  fold_q19_at `read Q19 s114 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM4 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6856,15 +6833,7 @@ let TAIL_Q19_FOLD_REM5 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM5 : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s122 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 5))`),
-       TAIL_Q19_FOLD_REM5))
-    else th);;
+  fold_q19_at `read Q19 s122 : int128` `8 * g + 5` TAIL_Q19_FOLD_REM5;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM5 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -7082,15 +7051,7 @@ let TAIL_Q19_FOLD_REM6 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM6 : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s130 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 6))`),
-       TAIL_Q19_FOLD_REM6))
-    else th);;
+  fold_q19_at `read Q19 s130 : int128` `8 * g + 6` TAIL_Q19_FOLD_REM6;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM6 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -7313,15 +7274,7 @@ let TAIL_Q19_FOLD_REM7 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM7 : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s136 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 7))`),
-       TAIL_Q19_FOLD_REM7))
-    else th);;
+  fold_q19_at `read Q19 s136 : int128` `8 * g + 7` TAIL_Q19_FOLD_REM7;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM7 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -7560,15 +7513,7 @@ let TAIL_Q19_FOLD_G =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_S136_G : tactic =
-  RULE_ASSUM_TAC(fun th ->
-    let c = concl th in
-    if is_eq c && lhs c = `read Q19 s136 : int128`
-    then TRANS th (prove
-      (mk_eq(rhs c,
-        `nist_ghash (aes256_cipher (word 0) rk) tag0
-           (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g + 8))`),
-       TAIL_Q19_FOLD_G))
-    else th);;
+  fold_q19_at `read Q19 s136 : int128` `8 * g + 8` TAIL_Q19_FOLD_G;;
 
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM8 = prove
  (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
