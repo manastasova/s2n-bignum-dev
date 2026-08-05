@@ -1401,11 +1401,6 @@ let BS_INVOL = prove
   REWRITE_TAC[byteswap128] THEN REPEAT GEN_TAC THEN
   DISCH_THEN(SUBST1_TAC o GSYM) THEN CONV_TAC WORD_BLAST);;
 
-let BS_XOR = prove
- (`!a b:int128. byteswap128(word_xor a b) =
-                word_xor (byteswap128 a) (byteswap128 b)`,
-  REWRITE_TAC[byteswap128] THEN REPEAT GEN_TAC THEN CONV_TAC WORD_BLAST);;
-
 let BS_EXT = prove
  (`!x:int128. byteswap128(word_subword (word_join x x:int256) (64,128)) = x`,
   REWRITE_TAC[byteswap128] THEN GEN_TAC THEN CONV_TAC WORD_BLAST);;
@@ -3003,23 +2998,6 @@ let GHASH_REDUCE_RAW_DIST8_HW = prove
   REWRITE_TAC[KARATSUBA_IS_DOT_HW] THEN
   CONV_TAC WORD_BITWISE_RULE);;
 
-(* Block-0 accumulator lane fold: after EXT_BS the accumulator `sofar`         *)
-(* enters the reduce with its two 64-bit halves SWAPPED relative to cb0 (the   *)
-(* store-order byteswap), so the reduce's lo.lo/hi.hi lanes read              *)
-(*   word_xor (subword sofar (64,64)) (subword cb0 (0,64))   [lo.lo]           *)
-(*   word_xor (subword sofar (0,64))  (subword cb0 (64,64))  [hi.hi]           *)
-(* These are exactly the (0,64)/(64,64) subwords of `word_xor (byteswap128     *)
-(* sofar) cb0`, so folding them re-exposes a clean single-word accumulator     *)
-(* a_0 = byteswap128 sofar (x) cb0 that KARATSUBA_IS_DOT_HW consumes.          *)
-let A0_LO = prove
- (`word_xor (word_subword (sofar:int128) (64,64):int64) (word_subword (cb0:int128) (0,64):int64)
-   = word_subword (word_xor (byteswap128 sofar) cb0) (0,64):int64`,
-  REWRITE_TAC[byteswap128; WORD_SUBWORD_XOR] THEN CONV_TAC WORD_BLAST);;
-let A0_HI = prove
- (`word_xor (word_subword (sofar:int128) (0,64):int64) (word_subword (cb0:int128) (64,64):int64)
-   = word_subword (word_xor (byteswap128 sofar) cb0) (64,64):int64`,
-  REWRITE_TAC[byteswap128; WORD_SUBWORD_XOR] THEN CONV_TAC WORD_BLAST);;
-
 (* Per-block-0 reduce, in the EXACT raw swapped-lane form the body produces      *)
 (* (sofar's two 64-bit halves crossed with cb0's — the store-order byteswap):    *)
 (*   lo.lo  = word_xor (subword sofar (64,64)) (subword cb0 (0,64))              *)
@@ -3027,8 +3005,8 @@ let A0_HI = prove
 (*   cross  = word_xor <hi-shape> <lo-shape>                                     *)
 (* This reduces to polyval_dot (byteswap128 sofar (x) cb0) b.  The block-0       *)
 (* accumulator byteswap is absorbed INSIDE this lemma (ABBREV byteswap128 sofar  *)
-(* so the swap-lane rewrites do not re-fire on their own output), which is why   *)
-(* the global fold A0_LO/A0_HI cannot be used directly on the body residual.     *)
+(* so the swap-lane rewrites do not re-fire on their own output): a global       *)
+(* subword fold cannot be used directly on the body residual.                    *)
 let KDOT_B0 = prove
  (`!s c b:int128.
     ghash_reduce_raw
@@ -3048,65 +3026,17 @@ let KDOT_B0 = prove
     ALL_TAC] THEN
   REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN REWRITE_TAC[KARATSUBA_IS_DOT_HW]);;
 
-(* The full body-order 8-block distribution WITH block-0 in raw form: the three  *)
-(* summed hardware lanes (block order [1;0;2;3;4;5;6;7] on lo.lo/hi.hi,          *)
-(* [1;0;3;2;5;4;7;6] on cross) reduce to the canonical XOR-sum of the eight      *)
-(* per-block polyval_dots, where block 0's dot argument carries the store-order  *)
-(* byteswap `byteswap128 s (x) c`.  This is the lemma that FIRES on the real     *)
-(* body-end residual (verified live: reassembled reduce -> this exact form).     *)
-let GHASH_REDUCE_RAW_DIST8_B0 = prove
- (`!s c a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7:int128.
-    ghash_reduce_raw
-      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
-        (word_pmul (word_subword a1 (0,64):int64) (word_subword b1 (0,64):int64):int128)
-        (word_pmul (word_xor (word_subword s (64,64):int64) (word_subword c (0,64):int64)) (word_subword b0 (0,64):int64):int128))
-        (word_pmul (word_subword a2 (0,64):int64) (word_subword b2 (0,64):int64):int128))
-        (word_pmul (word_subword a3 (0,64):int64) (word_subword b3 (0,64):int64):int128))
-        (word_pmul (word_subword a4 (0,64):int64) (word_subword b4 (0,64):int64):int128))
-        (word_pmul (word_subword a5 (0,64):int64) (word_subword b5 (0,64):int64):int128))
-        (word_pmul (word_subword a6 (0,64):int64) (word_subword b6 (0,64):int64):int128))
-        (word_pmul (word_subword a7 (0,64):int64) (word_subword b7 (0,64):int64):int128))
-      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
-        (word_pmul (word_xor (word_subword a1 (64,64):int64) (word_subword a1 (0,64):int64)) (karatsuba_mid b1):int128)
-        (word_pmul (word_xor (word_xor (word_subword s (0,64):int64) (word_subword c (64,64):int64)) (word_xor (word_subword s (64,64):int64) (word_subword c (0,64):int64))) (karatsuba_mid b0):int128))
-        (word_pmul (word_xor (word_subword a3 (64,64):int64) (word_subword a3 (0,64):int64)) (karatsuba_mid b3):int128))
-        (word_pmul (word_xor (word_subword a2 (64,64):int64) (word_subword a2 (0,64):int64)) (karatsuba_mid b2):int128))
-        (word_pmul (word_xor (word_subword a5 (64,64):int64) (word_subword a5 (0,64):int64)) (karatsuba_mid b5):int128))
-        (word_pmul (word_xor (word_subword a4 (64,64):int64) (word_subword a4 (0,64):int64)) (karatsuba_mid b4):int128))
-        (word_pmul (word_xor (word_subword a7 (64,64):int64) (word_subword a7 (0,64):int64)) (karatsuba_mid b7):int128))
-        (word_pmul (word_xor (word_subword a6 (64,64):int64) (word_subword a6 (0,64):int64)) (karatsuba_mid b6):int128))
-      (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
-        (word_pmul (word_subword a1 (64,64):int64) (word_subword b1 (64,64):int64):int128)
-        (word_pmul (word_xor (word_subword s (0,64):int64) (word_subword c (64,64):int64)) (word_subword b0 (64,64):int64):int128))
-        (word_pmul (word_subword a2 (64,64):int64) (word_subword b2 (64,64):int64):int128))
-        (word_pmul (word_subword a3 (64,64):int64) (word_subword b3 (64,64):int64):int128))
-        (word_pmul (word_subword a4 (64,64):int64) (word_subword b4 (64,64):int64):int128))
-        (word_pmul (word_subword a5 (64,64):int64) (word_subword b5 (64,64):int64):int128))
-        (word_pmul (word_subword a6 (64,64):int64) (word_subword b6 (64,64):int64):int128))
-        (word_pmul (word_subword a7 (64,64):int64) (word_subword b7 (64,64):int64):int128))
-    = word_xor (word_xor (word_xor (word_xor (word_xor (word_xor (word_xor
-        (polyval_dot (word_xor (byteswap128 s) c) b0) (polyval_dot a1 b1)) (polyval_dot a2 b2))
-        (polyval_dot a3 b3)) (polyval_dot a4 b4)) (polyval_dot a5 b5))
-        (polyval_dot a6 b6)) (polyval_dot a7 b7)`,
-  REPEAT GEN_TAC THEN
-  GEN_REWRITE_TAC (LAND_CONV o RATOR_CONV o RAND_CONV) [REORD_CROSS] THEN
-  REWRITE_TAC[GHASH_REDUCE_RAW_XOR] THEN
-  REWRITE_TAC[KDOT_B0; KARATSUBA_IS_DOT_HW] THEN
-  CONV_TAC WORD_BITWISE_RULE);;
-
 (* SESSION 029 (route c — HUMAN-directed re-examination of the x8 Q19 invariant): *)
 (* the body-order 8-block distribution with ALL blocks in the CLEAN (non-crossed) *)
 (* form — block order [1;0;2;3;4;5;6;7] on lo.lo/hi.hi, [1;0;3;2;5;4;7;6] on the *)
 (* cross lane — reduces to the canonical XOR-sum of the eight per-block           *)
-(* polyval_dots.  This is the PLAIN analogue of GHASH_REDUCE_RAW_DIST8_B0 (which  *)
-(* carries the store-order byteswap on block 0): it FIRES on the body-end Q19     *)
-(* residual once the Q19 loop-invariant conjunct is stated WITHOUT the            *)
-(* `byteswap128` wrapper (`read Q19 s = nist_ghash..8i`, not                       *)
-(* `byteswap128(nist_ghash..8i)`).  Session 029 established EMPIRICALLY (via a     *)
-(* faithful re-derivation of the H2 body residual) that under the plain invariant *)
-(* block 0 enters the reduce as the ordinary `nist_cipher_block (x) sofar`        *)
-(* (NO store-order byteswap), so DIST8_B0's block-0 crossing is neither needed    *)
-(* nor matched — this lemma is.  Same proof shape as DIST8_B0 minus KDOT_B0.       *)
+(* polyval_dots.  It FIRES on the body-end Q19 residual once the Q19 loop-        *)
+(* invariant conjunct is stated WITHOUT the `byteswap128` wrapper                  *)
+(* (`read Q19 s = nist_ghash..8i`, not `byteswap128(nist_ghash..8i)`).  Session   *)
+(* 029 established EMPIRICALLY (via a faithful re-derivation of the H2 body        *)
+(* residual) that under the plain invariant block 0 enters the reduce as the      *)
+(* ordinary `nist_cipher_block (x) sofar` (NO store-order byteswap), so no block-0 *)
+(* crossing is needed — this clean flat-sum form is what matches.                  *)
 let GHASH_REDUCE_RAW_DIST8_PLAIN = prove
  (`!a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7:int128.
     ghash_reduce_raw
@@ -10036,79 +9966,7 @@ let WB_X9_NORM = prove
 (* ===================================================================== *)
 (* GENERALIZATION ARC (session 075) — full functional correctness over    *)
 (* ALL whole-block counts nblocks >= 0 (see orchestrator GENERALIZE_PLAN). *)
-(*                                                                         *)
-(* nblocks = 0 EARLY-RETURN leg.  When bit_len (X1) = 0 the entry guard    *)
-(*   `cbz x1, 0x11c0` is TAKEN, jumping to the return-0 path               *)
-(*   0x11c0 `mov w0,#0`; 0x11c4 `ret`.  No frame is set up, no memory is    *)
-(* written, so tag/ivec are preserved.  Spec: nist_ghash H tag0 [] = tag0  *)
-(* (empty ciphertext list), counter unchanged at ctr_block nonce 2, no     *)
-(* output blocks (the ciphertext forall is vacuous for j < 0).  X0 = 0     *)
-(* is the byte length returned (16*0).  This is a wrapper-level branch      *)
-(* (never enters the core), so it is stated at function entry `pc` and      *)
-(* composed into _WB_SUBROUTINE_CORRECT's nblocks=0 case-split.            *)
-let AESV8_GCM_8X_ENC_256_WB_RETURN0 = prove
- (`!(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64) (key_p:int64)
-     (htable_p:int64) (tag0:int128) (nonce:(96)word) (rk:int128 list)
-     (inblock:num->int128) pc stackpointer returnaddress.
-    ensures arm
-      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word pc /\
-           read SP s = stackpointer /\
-           read X30 s = returnaddress /\
-           read X1 s = word 0 /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce 2))
-      (\s. read PC s = returnaddress /\
-           read X0 s = word 0 /\
-           read SP s = stackpointer /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce 2) /\
-           read (memory :> bytes128 tag_p) s =
-             word_reversefields 8
-               (nist_ghash (aes256_cipher (word 0) rk) tag0
-                  (list_of_seq (nist_cipher_block nonce rk inblock) 0)))
-      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI)`,
-  REPEAT STRIP_TAC THEN
-  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
-  ENSURES_INIT_TAC "s0" THEN
-  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [1;2;3] THEN
-  ENSURES_FINAL_STATE_TAC THEN
-  ASM_REWRITE_TAC[list_of_seq; nist_ghash]);;
-
-(* ---- Block-count decomposition arithmetic (generalization arc, s075) ------ *)
-(* The kernel rounds the byte length DOWN to a whole 8-block group: the        *)
-(* prologue computes x5 = in_p + ((16*nb - 1) AND ~0x7f), i.e. the pointer at  *)
-(* the end of the last FULL 8-block group.  In block units that offset is      *)
-(* 128 * groups where groups = (nb - 1) DIV 8 (for nb >= 1).  The remainder    *)
-(* rem = nb - 8*groups then lies in 1..8 (never 0): an exact multiple of 8     *)
-(* still leaves a final full group for the tail cascade to drain.  These are   *)
-(* the arithmetic facts the general nblocks>=0 statement decomposes over;      *)
-(* current-proof k = groups - 1 (so 8*(k+2)=nb picks out rem=8, groups>=2).    *)
-
-(* (16*nb - 1) DIV 128 = (nb - 1) DIV 8 : the round-down to a full 8-group.    *)
-let WB_ROUNDDOWN = prove
- (`!nb. 1 <= nb ==> (16 * nb - 1) DIV 128 = (nb - 1) DIV 8`,
-  REPEAT STRIP_TAC THEN
-  SUBGOAL_THEN `16 * nb - 1 = 16 * (nb - 1) + 15` SUBST1_TAC THENL
-   [ASM_ARITH_TAC; ALL_TAC] THEN
-  MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN REWRITE_TAC[ARITH_EQ] THEN
-  ABBREV_TAC `q = (nb - 1) DIV 8` THEN ABBREV_TAC `r = (nb - 1) MOD 8` THEN
-  STRIP_TAC THEN ASM_REWRITE_TAC[] THEN MATCH_MP_TAC DIV_UNIQ THEN
-  EXISTS_TAC `16 * r + 15` THEN ASM_ARITH_TAC);;
-
-(* groups = 0  <=>  nb <= 8  (fewer than one full 8-group: main loop skipped). *)
-let WB_GROUPS0 = prove
- (`!nb. 1 <= nb ==> ((nb - 1) DIV 8 = 0 <=> nb <= 8)`,
-  REPEAT STRIP_TAC THEN REWRITE_TAC[DIV_EQ_0; ARITH_EQ] THEN ASM_ARITH_TAC);;
-
-(* rem = nb - 8*groups lies in 1..8 : the tail always drains 1..8 blocks.      *)
-let WB_REM_BOUNDS = prove
- (`!nb. 1 <= nb
-        ==> 8 * ((nb - 1) DIV 8) + 1 <= nb /\ nb <= 8 * ((nb - 1) DIV 8) + 8`,
-  REPEAT GEN_TAC THEN DISCH_TAC THEN
-  MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN REWRITE_TAC[ARITH_EQ] THEN
-  ASM_ARITH_TAC);;
+(* ===================================================================== *)
 
 (* ---- loop_count = 0 branch mechanics (nblocks in 1..8) --------------------- *)
 (* When groups = (nb-1) DIV 8 = 0 (i.e. nb <= 8), the round-down end pointer     *)
