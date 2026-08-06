@@ -80,30 +80,31 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
 
 	add	x5, x5, x0
 
-	rev32	v30.16b, v0.16b				//set up reversed counter
+	rev32	v29.16b, v0.16b				//set up reversed counter (base = v30_0)
+	add	v28.4s, v31.4s, v31.4s		//increment-by-2 vector (off critical path)
 
-	add	v30.4s, v30.4s, v31.4s		//CTR block 0
+	add	v30.4s, v29.4s, v31.4s		//CTR block 0 (v30_1)  chain A
+	add	v29.4s, v29.4s, v28.4s		//v30_2                chain B
 
-	rev32	v1.16b, v30.16b				//CTR block 1
-	add	v30.4s, v30.4s, v31.4s		//CTR block 1
+	rev32	v1.16b, v30.16b				//CTR block 1  (rev32 v30_1)
+	rev32	v2.16b, v29.16b				//CTR block 2  (rev32 v30_2)
 
-	rev32	v2.16b, v30.16b				//CTR block 2
-	add	v30.4s, v30.4s, v31.4s		//CTR block 2
+	add	v30.4s, v30.4s, v28.4s		//v30_3  chain A
+	add	v29.4s, v29.4s, v28.4s		//v30_4  chain B
 
-	rev32	v3.16b, v30.16b				//CTR block 3
-	add	v30.4s, v30.4s, v31.4s		//CTR block 3
-
-	rev32	v4.16b, v30.16b				//CTR block 4
-	add	v30.4s, v30.4s, v31.4s		//CTR block 4
-
-	rev32	v5.16b, v30.16b				//CTR block 5
-	add	v30.4s, v30.4s, v31.4s		//CTR block 5
+	rev32	v3.16b, v30.16b				//CTR block 3  (rev32 v30_3)
+	rev32	v4.16b, v29.16b				//CTR block 4  (rev32 v30_4)
 	ldp	q26, q27, [x11, #0]				 	//load rk0, rk1
 
-	rev32	v6.16b, v30.16b				//CTR block 6
-	add	v30.4s, v30.4s, v31.4s		//CTR block 6
+	add	v30.4s, v30.4s, v28.4s		//v30_5  chain A
+	add	v29.4s, v29.4s, v28.4s		//v30_6  chain B
 
-	rev32	v7.16b, v30.16b				//CTR block 7
+	rev32	v5.16b, v30.16b				//CTR block 5  (rev32 v30_5)
+	rev32	v6.16b, v29.16b				//CTR block 6  (rev32 v30_6)
+
+	add	v30.4s, v29.4s, v31.4s		//v30_7 = (R+6)+1 (final v30)
+
+	rev32	v7.16b, v30.16b				//CTR block 7  (rev32 v30_7)
 
 	aese	v3.16b, v26.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 0

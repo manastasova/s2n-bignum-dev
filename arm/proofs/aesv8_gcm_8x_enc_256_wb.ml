@@ -34,9 +34,9 @@ let aesv8_gcm_8x_enc_256_wb_mc =
   define_assert_from_elf "aesv8_gcm_8x_enc_256_wb_mc"
                          "arm/aes_gcm/aesv8_gcm_8x_enc_256_wb.o"
 [
-  0xb4008e01;       (* arm_CBZ X1 (word 4544) *)
+  0xb4008e21;       (* arm_CBZ X1 (word 4548) *)
   0xf240183f;       (* arm_TST X1 (rvalue (word 127)) *)
-  0x54008dc1;       (* arm_BNE (word 4536) *)
+  0x54008de1;       (* arm_BNE (word 4540) *)
   0xd10143ff;       (* arm_SUB SP SP (rvalue (word 80)) *)
   0x6d0027e8;       (* arm_STP D8 D9 SP (Immediate_Offset (iword (&0))) *)
   0xd343fc29;       (* arm_LSR X9 X1 3 *)
@@ -56,21 +56,22 @@ let aesv8_gcm_8x_enc_256_wb_mc =
   0xd10004a5;       (* arm_SUB X5 X5 (rvalue (word 1)) *)
   0x9279e0a5;       (* arm_AND X5 X5 (rvalue (word 18446744073709551488)) *)
   0x8b0000a5;       (* arm_ADD X5 X5 X0 *)
-  0x6e20081e;       (* arm_REV32_VEC Q30 Q0 8 *)
-  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e20081d;       (* arm_REV32_VEC Q29 Q0 8 *)
+  0x4ebf87fc;       (* arm_ADD_VEC Q28 Q31 Q31 32 128 *)
+  0x4ebf87be;       (* arm_ADD_VEC Q30 Q29 Q31 32 128 *)
+  0x4ebc87bd;       (* arm_ADD_VEC Q29 Q29 Q28 32 128 *)
   0x6e200bc1;       (* arm_REV32_VEC Q1 Q30 8 *)
-  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
-  0x6e200bc2;       (* arm_REV32_VEC Q2 Q30 8 *)
-  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200ba2;       (* arm_REV32_VEC Q2 Q29 8 *)
+  0x4ebc87de;       (* arm_ADD_VEC Q30 Q30 Q28 32 128 *)
+  0x4ebc87bd;       (* arm_ADD_VEC Q29 Q29 Q28 32 128 *)
   0x6e200bc3;       (* arm_REV32_VEC Q3 Q30 8 *)
-  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
-  0x6e200bc4;       (* arm_REV32_VEC Q4 Q30 8 *)
-  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
-  0x6e200bc5;       (* arm_REV32_VEC Q5 Q30 8 *)
-  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x6e200ba4;       (* arm_REV32_VEC Q4 Q29 8 *)
   0xad406d7a;       (* arm_LDP Q26 Q27 X11 (Immediate_Offset (iword (&0))) *)
-  0x6e200bc6;       (* arm_REV32_VEC Q6 Q30 8 *)
-  0x4ebf87de;       (* arm_ADD_VEC Q30 Q30 Q31 32 128 *)
+  0x4ebc87de;       (* arm_ADD_VEC Q30 Q30 Q28 32 128 *)
+  0x4ebc87bd;       (* arm_ADD_VEC Q29 Q29 Q28 32 128 *)
+  0x6e200bc5;       (* arm_REV32_VEC Q5 Q30 8 *)
+  0x6e200ba6;       (* arm_REV32_VEC Q6 Q29 8 *)
+  0x4ebf87be;       (* arm_ADD_VEC Q30 Q29 Q31 32 128 *)
   0x6e200bc7;       (* arm_REV32_VEC Q7 Q30 8 *)
   0x4e284b43;       (* arm_AESE Q3 Q26 *)
   0x4e286863;       (* arm_AESMC Q3 Q3 *)
@@ -1607,7 +1608,7 @@ let AESV8_GCM_8X_ENC_256_WB_AES_SETUP = prove
      k0 k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12 k13 k14 key_p pc.
     ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x98) /\
+           read PC s = word (pc + 0x9c) /\
            read X11 s = key_p /\
            read Q0 s = b0 /\ read Q1 s = b1 /\ read Q2 s = b2 /\
            read Q3 s = b3 /\ read Q4 s = b4 /\ read Q5 s = b5 /\
@@ -1626,7 +1627,7 @@ let AESV8_GCM_8X_ENC_256_WB_AES_SETUP = prove
            read (memory :> bytes128 (word_add key_p (word 192))) s = k12 /\
            read (memory :> bytes128 (word_add key_p (word 208))) s = k13 /\
            read (memory :> bytes128 (word_add key_p (word 224))) s = k14)
-      (\s. read PC s = word (pc + 0x424) /\
+      (\s. read PC s = word (pc + 0x428) /\
            word_xor (read Q0 s) k14 =
            word_reversefields 8
             (aes256_cipher (word_reversefields 8 b0)
@@ -1759,11 +1760,11 @@ let AESV8_GCM_8X_ENC_256_WB_GHASH_REDUCE = prove
  (`!p1 p2 p3 const_p pc.
     ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x1178) /\
+           read PC s = word (pc + 0x117c) /\
            read X10 s = const_p /\
            read (memory :> bytes64 const_p) s = word 13979173243358019584 /\
            read Q17 s = p1 /\ read Q18 s = p2 /\ read Q19 s = p3)
-      (\s. read PC s = word (pc + 0x1198) /\
+      (\s. read PC s = word (pc + 0x119c) /\
            read Q19 s = ghash_reduce_raw p1 p2 p3)
       (MAYCHANGE [PC] ,,
        MAYCHANGE [Q16;Q17;Q18;Q19;Q21;Q29] ,,
@@ -3010,7 +3011,7 @@ let AESV8_GCM_8X_ENC_256_WB_MAIN_LOOP = prove
        (tag_p, 16); (ivec_p, 16); (mod_p, 8)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x4a0) /\
+           read PC s = word (pc + 0x4a4) /\
            read X0 s = word_add in_p (word (128 * (0 + 1))) /\
            read X2 s = word_add out_p (word (128 * (0 + 1))) /\
            read X3 s = tag_p /\
@@ -3080,7 +3081,7 @@ let AESV8_GCM_8X_ENC_256_WB_MAIN_LOOP = prove
                     word_xor (aes_ctr_block nonce rk j) (inblock j)) /\
            ((read NF s <=> read VF s) <=> (0 = k)))
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x9f0) /\
+           read PC s = word (pc + 0x9f4) /\
            read X0 s = word_add in_p (word (128 * (k + 1))) /\
            read X2 s = word_add out_p (word (128 * (k + 1))) /\
            read X3 s = tag_p /\
@@ -3153,7 +3154,7 @@ let AESV8_GCM_8X_ENC_256_WB_MAIN_LOOP = prove
        MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; ALLPAIRS; ALL] THEN
   REPEAT STRIP_TAC THEN
-  ENSURES_WHILE_PUP_TAC `k:num` `pc + 0x4a0` `pc + 0x9ec`
+  ENSURES_WHILE_PUP_TAC `k:num` `pc + 0x4a4` `pc + 0x9f0`
     `\i s. (read X0 s = word_add in_p (word (128 * (i + 1))) /\
             read X2 s = word_add out_p (word (128 * (i + 1))) /\
             read X3 s = tag_p /\
@@ -3811,7 +3812,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP = prove
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x4a0) /\
+           read PC s = word (pc + 0x4a4) /\
            read X0 s = word_add in_p (word (128 * (0 + 1))) /\
            read X2 s = word_add out_p (word (128 * (0 + 1))) /\
            read X3 s = tag_p /\
@@ -3900,7 +3901,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP = prove
   (*   ENSURES_INIT_TAC "s0" THEN                                                 *)
   (*   RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]     *)
   (*       `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN                                *)
-  (*   MAP_EVERY NSTEP (1--253) THEN NSTEP 254 THEN                              *)
+  (*   MAP_EVERY NSTEP (1--254) THEN NSTEP 255 THEN                              *)
   (*   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE               *)
   (*     (CONJ (ASSUME `8 * (k + 2) = nb`)                                       *)
   (*           (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`));            *)
@@ -4033,13 +4034,13 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP = prove
   RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
       `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
-  MAP_EVERY NSTEP (1--253) THEN NSTEP 254 THEN
+  MAP_EVERY NSTEP (1--254) THEN NSTEP 255 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE
     (CONJ (ASSUME `8 * (k + 2) = nb`)
           (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`)); COND_CLAUSES]) THEN
-  LDP_SETUP_TAC 255 THEN LDP_SETUP_TAC 256 THEN MAP_EVERY NSTEP (257--263) THEN
-  LDP_SETUP_TAC 264 THEN LDP_SETUP_TAC 265 THEN MAP_EVERY NSTEP (266--281) THEN
-  NSTEP 282 THEN
+  LDP_SETUP_TAC 256 THEN LDP_SETUP_TAC 257 THEN MAP_EVERY NSTEP (258--264) THEN
+  LDP_SETUP_TAC 265 THEN LDP_SETUP_TAC 266 THEN MAP_EVERY NSTEP (267--282) THEN
+  NSTEP 283 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_2
     (CONJ (ASSUME `~(k = 0)`) (CONJ (ASSUME `8 * (k + 2) = nb`)
           (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`)));
@@ -4129,7 +4130,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP_GEN = prove
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x4a0) /\
+           read PC s = word (pc + 0x4a4) /\
            read X0 s = word_add in_p (word (128 * (0 + 1))) /\
            read X2 s = word_add out_p (word (128 * (0 + 1))) /\
            read X3 s = tag_p /\
@@ -4209,13 +4210,13 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP_GEN = prove
   RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
       `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
-  MAP_EVERY NSTEP (1--253) THEN NSTEP 254 THEN
+  MAP_EVERY NSTEP (1--254) THEN NSTEP 255 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_GEN
     (CONJ (ASSUME `8 * (k + 1) < nb`) (CONJ (ASSUME `nb <= 8 * (k + 2)`)
           (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))); COND_CLAUSES]) THEN
-  LDP_SETUP_TAC 255 THEN LDP_SETUP_TAC 256 THEN MAP_EVERY NSTEP (257--263) THEN
-  LDP_SETUP_TAC 264 THEN LDP_SETUP_TAC 265 THEN MAP_EVERY NSTEP (266--281) THEN
-  NSTEP 282 THEN
+  LDP_SETUP_TAC 256 THEN LDP_SETUP_TAC 257 THEN MAP_EVERY NSTEP (258--264) THEN
+  LDP_SETUP_TAC 265 THEN LDP_SETUP_TAC 266 THEN MAP_EVERY NSTEP (267--282) THEN
+  NSTEP 283 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_2_GEN
     (CONJ (ASSUME `~(k = 0)`) (CONJ (ASSUME `8 * (k + 1) < nb`)
       (CONJ (ASSUME `nb <= 8 * (k + 2)`)
@@ -4301,7 +4302,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP_G1 = prove
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x9f0) /\
+           read PC s = word (pc + 0x9f4) /\
            read X0 s = word_add in_p (word (128 * (0 + 1))) /\
            read X2 s = word_add out_p (word (128 * (0 + 1))) /\
            read X3 s = tag_p /\
@@ -4380,13 +4381,13 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP_G1 = prove
   RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
       `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
-  MAP_EVERY NSTEP (1--253) THEN NSTEP 254 THEN
+  MAP_EVERY NSTEP (1--254) THEN NSTEP 255 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_GEN
     (CONJ (ASSUME `8 * (k + 1) < nb`) (CONJ (ASSUME `nb <= 8 * (k + 2)`)
           (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))); COND_CLAUSES]) THEN
-  LDP_SETUP_TAC 255 THEN LDP_SETUP_TAC 256 THEN MAP_EVERY NSTEP (257--263) THEN
-  LDP_SETUP_TAC 264 THEN LDP_SETUP_TAC 265 THEN MAP_EVERY NSTEP (266--281) THEN
-  NSTEP 282 THEN
+  LDP_SETUP_TAC 256 THEN LDP_SETUP_TAC 257 THEN MAP_EVERY NSTEP (258--264) THEN
+  LDP_SETUP_TAC 265 THEN LDP_SETUP_TAC 266 THEN MAP_EVERY NSTEP (267--282) THEN
+  NSTEP 283 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_TRUE_2
     (CONJ (ASSUME `k = 0`) (CONJ (ASSUME `8 * (k + 1) < nb`)
       (CONJ (ASSUME `nb <= 8 * (k + 2)`)
@@ -4606,7 +4607,7 @@ let AESV8_GCM_8X_ENC_256_WB_PREPRETAIL = prove
        (tag_p, 16); (ivec_p, 16); (mod_p, 8)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x9f0) /\
+           read PC s = word (pc + 0x9f4) /\
            read X0 s = word_add in_p (word (128 * (k + 1))) /\
            read X2 s = word_add out_p (word (128 * (k + 1))) /\
            read X3 s = tag_p /\
@@ -4675,7 +4676,7 @@ let AESV8_GCM_8X_ENC_256_WB_PREPRETAIL = prove
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * (k + 1))) /\
            read X2 s = word_add out_p (word (128 * (k + 1))) /\
            read X3 s = tag_p /\
@@ -4790,7 +4791,7 @@ let AESV8_GCM_8X_ENC_256_WB_PREPRETAIL_GEN = prove
        (tag_p, 16); (ivec_p, 16); (mod_p, 8)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0x9f0) /\
+           read PC s = word (pc + 0x9f4) /\
            read X0 s = word_add in_p (word (128 * (k + 1))) /\
            read X2 s = word_add out_p (word (128 * (k + 1))) /\
            read X3 s = tag_p /\
@@ -4859,7 +4860,7 @@ let AESV8_GCM_8X_ENC_256_WB_PREPRETAIL_GEN = prove
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * (k + 1))) /\
            read X2 s = word_add out_p (word (128 * (k + 1))) /\
            read X3 s = tag_p /\
@@ -5312,7 +5313,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read Q18 s = q18_init /\
            read Q27 s = q27_init /\
            read X0 s = word_add in_p (word (128 * (k + 1))) /\
@@ -5386,7 +5387,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
            (!j. j < 8 * (k + 1)
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -5710,7 +5711,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM1 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -5739,7 +5740,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM1 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -5917,7 +5918,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM2 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -5968,7 +5969,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM2 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -6136,7 +6137,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM3 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -6187,7 +6188,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM3 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -6343,7 +6344,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM4 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -6394,7 +6395,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM4 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -6556,7 +6557,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM5 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -6607,7 +6608,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM5 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -6774,7 +6775,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM6 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -6825,7 +6826,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM6 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -6997,7 +6998,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM7 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7048,7 +7049,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM7 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -7236,7 +7237,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM8 = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read Q18 s = q18_init /\
            read Q27 s = q27_init /\
            read X0 s = word_add in_p (word (128 * g)) /\
@@ -7310,7 +7311,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM8 = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -7462,7 +7463,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read Q18 s = q18_init /\
            read Q27 s = q27_init /\
            read X0 s = word_add in_p (word (128 * g)) /\
@@ -7536,7 +7537,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
            (!j. j < 8 * g
                 ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                     word_xor (aes_ctr_block nonce rk j) (inblock j)))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -7556,7 +7557,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
    [ASM_ARITH_TAC; ALL_TAC] THEN
   STRIP_TAC THENL
    [    (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7590,7 +7591,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
        MATCH_MP_TAC AESV8_GCM_8X_ENC_256_WB_TAIL_REM1 THEN
        REPEAT CONJ_TAC THEN (ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);
     (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7646,7 +7647,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
        MATCH_MP_TAC AESV8_GCM_8X_ENC_256_WB_TAIL_REM2 THEN
        REPEAT CONJ_TAC THEN (ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);
     (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7702,7 +7703,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
        MATCH_MP_TAC AESV8_GCM_8X_ENC_256_WB_TAIL_REM3 THEN
        REPEAT CONJ_TAC THEN (ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);
     (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7758,7 +7759,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
        MATCH_MP_TAC AESV8_GCM_8X_ENC_256_WB_TAIL_REM4 THEN
        REPEAT CONJ_TAC THEN (ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);
     (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7814,7 +7815,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
        MATCH_MP_TAC AESV8_GCM_8X_ENC_256_WB_TAIL_REM5 THEN
        REPEAT CONJ_TAC THEN (ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);
     (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7870,7 +7871,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
        MATCH_MP_TAC AESV8_GCM_8X_ENC_256_WB_TAIL_REM6 THEN
        REPEAT CONJ_TAC THEN (ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);
     (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7926,7 +7927,7 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM = prove
        MATCH_MP_TAC AESV8_GCM_8X_ENC_256_WB_TAIL_REM7 THEN
        REPEAT CONJ_TAC THEN (ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[])]);
     (MATCH_MP_TAC ENSURES_PRECONDITION_THM THEN EXISTS_TAC `(\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read Q18 s = q18_init /\
            read Q27 s = q27_init /\
            read X0 s = word_add in_p (word (128 * g)) /\
@@ -8112,7 +8113,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT = prove
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -8144,7 +8145,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT = prove
 
   (* ============ SEQUENCE 1: SETUP  pc+0x38 -> pc+0x4a0 ============ *)
   (* mid-state OMITS aligned_bytes_loaded + read PC (auto-added by the tactic). *)
-  ENSURES_SEQUENCE_TAC `pc + 0x4a0`
+  ENSURES_SEQUENCE_TAC `pc + 0x4a4`
    `\s. read X0 s = word_add in_p (word (128 * (0 + 1))) /\
         read X2 s = word_add out_p (word (128 * (0 + 1))) /\
         read X3 s = tag_p /\
@@ -8241,7 +8242,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT = prove
   (* mid-state = PREPRETAIL precondition (pc+0x9f0), OMITTING aligned+PC,     *)
   (* with mod_p := stackpointer+0x40.  Written EXPLICITLY (copy of PP pre     *)
   (* lines 4241-4307, dropping the aligned_bytes_loaded + read PC lines).     *)
-  ENSURES_SEQUENCE_TAC `pc + 0x9f0`
+  ENSURES_SEQUENCE_TAC `pc + 0x9f4`
    `\s. read X0 s = word_add in_p (word (128 * (k + 1))) /\
         read X2 s = word_add out_p (word (128 * (k + 1))) /\
         read X3 s = tag_p /\
@@ -8350,7 +8351,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT = prove
   (* /\ ... /\ <body>` and rely on the tactic adding aligned/PC OUTSIDE, then on *)
   (* the TAIL leg do `REWRITE_TAC[RIGHT_EXISTS_AND_THM/LEFT_EXISTS_AND_THM] o.a. *)
   (* to hoist the ? to the top before MATCH_MP_TAC ENSURES_EXISTS2_PRECONDITION. *)
-  ENSURES_SEQUENCE_TAC `pc + 0xec0`
+  ENSURES_SEQUENCE_TAC `pc + 0xec4`
    `\s. ?v18 v27.
         read Q18 s = v18 /\ read Q27 s = v27 /\
         read X0 s = word_add in_p (word (128 * (k + 1))) /\
@@ -8449,7 +8450,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT = prove
     (* (lines 4308-4379: read PC .. /\ body), i.e. exactly PREPRETAIL's post.    *)
     ENSURES_POSTCONDITION_TAC
      `\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-          read PC s = word (pc + 0xec0) /\
+          read PC s = word (pc + 0xec4) /\
           read X0 s = word_add in_p (word (128 * (k + 1))) /\
           read X2 s = word_add out_p (word (128 * (k + 1))) /\
           read X3 s = tag_p /\ read X4 s = word_add in_p (word (16 * nb)) /\
@@ -8654,7 +8655,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_GEN = prove
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -8686,7 +8687,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_GEN = prove
 
   (* ============ SEQUENCE 1: SETUP  pc+0x38 -> pc+0x4a0 ============ *)
   (* mid-state OMITS aligned_bytes_loaded + read PC (auto-added by the tactic). *)
-  ENSURES_SEQUENCE_TAC `pc + 0x4a0`
+  ENSURES_SEQUENCE_TAC `pc + 0x4a4`
    `\s. read X0 s = word_add in_p (word (128 * (0 + 1))) /\
         read X2 s = word_add out_p (word (128 * (0 + 1))) /\
         read X3 s = tag_p /\
@@ -8783,7 +8784,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_GEN = prove
   (* mid-state = PREPRETAIL precondition (pc+0x9f0), OMITTING aligned+PC,     *)
   (* with mod_p := stackpointer+0x40.  Written EXPLICITLY (copy of PP pre     *)
   (* lines 4241-4307, dropping the aligned_bytes_loaded + read PC lines).     *)
-  ENSURES_SEQUENCE_TAC `pc + 0x9f0`
+  ENSURES_SEQUENCE_TAC `pc + 0x9f4`
    `\s. read X0 s = word_add in_p (word (128 * (k + 1))) /\
         read X2 s = word_add out_p (word (128 * (k + 1))) /\
         read X3 s = tag_p /\
@@ -8892,7 +8893,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_GEN = prove
   (* /\ ... /\ <body>` and rely on the tactic adding aligned/PC OUTSIDE, then on *)
   (* the TAIL leg do `REWRITE_TAC[RIGHT_EXISTS_AND_THM/LEFT_EXISTS_AND_THM] o.a. *)
   (* to hoist the ? to the top before MATCH_MP_TAC ENSURES_EXISTS2_PRECONDITION. *)
-  ENSURES_SEQUENCE_TAC `pc + 0xec0`
+  ENSURES_SEQUENCE_TAC `pc + 0xec4`
    `\s. ?v18 v27.
         read Q18 s = v18 /\ read Q27 s = v27 /\
         read X0 s = word_add in_p (word (128 * (k + 1))) /\
@@ -8991,7 +8992,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_GEN = prove
     (* (lines 4308-4379: read PC .. /\ body), i.e. exactly PREPRETAIL's post.    *)
     ENSURES_POSTCONDITION_TAC
      `\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-          read PC s = word (pc + 0xec0) /\
+          read PC s = word (pc + 0xec4) /\
           read X0 s = word_add in_p (word (128 * (k + 1))) /\
           read X2 s = word_add out_p (word (128 * (k + 1))) /\
           read X3 s = tag_p /\ read X4 s = word_add in_p (word (16 * nb)) /\
@@ -9202,7 +9203,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_G1 = prove
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -9222,7 +9223,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_G1 = prove
   REPEAT STRIP_TAC THEN
 
   (* ===== SEQUENCE 1: SETUP_G1  pc+0x38 -> pc+0x9f0 (skips main loop) ===== *)
-  ENSURES_SEQUENCE_TAC `pc + 0x9f0`
+  ENSURES_SEQUENCE_TAC `pc + 0x9f4`
    `\s. read X0 s = word_add in_p (word (128 * (0 + 1))) /\
         read X2 s = word_add out_p (word (128 * (0 + 1))) /\
         read X3 s = tag_p /\
@@ -9331,7 +9332,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_G1 = prove
   (* /\ ... /\ <body>` and rely on the tactic adding aligned/PC OUTSIDE, then on *)
   (* the TAIL leg do `REWRITE_TAC[RIGHT_EXISTS_AND_THM/LEFT_EXISTS_AND_THM] o.a. *)
   (* to hoist the ? to the top before MATCH_MP_TAC ENSURES_EXISTS2_PRECONDITION. *)
-  ENSURES_SEQUENCE_TAC `pc + 0xec0`
+  ENSURES_SEQUENCE_TAC `pc + 0xec4`
    `\s. ?v18 v27.
         read Q18 s = v18 /\ read Q27 s = v27 /\
         read X0 s = word_add in_p (word (128 * (0 + 1))) /\
@@ -9430,7 +9431,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_G1 = prove
     (* (lines 4308-4379: read PC .. /\ body), i.e. exactly PREPRETAIL's post.    *)
     ENSURES_POSTCONDITION_TAC
      `\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-          read PC s = word (pc + 0xec0) /\
+          read PC s = word (pc + 0xec4) /\
           read X0 s = word_add in_p (word (128 * (0 + 1))) /\
           read X2 s = word_add out_p (word (128 * (0 + 1))) /\
           read X3 s = tag_p /\ read X4 s = word_add in_p (word (16 * nb)) /\
@@ -9829,7 +9830,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP0 = prove
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = in_p /\
            read X2 s = out_p /\
            read X3 s = tag_p /\
@@ -9912,7 +9913,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP0 = prove
   RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
       `LENGTH aesv8_gcm_8x_enc_256_wb_mc`]) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
-  MAP_EVERY NSTEP (1--253) THEN NSTEP 254 THEN
+  MAP_EVERY NSTEP (1--254) THEN NSTEP 255 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_BRANCH_COND_TRUE
      (CONJ (ASSUME `1 <= nb`) (ASSUME `nb <= 8`)); COND_CLAUSES]) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
@@ -9991,7 +9992,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP0_TAIL = prove
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
@@ -10011,7 +10012,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP0_TAIL = prove
   REPEAT STRIP_TAC THEN
 
   (* ===== SEQUENCE: SETUP0  pc+0x38 -> pc+0xec0 (option D) ===== *)
-  ENSURES_SEQUENCE_TAC `pc + 0xec0`
+  ENSURES_SEQUENCE_TAC `pc + 0xec4`
    `\s. ?v18 v27.
         read Q18 s = v18 /\ read Q27 s = v27 /\
            read X0 s = word_add in_p (word (128 * 0)) /\
@@ -10100,7 +10101,7 @@ let AESV8_GCM_8X_ENC_256_WB_SETUP0_TAIL = prove
       ALL_TAC] THEN
     ENSURES_POSTCONDITION_TAC
      `      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word (pc + 0xec0) /\
+           read PC s = word (pc + 0xec4) /\
            read X0 s = in_p /\
            read X2 s = out_p /\
            read X3 s = tag_p /\
@@ -10294,7 +10295,7 @@ let AESV8_GCM_8X_ENC_256_WB_CORRECT_ALL = prove
            (!j. j < nb
                 ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
                     inblock j))
-      (\s. read PC s = word (pc + 0x11a4) /\
+      (\s. read PC s = word (pc + 0x11a8) /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce (nb + 2)) /\
            read (memory :> bytes128 tag_p) s =
