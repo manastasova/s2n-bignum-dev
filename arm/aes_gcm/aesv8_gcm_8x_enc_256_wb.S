@@ -1315,7 +1315,7 @@ L256_enc_blocks_more_than_7:	//blocks	left >  7
 	ldr	q9, [x0], #16				//AES final-6 block - load plaintext
 
 	pmull2	v17.1q, v8.2d, v25.2d				//GHASH final-7 block - high
-	ins	v27.d[0], v8.d[1]					//GHASH final-7 block - mid
+	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-7 block - mid
 	ins	v18.d[0], v24.d[1]					//GHASH final-7 block - mid
 
 	movi	v16.8b, #0						//supress further partial tag feed in
@@ -1334,7 +1334,7 @@ L256_enc_blocks_more_than_6:	//blocks	left >  6
 	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
 
 	pmull	v26.1q, v8.1d, v23.1d				//GHASH final-6 block - low
-	ins	v27.d[0], v8.d[1]					//GHASH final-6 block - mid
+	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-6 block - mid
 	pmull2	v28.1q, v8.2d, v23.2d				//GHASH final-6 block - high
 
 	ldr	q9, [x0], #16				//AES final-5 block - load plaintext
@@ -1358,7 +1358,7 @@ L256_enc_blocks_more_than_5:	//blocks	left >  5
 
 	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
 
-	ins	v27.d[0], v8.d[1]					//GHASH final-5 block - mid
+	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-5 block - mid
 
 	pmull2	v28.1q, v8.2d, v22.2d				//GHASH final-5 block - high
 
@@ -1386,7 +1386,7 @@ L256_enc_blocks_more_than_4:	//blocks	left >  4
 
 	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
 
-	ins	v27.d[0], v8.d[1]					//GHASH final-4 block - mid
+	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-4 block - mid
 	pmull2	v28.1q, v8.2d, v20.2d				//GHASH final-4 block - high
 
 .inst	0xce047529	//eor3 v9.16b, v9.16b, v4.16b, v29.16b			//AES final-3 block - result
@@ -1410,7 +1410,7 @@ L256_enc_blocks_more_than_3:	//blocks	left >  3
 
 	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
 
-	ins	v27.d[0], v8.d[1]					//GHASH final-3 block - mid
+	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-3 block - mid
 	pmull2	v28.1q, v8.2d, v25.2d				//GHASH final-3 block - high
 
 	eor	v17.16b, v17.16b, v28.16b					//GHASH final-3 block - high
@@ -1440,7 +1440,7 @@ L256_enc_blocks_more_than_2:	//blocks	left >  2
 
 	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
 
-	ins	v27.d[0], v8.d[1]					//GHASH final-2 block - mid
+	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-2 block - mid
 
 	movi	v16.8b, #0						//supress further partial tag feed in
 
@@ -1467,7 +1467,7 @@ L256_enc_blocks_more_than_1:	//blocks	left >  1
 	eor	v8.16b, v8.16b, v16.16b					//feed in partial tag
 	movi	v16.8b, #0						//supress further partial tag feed in
 
-	ins	v27.d[0], v8.d[1]					//GHASH final-1 block - mid
+	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-1 block - mid
 	pmull2	v28.1q, v8.2d, v22.2d				//GHASH final-1 block - high
 
 .inst	0xce077529	//eor3 v9.16b, v9.16b, v7.16b, v29.16b			//AES final block - result
