@@ -988,7 +988,7 @@ let aesv8_gcm_8x_enc_256_wb_mc =
   0x4ebc1f9d;       (* arm_MOV_VEC Q29 Q28 128 *)
   0xf101c0bf;       (* arm_CMP X5 (rvalue (word 112)) *)
   0xce007509;       (* arm_EOR3 Q9 Q8 Q0 Q29 *)
-  0x540005ec;       (* arm_BGT (word 188) *)
+  0x5400172c;       (* arm_BGT (word 740) *)
   0x0f00e413;       (* arm_MOVI D19 (word 0) *)
   0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
   0x0f00e411;       (* arm_MOVI D17 (word 0) *)
@@ -1172,7 +1172,124 @@ let aesv8_gcm_8x_enc_256_wb_mc =
   0x910143ff;       (* arm_ADD SP SP (rvalue (word 80)) *)
   0xd65f03c0;       (* arm_RET X30 *)
   0x52800000;       (* arm_MOV W0 (rvalue (word 0)) *)
-  0xd65f03c0        (* arm_RET X30 *)
+  0xd65f03c0;       (* arm_RET X30 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x4ef9e111;       (* arm_PMULL2_VEC Q17 Q8 Q25 64 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x6e084712;       (* arm_INS Q18 Q24 0 64 64 128 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0xce017529;       (* arm_EOR3 Q9 Q9 Q1 Q29 *)
+  0x0ef2e372;       (* arm_PMULL_VEC Q18 Q27 Q18 64 *)
+  0x0ef9e113;       (* arm_PMULL_VEC Q19 Q8 Q25 64 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x0ef7e11a;       (* arm_PMULL_VEC Q26 Q8 Q23 64 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef7e11c;       (* arm_PMULL2_VEC Q28 Q8 Q23 64 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x0ef8e37b;       (* arm_PMULL_VEC Q27 Q27 Q24 64 *)
+  0xce027529;       (* arm_EOR3 Q9 Q9 Q2 Q29 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef6e11c;       (* arm_PMULL2_VEC Q28 Q8 Q22 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x6e1542ac;       (* arm_EXT Q12 Q21 Q21 64 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x0ef6e11a;       (* arm_PMULL_VEC Q26 Q8 Q22 64 *)
+  0x0eece37b;       (* arm_PMULL_VEC Q27 Q27 Q12 64 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0xce037529;       (* arm_EOR3 Q9 Q9 Q3 Q29 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef4e11c;       (* arm_PMULL2_VEC Q28 Q8 Q20 64 *)
+  0xce047529;       (* arm_EOR3 Q9 Q9 Q4 Q29 *)
+  0x0ef4e11a;       (* arm_PMULL_VEC Q26 Q8 Q20 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x0ef5e37b;       (* arm_PMULL_VEC Q27 Q27 Q21 64 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc014d9;       (* arm_LDR Q25 X6 (Immediate_Offset (word 80)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef9e11c;       (* arm_PMULL2_VEC Q28 Q8 Q25 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3dc010d8;       (* arm_LDR Q24 X6 (Immediate_Offset (word 64)) *)
+  0x6e18430b;       (* arm_EXT Q11 Q24 Q24 64 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x0eebe37b;       (* arm_PMULL_VEC Q27 Q27 Q11 64 *)
+  0x0ef9e11a;       (* arm_PMULL_VEC Q26 Q8 Q25 64 *)
+  0xce057529;       (* arm_EOR3 Q9 Q9 Q5 Q29 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x3dc00cd7;       (* arm_LDR Q23 X6 (Immediate_Offset (word 48)) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef7e11c;       (* arm_PMULL2_VEC Q28 Q8 Q23 64 *)
+  0xce067529;       (* arm_EOR3 Q9 Q9 Q6 Q29 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x0ef8e37b;       (* arm_PMULL_VEC Q27 Q27 Q24 64 *)
+  0x0ef7e11a;       (* arm_PMULL_VEC Q26 Q8 Q23 64 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc008d6;       (* arm_LDR Q22 X6 (Immediate_Offset (word 32)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef6e11c;       (* arm_PMULL2_VEC Q28 Q8 Q22 64 *)
+  0xce077529;       (* arm_EOR3 Q9 Q9 Q7 Q29 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x0ef6e11a;       (* arm_PMULL_VEC Q26 Q8 Q22 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3dc004d5;       (* arm_LDR Q21 X6 (Immediate_Offset (word 16)) *)
+  0x6e1542aa;       (* arm_EXT Q10 Q21 Q21 64 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x0eeae37b;       (* arm_PMULL_VEC Q27 Q27 Q10 64 *)
+  0x6e3b1e52;       (* arm_EOR_VEC Q18 Q18 Q27 128 *)
+  0x3dc000d4;       (* arm_LDR Q20 X6 (Immediate_Offset (word 0)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 *)
+  0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
+  0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
+  0x6e084510;       (* arm_INS Q16 Q8 0 64 64 128 *)
+  0x4ef4e11c;       (* arm_PMULL2_VEC Q28 Q8 Q20 64 *)
+  0x0ef4e11a;       (* arm_PMULL_VEC Q26 Q8 Q20 64 *)
+  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
+  0x6e3a1e73;       (* arm_EOR_VEC Q19 Q19 Q26 128 *)
+  0x2e281e10;       (* arm_EOR_VEC Q16 Q16 Q8 64 *)
+  0x0ef5e210;       (* arm_PMULL_VEC Q16 Q16 Q21 64 *)
+  0x6e301e52;       (* arm_EOR_VEC Q18 Q18 Q16 128 *)
+  0xfd400150;       (* arm_LDR D16 X10 (Immediate_Offset (word 0)) *)
+  0x6e114235;       (* arm_EXT Q21 Q17 Q17 64 *)
+  0xce114e52;       (* arm_EOR3 Q18 Q18 Q17 Q19 *)
+  0x0ef0e23d;       (* arm_PMULL_VEC Q29 Q17 Q16 64 *)
+  0xce1d5652;       (* arm_EOR3 Q18 Q18 Q29 Q21 *)
+  0x0ef0e251;       (* arm_PMULL_VEC Q17 Q18 Q16 64 *)
+  0x6e124255;       (* arm_EXT Q21 Q18 Q18 64 *)
+  0xce115673;       (* arm_EOR3 Q19 Q19 Q17 Q21 *)
+  0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
+  0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
+  0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
+  0x17ffff83        (* arm_B (word 268434956) *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_WB_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_wb_mc;;
@@ -5189,6 +5306,13 @@ let fold_q19_at lhstm cnt foldtac : tactic =
 let FOLD_Q19_S136 : tactic =
   fold_q19_at `read Q19 s136 : int128` `8 * (k + 2)` TAIL_Q19_FOLD;;
 
+(* s097: dedicated exact-8 drain removed the 7 no-op tag eors + 6 dead movis (13 identity  *)
+(* instrs), so the final reduce eor3 now lands at drive step s123 (was s136); the fold      *)
+(* point moves accordingly.  Value-identical (eor-with-0 = identity), so TAIL_Q19_FOLD is   *)
+(* unchanged — only the state-var index shifts.                                             *)
+let FOLD_Q19_S123 : tactic =
+  fold_q19_at `read Q19 s123 : int128` `8 * (k + 2)` TAIL_Q19_FOLD;;
+
 (* PERF (session 069): DROP the now-DEAD GHASH-reduce scratch registers right after   *)
 (* FOLD_Q19_S136.  The final reduce `eor3 v19,v19,v17,v21`@0x1194 consumes Q17 (pmull)  *)
 (* and Q21 (ext) into Q19 (Q18/Q20 are the earlier mid-reduce scratch feeding them);    *)
@@ -5532,18 +5656,22 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL = prove
   (* PERF s070: drop the Karatsuba partial-product lane Q27 at s115 (its last read  *)
   (* is drive step ~112; s115 is the earliest proven-sound drop point) so ARM_STEPS *)
   (* stops re-stamping its ~87k chars over steps 116..136.  See DISCARD_REGS above.  *)
-  MAP_EVERY NSTEP_GP (10--115) THEN
+  (* s097: dedicated exact-8 drain (b.gt@0xee8 -> 0x11cc) with the 13 identity        *)
+  (* instrs (7 no-op tag eors + 6 dead movis) removed: the drain is 117 instrs (was   *)
+  (* 129), so Q27's last read is now s102 (was s112), the final reduce eor3 is s123    *)
+  (* (was s136), and the ext/rev64/st1 writebacks are s124..s126 (was s137..s139).    *)
+  MAP_EVERY NSTEP_GP (10--105) THEN
   DISCARD_REGS ["Q27"] THEN
-  MAP_EVERY NSTEP_GP (116--136) THEN
+  MAP_EVERY NSTEP_GP (106--123) THEN
   (* PERF s067: fold Q19 to compact nist_ghash NOW, so the ext/rev64/st1 tail       *)
-  (* (steps 137--139) inlines a small term instead of the ~4M raw fold (was ~3h).   *)
-  FOLD_Q19_S136 THEN
+  (* (steps 124--126) inlines a small term instead of the ~4M raw fold (was ~3h).   *)
+  FOLD_Q19_S123 THEN
   (* PERF s069: Q19 is now the compact nist_ghash; the reduce scratch Q17/Q18/Q20/Q21 *)
   (* (raw ~1.9M/620k/588k-char Karatsuba sums) is DEAD — drop it so the tail steps and *)
   (* FINAL_STATE/closers stop walking it (post-fold tail ~21.2s->~12.2s, ~6% of TAIL).  *)
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  (* Steps 137..139: ext@0x1198 ; rev64@0x119c ; st1@0x11a0 (2 writebacks).         *)
-  MAP_EVERY NSTEP_GP (137--139) THEN
+  (* Steps 124..126: ext@0x1390 ; rev64@0x1394 ; st1@0x1398 (2 writebacks).         *)
+  MAP_EVERY NSTEP_GP (124--127) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   (* 3 conjuncts: ivec store / tag store / out-forall.                            *)
   CONJ_TAC THENL
@@ -7223,6 +7351,11 @@ let TAIL_Q19_FOLD_G =
 let FOLD_Q19_S136_G : tactic =
   fold_q19_at `read Q19 s136 : int128` `8 * g + 8` TAIL_Q19_FOLD_G;;
 
+(* s097: general-g twin of FOLD_Q19_S123 — dedicated exact-8 drain moved the final reduce  *)
+(* to s123 (was s136).  See the WB_TAIL note.                                              *)
+let FOLD_Q19_S123_G : tactic =
+  fold_q19_at `read Q19 s123 : int128` `8 * g + 8` TAIL_Q19_FOLD_G;;
+
 let AESV8_GCM_8X_ENC_256_WB_TAIL_REM8 = prove
  (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
      tag0 nonce rk inblock nb g pc.
@@ -7368,18 +7501,21 @@ let AESV8_GCM_8X_ENC_256_WB_TAIL_REM8 = prove
   DISCARD_DEAD_KEYMEM THEN
   DISCARD_DEAD_HTABLE THEN
   DISCARD_REGS ["Q31"; "Q28"] THEN
-  MAP_EVERY NSTEP_GP (10--115) THEN
+  (* s097: dedicated exact-8 drain (b.gt@0xee8 -> 0x11cc, 13 identity instrs removed) —      *)
+  (* same step-index shift as WB_TAIL: Q27 last-read s102 (drop after s105), final reduce    *)
+  (* s123 (was s136), writebacks s124..s126 (was s137..s139).                                *)
+  MAP_EVERY NSTEP_GP (10--105) THEN
   DISCARD_REGS ["Q27"] THEN
-  MAP_EVERY NSTEP_GP (116--136) THEN
+  MAP_EVERY NSTEP_GP (106--123) THEN
   (* block 8*g+6's keystream ctr 8*g+8 collapsed to nb during the drive (the 8*g+8=nb hyp   *)
   (* rewrites 8*g+8 -> nb L->R); re-expand nb -> 8*g+8 in ONLY the Q19 fact (leave the       *)
   (* 8*g+8=nb hyp intact for the tag/out closers) so the fold reindex fires on all 8 blocks. *)
   RULE_ASSUM_TAC(fun th ->
-    if (try lhs(concl th) = `read Q19 s136:int128` with Failure _ -> false)
+    if (try lhs(concl th) = `read Q19 s123:int128` with Failure _ -> false)
     then REWRITE_RULE[SYM(ASSUME `8 * g + 8 = nb`)] th else th) THEN
-  FOLD_Q19_S136_G THEN
+  FOLD_Q19_S123_G THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (137--139) THEN
+  MAP_EVERY NSTEP_GP (124--127) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [
