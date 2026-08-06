@@ -1365,12 +1365,12 @@ L256_enc_blocks_more_than_5:	//blocks	left >  5
 	eor	v17.16b, v17.16b, v28.16b					//GHASH final-5 block - high
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-5 block - mid
 
-	ins	v27.d[1], v27.d[0]					//GHASH final-5 block - mid
+	ext	v12.16b, v21.16b, v21.16b, #8			//[R2c] h5k(hi lane) to low lane
 
 	ldr	q9, [x0], #16				//AES final-4 block - load plaintext
 	pmull	v26.1q, v8.1d, v22.1d				//GHASH final-5 block - low
 
-	pmull2	v27.1q, v27.2d, v21.2d				//GHASH final-5 block - mid
+	pmull	v27.1q, v27.1d, v12.1d				//[R2c] final-5 mid (pmull low, h5k in v12)
 	movi	v16.8b, #0						//supress further partial tag feed in
 	eor	v19.16b, v19.16b, v26.16b					//GHASH final-5 block - low
 
@@ -1416,11 +1416,12 @@ L256_enc_blocks_more_than_3:	//blocks	left >  3
 	eor	v17.16b, v17.16b, v28.16b					//GHASH final-3 block - high
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-3 block - mid
 	ldr	q24, [x6, #64]				//load h4k | h3k
+	ext	v11.16b, v24.16b, v24.16b, #8			//[R2b] h3k(hi lane) to low lane
 
-	ins	v27.d[1], v27.d[0]					//GHASH final-3 block - mid
+	// [R2b] ins v27.d[1] removed (final-3, pmull low, h3k in v11)
 	ldr	q9, [x0], #16				//AES final-2 block - load plaintext
 
-	pmull2	v27.1q, v27.2d, v24.2d				//GHASH final-3 block - mid
+	pmull	v27.1q, v27.1d, v11.1d				//[R2b] final-3 mid (pmull low, h3k in v11)
 	pmull	v26.1q, v8.1d, v25.1d				//GHASH final-3 block - low
 
 .inst	0xce057529	//eor3 v9.16b, v9.16b, v5.16b, v29.16b			//AES final-2 block - result
@@ -1476,11 +1477,12 @@ L256_enc_blocks_more_than_1:	//blocks	left >  1
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-1 block - mid
 
 	ldr	q21, [x6, #16]				//load h2k | h1k
+	ext	v10.16b, v21.16b, v21.16b, #8			//[R2] h2k(hi lane) to low lane
 
 	eor	v19.16b, v19.16b, v26.16b					//GHASH final-1 block - low
-	ins	v27.d[1], v27.d[0]					//GHASH final-1 block - mid
+	// [R2] ins v27.d[1] removed (pmull low lane, h2k in v10)
 
-	pmull2	v27.1q, v27.2d, v21.2d				//GHASH final-1 block - mid
+	pmull	v27.1q, v27.1d, v10.1d				//[R2] final-1 mid (pmull low, h2k in v10)
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-1 block - mid
 L256_enc_blocks_less_than_1:	//final whole block (whole-blocks contract: never partial)
