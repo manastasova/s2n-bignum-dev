@@ -1567,22 +1567,19 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	rev64	v8.16b, v9.16b						//GHASH final-6 block
 
 
-	pmull	v26.1q, v8.1d, v23.1d				//GHASH final-6 block - low
+	pmull	v14.1q, v8.1d, v23.1d				//[s098] final-6 low -> v14
 	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-6 block - mid
-	pmull2	v28.1q, v8.2d, v23.2d				//GHASH final-6 block - high
+	pmull2	v13.1q, v8.2d, v23.2d				//[s098] final-6 high -> v13
 
 	ldr	q9, [x0], #16				//AES final-5 block - load plaintext
 
-	eor	v19.16b, v19.16b, v26.16b					//GHASH final-6 block - low
 
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-6 block - mid
 
-	pmull	v27.1q, v27.1d, v24.1d				//GHASH final-6 block - mid
+	pmull	v15.1q, v27.1d, v24.1d				//[s098] final-6 mid -> v15
 .inst	0xce027529	//eor3 v9.16b, v9.16b, v2.16b, v29.16b			//AES final-5 block - result
 
 
-	eor	v18.16b, v18.16b, v27.16b				//GHASH final-6 block - mid
-	eor	v17.16b, v17.16b, v28.16b					//GHASH final-6 block - high
 
 	st1	{ v9.16b}, [x2], #16				//AES final-5 block - store result
 
@@ -1593,7 +1590,7 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 
 	pmull2	v28.1q, v8.2d, v22.2d				//GHASH final-5 block - high
 
-	eor	v17.16b, v17.16b, v28.16b					//GHASH final-5 block - high
+	.inst	0xce1c3631	//eor3 v17.16b, v17.16b, v28.16b, v13.16b	//[s098] fused high (pair)
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-5 block - mid
 
 	ext	v12.16b, v21.16b, v21.16b, #8			//[R2c] h5k(hi lane) to low lane
@@ -1602,9 +1599,9 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	pmull	v26.1q, v8.1d, v22.1d				//GHASH final-5 block - low
 
 	pmull	v27.1q, v27.1d, v12.1d				//[R2c] final-5 mid (pmull low, h5k in v12)
-	eor	v19.16b, v19.16b, v26.16b					//GHASH final-5 block - low
+	.inst	0xce1a3a73	//eor3 v19.16b, v19.16b, v26.16b, v14.16b	//[s098] fused low (pair)
 
-	eor	v18.16b, v18.16b, v27.16b				//GHASH final-5 block - mid
+	.inst	0xce1b3e52	//eor3 v18.16b, v18.16b, v27.16b, v15.16b	//[s098] fused mid (pair)
 .inst	0xce037529	//eor3 v9.16b, v9.16b, v3.16b, v29.16b			//AES final-4 block - result
 
 	st1	{ v9.16b}, [x2], #16				//AES final-4 block - store result
@@ -1615,19 +1612,16 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 
 
 	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-4 block - mid
-	pmull2	v28.1q, v8.2d, v20.2d				//GHASH final-4 block - high
+	pmull2	v13.1q, v8.2d, v20.2d				//[s098] final-4 high -> v13
 
 .inst	0xce047529	//eor3 v9.16b, v9.16b, v4.16b, v29.16b			//AES final-3 block - result
-	pmull	v26.1q, v8.1d, v20.1d				//GHASH final-4 block - low
+	pmull	v14.1q, v8.1d, v20.1d				//[s098] final-4 low -> v14
 
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-4 block - mid
-	eor	v19.16b, v19.16b, v26.16b					//GHASH final-4 block - low
 
-	pmull	v27.1q, v27.1d, v21.1d				//GHASH final-4 block - mid
+	pmull	v15.1q, v27.1d, v21.1d				//[s098] final-4 mid -> v15
 
 
-	eor	v18.16b, v18.16b, v27.16b				//GHASH final-4 block - mid
-	eor	v17.16b, v17.16b, v28.16b					//GHASH final-4 block - high
 
 	st1	{ v9.16b}, [x2], #16				//AES final-3 block - store result
 
@@ -1638,7 +1632,7 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-3 block - mid
 	pmull2	v28.1q, v8.2d, v25.2d				//GHASH final-3 block - high
 
-	eor	v17.16b, v17.16b, v28.16b					//GHASH final-3 block - high
+	.inst	0xce1c3631	//eor3 v17.16b, v17.16b, v28.16b, v13.16b	//[s098] fused high (pair)
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-3 block - mid
 	ldr	q24, [x6, #64]				//load h4k | h3k
 	ext	v11.16b, v24.16b, v24.16b, #8			//[R2b] h3k(hi lane) to low lane
@@ -1651,8 +1645,8 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 
 .inst	0xce057529	//eor3 v9.16b, v9.16b, v5.16b, v29.16b			//AES final-2 block - result
 
-	eor	v18.16b, v18.16b, v27.16b				//GHASH final-3 block - mid
-	eor	v19.16b, v19.16b, v26.16b					//GHASH final-3 block - low
+	.inst	0xce1b3e52	//eor3 v18.16b, v18.16b, v27.16b, v15.16b	//[s098] fused mid (pair)
+	.inst	0xce1a3a73	//eor3 v19.16b, v19.16b, v26.16b, v14.16b	//[s098] fused low (pair)
 
 	ldr	q23, [x6, #48]				//load h3l | h3h
 
@@ -1665,18 +1659,15 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	ext	v27.16b, v8.16b, v8.16b, #8					//GHASH final-2 block - mid
 
 
-	pmull2	v28.1q, v8.2d, v23.2d				//GHASH final-2 block - high
+	pmull2	v13.1q, v8.2d, v23.2d				//[s098] final-2 high -> v13
 .inst	0xce067529	//eor3 v9.16b, v9.16b, v6.16b, v29.16b			//AES final-1 block - result
 
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-2 block - mid
 
-	eor	v17.16b, v17.16b, v28.16b					//GHASH final-2 block - high
 
-	pmull	v27.1q, v27.1d, v24.1d				//GHASH final-2 block - mid
-	pmull	v26.1q, v8.1d, v23.1d				//GHASH final-2 block - low
+	pmull	v15.1q, v27.1d, v24.1d				//[s098] final-2 mid -> v15
+	pmull	v14.1q, v8.1d, v23.1d				//[s098] final-2 low -> v14
 
-	eor	v18.16b, v18.16b, v27.16b				//GHASH final-2 block - mid
-	eor	v19.16b, v19.16b, v26.16b					//GHASH final-2 block - low
 
 	st1	{ v9.16b}, [x2], #16				//AES final-1 block - store result
 
@@ -1689,7 +1680,7 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	pmull2	v28.1q, v8.2d, v22.2d				//GHASH final-1 block - high
 
 .inst	0xce077529	//eor3 v9.16b, v9.16b, v7.16b, v29.16b			//AES final block - result
-	eor	v17.16b, v17.16b, v28.16b					//GHASH final-1 block - high
+	.inst	0xce1c3631	//eor3 v17.16b, v17.16b, v28.16b, v13.16b	//[s098] fused high (pair)
 
 	pmull	v26.1q, v8.1d, v22.1d				//GHASH final-1 block - low
 	eor	v27.8b, v27.8b, v8.8b				//GHASH final-1 block - mid
@@ -1697,12 +1688,12 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	ldr	q21, [x6, #16]				//load h2k | h1k
 	ext	v10.16b, v21.16b, v21.16b, #8			//[R2] h2k(hi lane) to low lane
 
-	eor	v19.16b, v19.16b, v26.16b					//GHASH final-1 block - low
+	.inst	0xce1a3a73	//eor3 v19.16b, v19.16b, v26.16b, v14.16b	//[s098] fused low (pair)
 	// [R2] ins v27.d[1] removed (pmull low lane, h2k in v10)
 
 	pmull	v27.1q, v27.1d, v10.1d				//[R2] final-1 mid (pmull low, h2k in v10)
 
-	eor	v18.16b, v18.16b, v27.16b				//GHASH final-1 block - mid
+	.inst	0xce1b3e52	//eor3 v18.16b, v18.16b, v27.16b, v15.16b	//[s098] fused mid (pair)
 
 	ldr	q20, [x6]				//load h1l | h1h
 
