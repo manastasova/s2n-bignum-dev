@@ -1,10 +1,10 @@
-# `aesv8_gcm_8x_enc_256_wb.ml` — Theorem Map
+# `aesv8_gcm_8x_enc_256.ml` — Theorem Map
 
-Schematic guide to the theorems in `arm/proofs/aesv8_gcm_8x_enc_256_wb.ml`: what each layer
+Schematic guide to the theorems in `arm/proofs/aesv8_gcm_8x_enc_256.ml`: what each layer
 proves, why it is needed, and how they compose into the final result.
 
 **Target kernel:** AES-256-GCM 8×-unrolled **encrypt**, whole-blocks-only variant
-(`aesv8_gcm_8x_enc_256_wb`). Input length must be a multiple of the 16-byte block (a runtime
+(`aesv8_gcm_8x_enc_256`). Input length must be a multiple of the 16-byte block (a runtime
 guard `tst x1,#127; b.ne` rejects anything else).
 
 ---
@@ -12,14 +12,14 @@ guard `tst x1,#127; b.ne` rejects anything else).
 ## The final target (top of the pyramid)
 
 ```
-AESV8_GCM_8X_ENC_256_WB_SUBROUTINE_CORRECT_GEN   (line 10993)
+AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT_GEN   (line 10993)
     ← THE deliverable: correct for ANY input_len >= 0 (arbitrary whole-block count nblocks >= 0,
       including zero-input early return)
     └─ wraps WB_CORRECT_ALL through the C ABI (stack save/restore, ret, calling convention)
 ```
 
 Everything below exists to build this theorem.
-`AESV8_GCM_8X_ENC_256_WB_SUBROUTINE_CORRECT` (line 10860) is the earlier NARROW twin
+`AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT` (line 10860) is the earlier NARROW twin
 (only nblocks = 8*(k+2), k>=1, i.e. multiples of 8 and >= 24); kept for provenance.
 
 ---

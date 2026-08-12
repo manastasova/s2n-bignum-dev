@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
 
 // ----------------------------------------------------------------------------
-// AESV8_GCM_8X_ENC_256_WB (AES-256-GCM, 8x-unrolled encrypt kernel, WHOLE-BLOCKS)
+// AESV8_GCM_8X_ENC_256 (AES-256-GCM, 8x-unrolled encrypt kernel, WHOLE-BLOCKS)
 //
 // Fused AES-256 counter-mode encryption + GHASH-over-ciphertext kernel. It
 // encrypts the plaintext "in" (whose length is given in BITS) under AES-256 in
@@ -21,7 +21,7 @@
 // plain full block. The aws-lc caller already satisfies the contract (gcm.c
 // masks len to whole blocks).
 //
-//    extern size_t aesv8_gcm_8x_enc_256_wb(const uint8_t *in, size_t bit_len,
+//    extern size_t aesv8_gcm_8x_enc_256(const uint8_t *in, size_t bit_len,
 //                                          uint8_t *out, uint8_t *Xi,
 //                                          uint8_t ivec[16],
 //                                          const s2n_bignum_AES_KEY *key,
@@ -38,15 +38,15 @@
 #include "_internal_s2n_bignum_arm.h"
 
         .arch	armv8.2-a+crypto
-        S2N_BN_SYM_VISIBILITY_DIRECTIVE(aesv8_gcm_8x_enc_256_wb)
-        S2N_BN_FUNCTION_TYPE_DIRECTIVE(aesv8_gcm_8x_enc_256_wb)
-        S2N_BN_SYM_PRIVACY_DIRECTIVE(aesv8_gcm_8x_enc_256_wb)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(aesv8_gcm_8x_enc_256)
+        S2N_BN_FUNCTION_TYPE_DIRECTIVE(aesv8_gcm_8x_enc_256)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(aesv8_gcm_8x_enc_256)
         .text
         .balign 4
 
 #define STACK_SIZE 80 // 4*16 (d8-d15) + 16 (modulo constant scratch)
 
-S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
+S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
     // AARCH64_VALID_CALL_TARGET
         CFI_START
 
@@ -1536,7 +1536,7 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256_wb):
         mov	w0, #0x0
         CFI_RET
 
-S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256_wb)
+S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)
 
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack, "", %progbits

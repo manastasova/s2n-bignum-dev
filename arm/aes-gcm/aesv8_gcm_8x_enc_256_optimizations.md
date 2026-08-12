@@ -1,9 +1,9 @@
-# Runtime optimizations — `aesv8_gcm_8x_enc_256_wb`
+# Runtime optimizations — `aesv8_gcm_8x_enc_256`
 
 Six machine-code optimizations applied to the AES-256-GCM 8x whole-blocks encrypt
 kernel. Each was verified three ways before being committed: it passes `tests/test.c`,
 it is **≥2 % faster** on `benchmarks/benchmark.c` (measured twice), and the HOL Light
-correctness proof (`arm/proofs/aesv8_gcm_8x_enc_256_wb.ml`) re-passes **0-CHEAT with a
+correctness proof (`arm/proofs/aesv8_gcm_8x_enc_256.ml`) re-passes **0-CHEAT with a
 byte-identical goal** against the new `.o`. The specification and the exported
 `*_SUBROUTINE_CORRECT_GEN` statement were never changed — only the assembly and the
 proof tactics.

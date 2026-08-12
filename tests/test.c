@@ -16726,9 +16726,9 @@ int test_aes_xts_roundtrip(void)
 // reference big_op (path A), over the harness's `tests` count.
 // (Non-whole-blocks aesv8_gcm_8x_enc_256 kernel + its tests removed 2026-08-04:
 //  only the whole-blocks _wb variant is kept. See the WB tests below.)
-// Testing of the WHOLE-BLOCKS-ONLY encrypt kernel aesv8_gcm_8x_enc_256_wb.
+// Testing of the WHOLE-BLOCKS-ONLY encrypt kernel aesv8_gcm_8x_enc_256.
 //
-// aesv8_gcm_8x_enc_256_wb is a drop-in for aesv8_gcm_8x_enc_256 restricted to a
+// aesv8_gcm_8x_enc_256 is a drop-in for aesv8_gcm_8x_enc_256 restricted to a
 // whole-blocks contract: bit_len must be a nonzero multiple of 128, else it
 // returns 0 touching no memory. The partial-final-block masking is removed. The
 // aws-lc production path (hw_gcm_encrypt) always masks len to whole blocks and
@@ -16753,7 +16753,7 @@ static size_t hw_gcm_encrypt_wb(const uint8_t *in, uint8_t *out, size_t len,
   const size_t len_blocks = len & kSizeTWithoutLower4Bits;
   if (!len_blocks) return 0;
   if (CRYPTO_is_ARMv8_GCM_8x_capable() && len >= 256 && key->rounds == 14) {
-    aesv8_gcm_8x_enc_256_wb(in, len_blocks * 8, out, Xi, ivec, key, Htable);
+    aesv8_gcm_8x_enc_256(in, len_blocks * 8, out, Xi, ivec, key, Htable);
   } else {
     return 0;
   }
@@ -16761,7 +16761,7 @@ static size_t hw_gcm_encrypt_wb(const uint8_t *in, uint8_t *out, size_t len,
 }
 #endif
 
-int test_aesv8_gcm_8x_enc_256_wb(void)
+int test_aesv8_gcm_8x_enc_256(void)
 {
 #ifdef __x86_64__
   return 1;
@@ -16771,7 +16771,7 @@ int test_aesv8_gcm_8x_enc_256_wb(void)
   s2n_bignum_AES_KEY ek;
   size_t len;
 
-  printf("Testing aesv8_gcm_8x_enc_256_wb against reference with %d cases\n",tests);
+  printf("Testing aesv8_gcm_8x_enc_256 against reference with %d cases\n",tests);
 
   for (t = 0; t < (uint64_t)tests; ++t)
    { random_bytes(key, 32);
@@ -16808,13 +16808,13 @@ int test_aesv8_gcm_8x_enc_256_wb(void)
 
      int bad = 0;
      if (bulk != len)
-      { printf("### Disparity: aesv8_gcm_8x_enc_256_wb bulk=%zu != len=%zu\n", bulk, len); bad = 1; }
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 bulk=%zu != len=%zu\n", bulk, len); bad = 1; }
      if (memcmp(bb2, bb3, len) != 0)
-      { printf("### Disparity: aesv8_gcm_8x_enc_256_wb ciphertext len=%zu\n", len); bad = 1; }
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 ciphertext len=%zu\n", len); bad = 1; }
      if (memcmp(ctxA.Xi, xi_b, 16) != 0)
-      { printf("### Disparity: aesv8_gcm_8x_enc_256_wb GHASH Xi len=%zu\n", len); bad = 1; }
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 GHASH Xi len=%zu\n", len); bad = 1; }
      if (memcmp(ctxA.Yi, ivec_b, 16) != 0)
-      { printf("### Disparity: aesv8_gcm_8x_enc_256_wb counter len=%zu\n", len); bad = 1; }
+      { printf("### Disparity: aesv8_gcm_8x_enc_256 counter len=%zu\n", len); bad = 1; }
      if (bad)
       { printf("    key=");
         for (int i = 0; i < 32; ++i) printf("%02x", key[i]);
@@ -16824,7 +16824,7 @@ int test_aesv8_gcm_8x_enc_256_wb(void)
         return 1;
       }
      else if (VERBOSE)
-      { printf("OK: aesv8_gcm_8x_enc_256_wb len=%zu\n", len); }
+      { printf("OK: aesv8_gcm_8x_enc_256 len=%zu\n", len); }
    }
 
   // ---- (2) NEGATIVE / guard cases: bit_len not a whole number of blocks ----
@@ -16833,7 +16833,7 @@ int test_aesv8_gcm_8x_enc_256_wb(void)
   // memory. Also verify the "false-positive" property the human asked for: for
   // such an input the kernel does NOT produce the correct full encryption -- so
   // a caller violating the contract cannot get a valid result.
-  { printf("Testing aesv8_gcm_8x_enc_256_wb whole-blocks guard (negative cases)\n");
+  { printf("Testing aesv8_gcm_8x_enc_256 whole-blocks guard (negative cases)\n");
     random_bytes(key, 32); random_bytes(ivec, 16); random_bytes(xi_in, 16);
     ref_aes256_expand_key(key, &ek); ek.rounds = 14;
     uint8_t zero[16] = {0}, Hbytes[16];
@@ -16861,7 +16861,7 @@ int test_aesv8_gcm_8x_enc_256_wb(void)
        uint8_t xi_b[16], ivec_b[16], xi0[16], iv0[16];
        memcpy(xi_b, xi_in, 16); memcpy(ivec_b, ivec, 16);
        memcpy(xi0, xi_in, 16);  memcpy(iv0, ivec, 16);
-       size_t r = aesv8_gcm_8x_enc_256_wb(bb1, bitlen, bb3, xi_b, ivec_b, &ek, Htable_v8);
+       size_t r = aesv8_gcm_8x_enc_256(bb1, bitlen, bb3, xi_b, ivec_b, &ek, Htable_v8);
 
        int untouched = 1;
        for (size_t j = 0; j < nbytes; ++j) if (bb3[j] != 0xA5) { untouched = 0; break; }
@@ -16950,7 +16950,7 @@ int test_known_values_gcm_256_encrypt_wb(void)
   return 1;
 #else
   int failures = 0, successes = 0;
-  printf("Testing known value cases for aesv8_gcm_8x_enc_256_wb\n");
+  printf("Testing known value cases for aesv8_gcm_8x_enc_256\n");
 
 #undef GCM_KAT
 #define GCM_KAT GCM_KAT_WB
@@ -17903,8 +17903,8 @@ int main(int argc, char *argv[])
     functionaltest(aes,"aes_xts_roundtrip",test_aes_xts_roundtrip);
     functionaltest(aes,"known value tests for aes-xts encrypt",test_known_values_xts_encrypt);
     functionaltest(aes,"known value tests for aes-xts decrypt",test_known_values_xts_decrypt);
-    functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb",test_aesv8_gcm_8x_enc_256_wb);
-    functionaltest(aes&&sha3,"known value tests for aesv8_gcm_8x_enc_256_wb",test_known_values_gcm_256_encrypt_wb);
+    functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256",test_aesv8_gcm_8x_enc_256);
+    functionaltest(aes&&sha3,"known value tests for aesv8_gcm_8x_enc_256",test_known_values_gcm_256_encrypt_wb);
   }
 
   if (extrastrigger) function_to_test = "_";

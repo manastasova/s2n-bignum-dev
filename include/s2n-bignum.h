@@ -46,20 +46,11 @@ extern void aes_xts_decrypt(const uint8_t *in, uint8_t *out, size_t length,
 extern void aes_xts_encrypt(const uint8_t *in, uint8_t *out, size_t length,
         const s2n_bignum_AES_KEY *key1, const s2n_bignum_AES_KEY *key2, const uint8_t iv[S2N_BIGNUM_STATIC 16]);
 
-// AESV8_GCM_8X_ENC_256 (AES-256-GCM 8x-unrolled encrypt kernel)
-// Fused AES-256 counter-mode encryption + GHASH-over-ciphertext. Encrypts "in"
-// (length in BITS) under AES-256-CTR from counter "ivec", writes ciphertext to
-// "out", folds it into GHASH accumulator "Xi" via key-power table "Htable"
-// (16 * 16 = 256 bytes), advances "ivec", and returns the number of BYTES
-// processed. "key" holds the AES-256 round keys (rounds == 14).
+// AESV8_GCM_8X_ENC_256 (AES-256-GCM 8x-unrolled encrypt kernel, whole-blocks)
+// Fused AES-256 counter-mode encryption + GHASH-over-ciphertext. Requires
+// "bit_len" to be a nonzero multiple of 128 (whole 16-byte blocks); returns 0
+// having touched no memory otherwise. No partial-final-block masking.
 extern size_t aesv8_gcm_8x_enc_256(const uint8_t *in, size_t bit_len, uint8_t *out,
-        uint8_t Xi[S2N_BIGNUM_STATIC 16], uint8_t ivec[S2N_BIGNUM_STATIC 16],
-        const s2n_bignum_AES_KEY *key, const uint64_t Htable[S2N_BIGNUM_STATIC 32]);
-
-// Whole-blocks-only variant of aesv8_gcm_8x_enc_256: identical contract, but
-// requires "bit_len" to be a nonzero multiple of 128 (whole 16-byte blocks) and
-// returns 0 having touched no memory otherwise. No partial-final-block masking.
-extern size_t aesv8_gcm_8x_enc_256_wb(const uint8_t *in, size_t bit_len, uint8_t *out,
         uint8_t Xi[S2N_BIGNUM_STATIC 16], uint8_t ivec[S2N_BIGNUM_STATIC 16],
         const s2n_bignum_AES_KEY *key, const uint64_t Htable[S2N_BIGNUM_STATIC 32]);
 
