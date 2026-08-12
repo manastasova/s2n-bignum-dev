@@ -390,7 +390,7 @@ static int CRYPTO_is_ARMv8_GCM_8x_capable(void) { return 1; }
 // We match the public prototype here so the verbatim call site links; Htable is
 // a forwarded, never-dereferenced pointer, so this retype is purely cosmetic.
 // The body statements are byte-for-byte identical, including the exact call site
-// `aesv8_gcm_8x_enc_256_wb(in, len_blocks * 8, out, Xi, ivec, key, Htable);`.
+// `aesv8_gcm_8x_enc_256(in, len_blocks * 8, out, Xi, ivec, key, Htable);`.
 static size_t hw_gcm_encrypt(const uint8_t *in, uint8_t *out, size_t len,
                              const AES_KEY *key, uint8_t ivec[16],
                              uint8_t Xi[16], const uint64_t Htable[32]) {
@@ -413,7 +413,7 @@ static size_t hw_gcm_encrypt(const uint8_t *in, uint8_t *out, size_t len,
       aesv8_gcm_8x_enc_192(in, len_blocks * 8, out, Xi, ivec, key, Htable);
       break;
     case 14:
-      aesv8_gcm_8x_enc_256_wb(in, len_blocks * 8, out, Xi, ivec, key, Htable);
+      aesv8_gcm_8x_enc_256(in, len_blocks * 8, out, Xi, ivec, key, Htable);
       break;
     default:
       // The subsequent logic after returning can process
