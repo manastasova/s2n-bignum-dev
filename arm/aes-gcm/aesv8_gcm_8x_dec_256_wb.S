@@ -1,33 +1,49 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
 
-// Extracted from aesv8-gcm-armv8-unroll8.S for verification purposes.
-// Single function: aesv8_gcm_8x_dec_256
+// WHOLE-BLOCKS-ONLY variant of aesv8_gcm_8x_dec_256 (derived from
+// aesv8_gcm_8x_dec_256.S, itself extracted from aws-lc
+// aesv8-gcm-armv8-unroll8.S).  Single function: aesv8_gcm_8x_dec_256_wb
 //
-// DIVERGENCE FROM aws-lc ORIGINAL (intentional, for formal verification):
-// The prologue is reordered so the callee-saved register stores (stp d8..d15)
-// form a contiguous saves-only block FIRST, with the argument-setup instructions
-// (lsr x9,x1,#3; mov x16,x4; mov x11,x5) moved to AFTER the saves rather than
-// interleaved with them. This is byte-for-byte equivalent in effect, and the
-// instruction at pc+0x2c and the entire function body are unchanged (only the
-// pc+0x0c..0x2c offsets shift). The reorder lets the HOL Light proof enter the
-// function past the saves (at pc+0x18) with the C arguments still in X0..X6,
-// so the precondition can be stated with C_ARGUMENTS, matching the XTS style
-// (see arm/proofs/aesv8_gcm_8x_dec_256_1block.ml, theorem
-// AESV8_GCM_8X_DEC_256_1BLOCK). When re-importing s2n-bignum into aws-lc, this
-// is the sanctioned form of the shipped .S.
+// CONTRACT: bit_len (X1) MUST be a nonzero multiple of 128 (whole 16-byte
+// blocks).  A guard at entry (tst x1,#127; b.ne ret) returns 0 having touched
+// no memory otherwise; on success X0 = bit_len/8 = bytes processed (the same
+// return convention as the original's zero-length path).  The aws-lc caller
+// already satisfies the contract: crypto/fipsmodule/modes/gcm.c masks len to
+// kSizeTWithoutLower4Bits and passes len_blocks*8.
+//
+// DIVERGENCE FROM aesv8_gcm_8x_dec_256.S (intentional):
+//  1. The whole-blocks guard, inserted after the cbz zero-length check and
+//     before the callee-saved stores (so the abort path needs no epilogue).
+//     All subsequent offsets shift by +8; the post-saves proof entry point
+//     (lsr x9,x1,#3, C arguments still in X0..X6) moves from pc+0x18 to
+//     pc+0x20.
+//  2. The partial-block masking machinery in .L256_dec_blocks_less_than_1
+//     is DELETED (dead under the contract): the ld1 of the existing output
+//     bytes (a 16-byte OVERREAD of the output buffer in the original), the
+//     bit_len%128 mask construction (mvn/lsr/csel chain), the GHASH-input
+//     mask (and v9 &= mask) and the output bif blend.  The final block is a
+//     plain full block: eor3 result stored with st1, unmasked GHASH
+//     accumulation.  This removes the original's read-modify-write of the
+//     last output block and its 16-byte input/output access beyond the
+//     message length.
+//
+// The parent file's prologue reorder (saves-first, C_ARGUMENTS entry past the
+// saves) is inherited unchanged.  Proofs: arm/proofs/aesv8_gcm_8x_dec_256_wb.ml.
 #include "_internal_s2n_bignum_arm.h"
 
         .arch armv8.2-a+crypto+sha3
         .text
 
-        S2N_BN_SYM_VISIBILITY_DIRECTIVE(aesv8_gcm_8x_dec_256)
-        S2N_BN_FUNCTION_TYPE_DIRECTIVE(aesv8_gcm_8x_dec_256)
-        S2N_BN_SYM_PRIVACY_DIRECTIVE(aesv8_gcm_8x_dec_256)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(aesv8_gcm_8x_dec_256_wb)
+        S2N_BN_FUNCTION_TYPE_DIRECTIVE(aesv8_gcm_8x_dec_256_wb)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(aesv8_gcm_8x_dec_256_wb)
 .align	4
-S2N_BN_SYMBOL(aesv8_gcm_8x_dec_256):
+S2N_BN_SYMBOL(aesv8_gcm_8x_dec_256_wb):
 	nop
 	cbz	x1, .L256_dec_ret
+	tst	x1, #127				//whole-blocks contract: bit_len % 128 == 0
+	b.ne	.L256_dec_ret			//not whole blocks: process nothing, return 0
 	stp	d8, d9, [sp, #-80]!
 	stp	d10, d11, [sp, #16]
 	stp	d12, d13, [sp, #32]
@@ -1447,33 +1463,12 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_dec_256):
 	eor	v17.16b, v17.16b, v28.16b					//GHASH final-1 block - high
 
 	eor	v18.16b, v18.16b, v27.16b				//GHASH final-1 block - mid
-.L256_dec_blocks_less_than_1:	//blocks	left <= 1
+.L256_dec_blocks_less_than_1:	//final	whole block (whole-blocks contract: never partial)
 
-	ld1	{ v26.16b}, [x2]					//load existing bytes where the possibly partial last block is to be stored
-	mvn	x7, xzr						//temp0_x = 0xffffffffffffffff
-	and	x1, x1, #127				//bit_length %= 128
-
-	sub	x1, x1, #128				//bit_length -= 128
 	rev32	v30.16b, v30.16b
 	str	q30, [x16]					//store the updated counter
 
-	neg	x1, x1				//bit_length = 128 - #bits in input (in range [1,128])
-
-	and	x1, x1, #127			 	//bit_length %= 128
-
-	lsr	x7, x7, x1				//temp0_x is mask for top 64b of last block
-	cmp	x1, #64
-	mvn	x8, xzr						//temp1_x = 0xffffffffffffffff
-
-	csel	x14, x7, xzr, lt
-	csel	x13, x8, x7, lt
-
-	mov	v0.d[0], x13					//ctr0b is mask for last block
-	mov	v0.d[1], x14
-
-	and	v9.16b, v9.16b, v0.16b					//possibly partial last block has zeroes in highest bits
 	ldr	q20, [x6]				//load h1l | h1h
-	bif	v12.16b, v26.16b, v0.16b					//insert existing bytes in top end of result before storing
 
 	rev64	v8.16b, v9.16b						//GHASH final block
 
@@ -1524,4 +1519,4 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_dec_256):
 .L256_dec_ret:
 	mov	w0, #0x0
 	ret
-S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_dec_256)
+S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_dec_256_wb)

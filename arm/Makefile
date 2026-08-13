@@ -421,7 +421,7 @@ AES_XTS_OBJ = aes-xts/aes_xts_decrypt.o \
               aes-xts/aes_xts_encrypt.o
 
 AES_GCM_OBJ = aes-gcm/aesv8_gcm_8x_enc_256_wb.o \
-              aes-gcm/aesv8_gcm_8x_dec_256.o
+              aes-gcm/aesv8_gcm_8x_dec_256_wb.o
 
 
 OBJ = $(POINT_OBJ) $(BIGNUM_OBJ) $(AES_XTS_OBJ) $(AES_GCM_OBJ)
