@@ -1291,6 +1291,28 @@ void call_aesv8_gcm_8x_enc_256_wb_512(void)  { repeat(aesv8_gcm_8x_enc_256_wb_he
 void call_aesv8_gcm_8x_enc_256_wb_1024(void) { repeatfewer(10,aesv8_gcm_8x_enc_256_wb_helper(1024)); }
 void call_aesv8_gcm_8x_enc_256_wb_4096(void) { repeatfewer(10,aesv8_gcm_8x_enc_256_wb_helper(4096)); }
 
+// Helper for the AES-256-GCM 8x decrypt kernel with parameterized byte length.
+// Timing harness only: the round keys, GHASH table, tag and counter are filled
+// with arbitrary buffer bytes (the kernel runs the same instructions regardless
+// of the values). "len" is in bytes and must be a multiple of 16; the kernel is
+// passed the length in bits and only takes the 8x path for len >= 256.
+static void aesv8_gcm_8x_dec_256_helper(size_t len)
+{
+  int j;
+  for (j = 0; j < 30; ++j) aes_key1.rd_key[j] = b1[j % BUFFERSIZE];
+  aes_key1.rounds = 14;  // AES-256
+  for (j = 0; j < 32; ++j) aes_gcm_htable[j] = b2[j % BUFFERSIZE];
+  for (j = 0; j < 16; ++j) { aes_gcm_xi[j] = (uint8_t)(b3[j] & 0xFF);
+                             aes_gcm_ivec[j] = (uint8_t)(b4[j] & 0xFF); }
+  aesv8_gcm_8x_dec_256((uint8_t*)b0, len * 8, (uint8_t*)b1, aes_gcm_xi,
+                       aes_gcm_ivec, &aes_key1, aes_gcm_htable);
+}
+
+void call_aesv8_gcm_8x_dec_256_256(void)  { repeat(aesv8_gcm_8x_dec_256_helper(256)); }
+void call_aesv8_gcm_8x_dec_256_512(void)  { repeat(aesv8_gcm_8x_dec_256_helper(512)); }
+void call_aesv8_gcm_8x_dec_256_1024(void) { repeatfewer(10,aesv8_gcm_8x_dec_256_helper(1024)); }
+void call_aesv8_gcm_8x_dec_256_4096(void) { repeatfewer(10,aesv8_gcm_8x_dec_256_helper(4096)); }
+
 #endif
 
 int main(int argc, char *argv[])
@@ -1783,6 +1805,12 @@ int main(int argc, char *argv[])
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (512 bytes)",call_aesv8_gcm_8x_enc_256_wb_512);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (1024 bytes)",call_aesv8_gcm_8x_enc_256_wb_1024);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (4096 bytes)",call_aesv8_gcm_8x_enc_256_wb_4096);
+
+  // AES-256-GCM 8x decrypt kernel needs both AES and SHA3 (eor3)
+  timingtest(aes&&sha3,"aesv8_gcm_8x_dec_256 (256 bytes)",call_aesv8_gcm_8x_dec_256_256);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_dec_256 (512 bytes)",call_aesv8_gcm_8x_dec_256_512);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_dec_256 (1024 bytes)",call_aesv8_gcm_8x_dec_256_1024);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_dec_256 (4096 bytes)",call_aesv8_gcm_8x_dec_256_4096);
 
   // Summarize performance in arithmetic and geometric means
 

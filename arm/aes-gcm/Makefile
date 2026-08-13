@@ -28,7 +28,8 @@ endif
 
 # List of object files
 
-OBJ = aesv8_gcm_8x_enc_256_wb.o
+OBJ = aesv8_gcm_8x_enc_256_wb.o \
+      aesv8_gcm_8x_dec_256.o
 
 
 %.o : %.S ; $(CC) -E -I../../include $< | $(GAS) -o $@ -

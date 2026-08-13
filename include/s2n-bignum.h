@@ -54,6 +54,16 @@ extern size_t aesv8_gcm_8x_enc_256_wb(const uint8_t *in, size_t bit_len, uint8_t
         uint8_t xi[S2N_BIGNUM_STATIC 16], uint8_t ivec[S2N_BIGNUM_STATIC 16],
         const s2n_bignum_AES_KEY *key, const uint64_t htable[S2N_BIGNUM_STATIC 32]);
 
+// AES-256-GCM 8x-unrolled decrypt kernel: fused AES-256 counter-mode decrypt +
+// GHASH-over-ciphertext. Decrypts "in" (length in bits) starting from counter
+// block "ivec", writes plaintext to "out", folds the ciphertext into the GHASH
+// accumulator "xi" using key-power table "htable", advances "ivec", and returns
+// the number of bytes processed.
+// Inputs in[bit_len], bit_len, xi[16], ivec[16], key[244], htable[32]; outputs function return, out[bit_len], xi[16], ivec[16]
+extern size_t aesv8_gcm_8x_dec_256(const uint8_t *in, size_t bit_len, uint8_t *out,
+        uint8_t xi[S2N_BIGNUM_STATIC 16], uint8_t ivec[S2N_BIGNUM_STATIC 16],
+        const s2n_bignum_AES_KEY *key, const uint64_t htable[S2N_BIGNUM_STATIC 32]);
+
 // Add, z := x + y
 // Inputs x[m], y[n]; outputs function return (carry-out) and z[p]
 extern uint64_t bignum_add (uint64_t p, uint64_t *z, uint64_t m, const uint64_t *x, uint64_t n, const uint64_t *y);
