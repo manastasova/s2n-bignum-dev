@@ -1238,8 +1238,9 @@ L256_enc_tail:	//TAIL
 
 	cmp	x5, #112
 .inst	0xce007509	//eor3 v9.16b, v8.16b, v0.16b, v29.16b				//AES block 8k+8 - result
-	b.gt	L256_enc_exact8_drain	//[s097] exact-8 -> dedicated stripped drain
+	b	L256_enc_tail_dispatch	//[s109] peel rem=8 (inline exact8) and rem=2 before the slides
 
+L256_enc_tail_slides:		//[s109] rem in {1,3,4,5,6,7} rejoin here (addresses unchanged)
 	movi	v19.8b, #0
 	mov	v7.16b, v6.16b
 	movi	v17.8b, #0
@@ -1808,6 +1809,25 @@ L256_enc_rem4_drain:  //[s107] dedicated rem=4 (64B/192B) GHASH drain, eor3-fuse
 	rev64	v19.16b, v19.16b
 	st1	{ v19.16b }, [x3]
 	b	L256_enc_epilogue
+
+L256_enc_tail_dispatch:  //[s109] flags still hold (x5 vs #112) from the tail-entry cmp
+	b.gt	L256_enc_exact8_drain	//rem=8 (x5>112): inline exact-8 drain (unchanged)
+	cmp	x5, #32			//rem=2 (32B)?
+	b.eq	L256_enc_rem2_drain
+	b	L256_enc_tail_slides	//rem in {1,3,4,5,6,7}: rejoin the slide cascade
+
+L256_enc_rem2_drain:  //[s109] rem=2 (32B): skip the 21 keystream slides; set more_than_1's inputs directly
+	mov	v7.16b, v1.16b			//block2 keystream (was slid v1->v7)
+	sub	v30.4s, v30.4s, v31.4s		//counter roll: 6 decrements (8g+10 -> 8g+4 = nb+2)
+	movi	v17.8b, #0
+	sub	v30.4s, v30.4s, v31.4s
+	movi	v18.8b, #0
+	sub	v30.4s, v30.4s, v31.4s
+	movi	v19.8b, #0
+	sub	v30.4s, v30.4s, v31.4s
+	sub	v30.4s, v30.4s, v31.4s
+	sub	v30.4s, v30.4s, v31.4s
+	b	L256_enc_blocks_more_than_1
 
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)
 

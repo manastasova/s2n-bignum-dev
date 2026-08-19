@@ -993,7 +993,7 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4ebc1f9d;       (* arm_MOV_VEC Q29 Q28 128 *)
   0xf101c0bf;       (* arm_CMP X5 (rvalue (word 112)) *)
   0xce007509;       (* arm_EOR3 Q9 Q8 Q0 Q29 *)
-  0x5400172c;       (* arm_BGT (word 740) *)
+  0x1400016a;       (* arm_B (word 1448) *)
   0x0f00e413;       (* arm_MOVI D19 (word 0) *)
   0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
   0x0f00e411;       (* arm_MOVI D17 (word 0) *)
@@ -1354,7 +1354,22 @@ let aesv8_gcm_8x_enc_256_mc =
   0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
   0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
   0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
-  0x17ffff47        (* arm_B (word 268434716) *)
+  0x17ffff47;       (* arm_B (word 268434716) *)
+  0x54ffe9ec;       (* arm_BGT (word 2096444) *)
+  0xf10080bf;       (* arm_CMP X5 (rvalue (word 32)) *)
+  0x54000040;       (* arm_BEQ (word 8) *)
+  0x17fffe94;       (* arm_B (word 268434000) *)
+  0x4ea11c27;       (* arm_MOV_VEC Q7 Q1 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x0f00e411;       (* arm_MOVI D17 (word 0) *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x0f00e412;       (* arm_MOVI D18 (word 0) *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x0f00e413;       (* arm_MOVI D19 (word 0) *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x17ffff0e        (* arm_B (word 268434488) *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -5380,7 +5395,7 @@ let FOLD_Q19_S136 : tactic =
 (* Value-IDENTICAL: XOR is assoc/comm, so the folded Q19 is byte-identical — TAIL_Q19_FOLD    *)
 (* is unchanged; only the state-var index shifts.                                             *)
 let FOLD_Q19_S114 : tactic =
-  fold_q19_at `read Q19 s114 : int128` `8 * (k + 2)` TAIL_Q19_FOLD;;
+  fold_q19_at `read Q19 s115 : int128` `8 * (k + 2)` TAIL_Q19_FOLD;;
 
 (* PERF (session 069): DROP the now-DEAD GHASH-reduce scratch registers right after   *)
 (* FOLD_Q19_S136.  The final reduce `eor3 v19,v19,v17,v21`@0x1194 consumes Q17 (pmull)  *)
@@ -5731,9 +5746,9 @@ let AESV8_GCM_8X_ENC_256_TAIL = prove
   (* drain#1@0x11cc).  Q27's last read is now s93 (`eor3 v18,v18,v27,v15`@0x1314), the   *)
   (* final reduce eor3 (`eor3 v19,v19,v17,v21`@0x1368) is drain#104 = s114 (was s123),   *)
   (* and the ext/rev64/st1/b writebacks are s115..s118 (was s124..s127).                 *)
-  MAP_EVERY NSTEP_GP (10--96) THEN
+  MAP_EVERY NSTEP_GP (10--97) THEN
   DISCARD_REGS ["Q27"] THEN
-  MAP_EVERY NSTEP_GP (97--114) THEN
+  MAP_EVERY NSTEP_GP (98--115) THEN
   (* PERF s067: fold Q19 to compact nist_ghash NOW, so the ext/rev64/st1 tail       *)
   (* (steps 115--117) inlines a small term instead of the ~4M raw fold (was ~3h).   *)
   FOLD_Q19_S114 THEN
@@ -5742,7 +5757,7 @@ let AESV8_GCM_8X_ENC_256_TAIL = prove
   (* FINAL_STATE/closers stop walking it (post-fold tail ~21.2s->~12.2s, ~6% of TAIL).  *)
   DISCARD_DEAD_REDUCE_SCRATCH THEN
   (* Steps 115..117: ext ; rev64 ; st1 (2 writebacks); s118: b -> epilogue.         *)
-  MAP_EVERY NSTEP_GP (115--118) THEN
+  MAP_EVERY NSTEP_GP (116--119) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   (* 3 conjuncts: ivec store / tag store / out-forall.                            *)
   CONJ_TAC THENL
@@ -5894,7 +5909,7 @@ let TAIL_Q19_FOLD_REM1 =
 (* Fold `read Q19 s78` (raw single-block reduce) -> compact nist_ghash..(8*g+1) *)
 (* in place, mirroring WB_TAIL's FOLD_Q19_S136.                                 *)
 let FOLD_Q19_REM1 : tactic =
-  fold_q19_at `read Q19 s78 : int128` `8 * g + 1` TAIL_Q19_FOLD_REM1;;
+  fold_q19_at `read Q19 s82 : int128` `8 * g + 1` TAIL_Q19_FOLD_REM1;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM1 = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -5977,13 +5992,13 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM1 = prove
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM1]) THEN
   (* Steps 10..78: cascade fall-through + single-block fold + reduce, up to    *)
   (* the final reduce eor3@0x1194 (s78: read Q19 = raw ~130k single-block fold).*)
-  MAP_EVERY NSTEP_GP (10--78) THEN
+  MAP_EVERY NSTEP_GP (10--82) THEN
   (* Fold Q19 to compact nist_ghash..(8*g+1) BEFORE ext/rev64/store (else rev64 *)
   (* balloons), then drop the dead reduce scratch.                             *)
   FOLD_Q19_REM1 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
   (* Steps 79..81: ext@0x1198 ; rev64@0x119c ; st1@0x11a0 (tag) ; exit@0x11a4. *)
-  MAP_EVERY NSTEP_GP (79--81) THEN
+  MAP_EVERY NSTEP_GP (83--85) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   (* ivec store: 7 fall-through `sub v30` roll ctr 8g+10 -> 8g+3 = nb+2.       *)
   CONJ_TAC THENL
@@ -6101,7 +6116,7 @@ let TAIL_Q19_FOLD_REM2 =
 (* Fold `read Q19 s92` (raw 2-block reduce) -> compact nist_ghash..(8*g+2)     *)
 (* in place BEFORE ext/rev64/store (mirror FOLD_Q19_S136/FOLD_Q19_REM1).       *)
 let FOLD_Q19_REM2 : tactic =
-  fold_q19_at `read Q19 s92 : int128` `8 * g + 2` TAIL_Q19_FOLD_REM2;;
+  fold_q19_at `read Q19 s63 : int128` `8 * g + 2` TAIL_Q19_FOLD_REM2;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM2 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6209,13 +6224,13 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM2 = prove
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM2]) THEN
   (* Steps 10..92: cascade fall-through + 2-block fold + reduce, up to the      *)
   (* final reduce eor3@0x1194 (s92: read Q19 = raw ~250k 2-block reduce).        *)
-  MAP_EVERY NSTEP_GP (10--92) THEN
+  MAP_EVERY NSTEP_GP (10--63) THEN
   (* Fold Q19 to compact nist_ghash..(8*g+2) BEFORE ext/rev64/store, then drop  *)
   (* the dead reduce scratch.                                                   *)
   FOLD_Q19_REM2 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
   (* Steps 93..95: ext@0x1198 ; rev64@0x119c ; st1@0x11a0 (tag) ; exit@0x11a4.  *)
-  MAP_EVERY NSTEP_GP (93--95) THEN
+  MAP_EVERY NSTEP_GP (64--66) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   (* ivec store: 6 fall-through `sub v30` roll ctr 8g+10 -> 8g+4 = nb+2.        *)
   CONJ_TAC THENL
@@ -6320,7 +6335,7 @@ let TAIL_Q19_FOLD_REM3 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM3 : tactic =
-  fold_q19_at `read Q19 s103 : int128` `8 * g + 3` TAIL_Q19_FOLD_REM3;;
+  fold_q19_at `read Q19 s107 : int128` `8 * g + 3` TAIL_Q19_FOLD_REM3;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM3 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6424,10 +6439,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM3 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM3]) THEN
-  MAP_EVERY NSTEP_GP (10--103) THEN
+  MAP_EVERY NSTEP_GP (10--107) THEN
   FOLD_Q19_REM3 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (104--106) THEN
+  MAP_EVERY NSTEP_GP (108--110) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -6527,7 +6542,7 @@ let TAIL_Q19_FOLD_REM4 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM4 : tactic =
-  fold_q19_at `read Q19 s108 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
+  fold_q19_at `read Q19 s112 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM4 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6634,10 +6649,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM4 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM4]) THEN
-  MAP_EVERY NSTEP_GP (10--108) THEN
+  MAP_EVERY NSTEP_GP (10--112) THEN
   FOLD_Q19_REM4 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (109--112) THEN
+  MAP_EVERY NSTEP_GP (113--116) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -6740,7 +6755,7 @@ let TAIL_Q19_FOLD_REM5 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM5 : tactic =
-  fold_q19_at `read Q19 s122 : int128` `8 * g + 5` TAIL_Q19_FOLD_REM5;;
+  fold_q19_at `read Q19 s126 : int128` `8 * g + 5` TAIL_Q19_FOLD_REM5;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM5 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6850,10 +6865,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM5 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM5]) THEN
-  MAP_EVERY NSTEP_GP (10--122) THEN
+  MAP_EVERY NSTEP_GP (10--126) THEN
   FOLD_Q19_REM5 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (123--125) THEN
+  MAP_EVERY NSTEP_GP (127--129) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -6958,7 +6973,7 @@ let TAIL_Q19_FOLD_REM6 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM6 : tactic =
-  fold_q19_at `read Q19 s130 : int128` `8 * g + 6` TAIL_Q19_FOLD_REM6;;
+  fold_q19_at `read Q19 s134 : int128` `8 * g + 6` TAIL_Q19_FOLD_REM6;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM6 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -7071,10 +7086,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM6 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM6]) THEN
-  MAP_EVERY NSTEP_GP (10--130) THEN
+  MAP_EVERY NSTEP_GP (10--134) THEN
   FOLD_Q19_REM6 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (131--133) THEN
+  MAP_EVERY NSTEP_GP (135--137) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -7181,7 +7196,7 @@ let TAIL_Q19_FOLD_REM7 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM7 : tactic =
-  fold_q19_at `read Q19 s136 : int128` `8 * g + 7` TAIL_Q19_FOLD_REM7;;
+  fold_q19_at `read Q19 s140 : int128` `8 * g + 7` TAIL_Q19_FOLD_REM7;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM7 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -7297,10 +7312,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM7 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM7]) THEN
-  MAP_EVERY NSTEP_GP (10--136) THEN
+  MAP_EVERY NSTEP_GP (10--140) THEN
   FOLD_Q19_REM7 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (137--139) THEN
+  MAP_EVERY NSTEP_GP (141--143) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -7425,7 +7440,7 @@ let FOLD_Q19_S136_G : tactic =
 (* s098: general-g twin of FOLD_Q19_S114 — eor3-fused drain (-9 instrs) moved the final     *)
 (* reduce to s114 (was s123).  See the WB_TAIL note.                                        *)
 let FOLD_Q19_S114_G : tactic =
-  fold_q19_at `read Q19 s114 : int128` `8 * g + 8` TAIL_Q19_FOLD_G;;
+  fold_q19_at `read Q19 s115 : int128` `8 * g + 8` TAIL_Q19_FOLD_G;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM8 = prove
  (`!q18_init q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -7575,18 +7590,18 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM8 = prove
   (* s098: eor3-fused drain (-9 instrs, drain 117->108) — same step-index shift as WB_TAIL: *)
   (* Q27 last-read s93 (drop after s96), final reduce s114 (was s123), writebacks s115..s118 *)
   (* (was s124..s127).                                                                       *)
-  MAP_EVERY NSTEP_GP (10--96) THEN
+  MAP_EVERY NSTEP_GP (10--97) THEN
   DISCARD_REGS ["Q27"] THEN
-  MAP_EVERY NSTEP_GP (97--114) THEN
+  MAP_EVERY NSTEP_GP (98--115) THEN
   (* block 8*g+6's keystream ctr 8*g+8 collapsed to nb during the drive (the 8*g+8=nb hyp   *)
   (* rewrites 8*g+8 -> nb L->R); re-expand nb -> 8*g+8 in ONLY the Q19 fact (leave the       *)
   (* 8*g+8=nb hyp intact for the tag/out closers) so the fold reindex fires on all 8 blocks. *)
   RULE_ASSUM_TAC(fun th ->
-    if (try lhs(concl th) = `read Q19 s114:int128` with Failure _ -> false)
+    if (try lhs(concl th) = `read Q19 s115:int128` with Failure _ -> false)
     then REWRITE_RULE[SYM(ASSUME `8 * g + 8 = nb`)] th else th) THEN
   FOLD_Q19_S114_G THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (115--118) THEN
+  MAP_EVERY NSTEP_GP (116--119) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [
