@@ -1175,6 +1175,10 @@ void call_aes_xts_decrypt_128(void) {}
 void call_aes_xts_decrypt_256(void) {}
 void call_aes_xts_decrypt_512(void) {}
 
+void call_aesv8_gcm_8x_enc_256_32(void) {}
+void call_aesv8_gcm_8x_enc_256_64(void) {}
+void call_aesv8_gcm_8x_enc_256_128(void) {}
+void call_aesv8_gcm_8x_enc_256_192(void) {}
 void call_aesv8_gcm_8x_enc_256_256(void) {}
 void call_aesv8_gcm_8x_enc_256_512(void) {}
 void call_aesv8_gcm_8x_enc_256_1024(void) {}
@@ -1286,6 +1290,10 @@ static void aesv8_gcm_8x_enc_256_helper(size_t len)
                           aes_gcm_ivec, &aes_key1, aes_gcm_htable);
 }
 
+void call_aesv8_gcm_8x_enc_256_32(void)   { repeat(aesv8_gcm_8x_enc_256_helper(32)); }
+void call_aesv8_gcm_8x_enc_256_64(void)   { repeat(aesv8_gcm_8x_enc_256_helper(64)); }
+void call_aesv8_gcm_8x_enc_256_128(void)  { repeat(aesv8_gcm_8x_enc_256_helper(128)); }
+void call_aesv8_gcm_8x_enc_256_192(void)  { repeat(aesv8_gcm_8x_enc_256_helper(192)); }
 void call_aesv8_gcm_8x_enc_256_256(void)  { repeat(aesv8_gcm_8x_enc_256_helper(256)); }
 void call_aesv8_gcm_8x_enc_256_512(void)  { repeat(aesv8_gcm_8x_enc_256_helper(512)); }
 void call_aesv8_gcm_8x_enc_256_1024(void) { repeatfewer(10,aesv8_gcm_8x_enc_256_helper(1024)); }
@@ -1779,6 +1787,10 @@ int main(int argc, char *argv[])
   timingtest(aes,"aes_xts_decrypt (512 bytes)",call_aes_xts_decrypt_512);
 
   // AES-256-GCM 8x encrypt kernel needs both AES and SHA3 (eor3)
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (32 bytes)",call_aesv8_gcm_8x_enc_256_32);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (64 bytes)",call_aesv8_gcm_8x_enc_256_64);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (128 bytes)",call_aesv8_gcm_8x_enc_256_128);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (192 bytes)",call_aesv8_gcm_8x_enc_256_192);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (256 bytes)",call_aesv8_gcm_8x_enc_256_256);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (512 bytes)",call_aesv8_gcm_8x_enc_256_512);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (1024 bytes)",call_aesv8_gcm_8x_enc_256_1024);
