@@ -1026,7 +1026,7 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4ea51ca6;       (* arm_MOV_VEC Q6 Q5 128 *)
   0x4ea11c25;       (* arm_MOV_VEC Q5 Q1 128 *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
-  0x540008ac;       (* arm_BGT (word 276) *)
+  0x5400208c;       (* arm_BGT (word 1040) *)
   0xf10080bf;       (* arm_CMP X5 (rvalue (word 32)) *)
   0x4ea61cc7;       (* arm_MOV_VEC Q7 Q6 128 *)
   0x3dc010d8;       (* arm_LDR Q24 X6 (Immediate_Offset (word 64)) *)
@@ -1285,7 +1285,76 @@ let aesv8_gcm_8x_enc_256_mc =
   0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
   0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
   0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
-  0x17ffff8c        (* arm_B (word 268434992) *)
+  0x17ffff8c;       (* arm_B (word 268434992) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc014d9;       (* arm_LDR Q25 X6 (Immediate_Offset (word 80)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef9e10d;       (* arm_PMULL2_VEC Q13 Q8 Q25 64 *)
+  0x3dc010d8;       (* arm_LDR Q24 X6 (Immediate_Offset (word 64)) *)
+  0x6e18430b;       (* arm_EXT Q11 Q24 Q24 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x0eebe36f;       (* arm_PMULL_VEC Q15 Q27 Q11 64 *)
+  0x0ef9e10e;       (* arm_PMULL_VEC Q14 Q8 Q25 64 *)
+  0xce057529;       (* arm_EOR3 Q9 Q9 Q5 Q29 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc00cd7;       (* arm_LDR Q23 X6 (Immediate_Offset (word 48)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x4ef7e11c;       (* arm_PMULL2_VEC Q28 Q8 Q23 64 *)
+  0xce067529;       (* arm_EOR3 Q9 Q9 Q6 Q29 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x0ef7e11a;       (* arm_PMULL_VEC Q26 Q8 Q23 64 *)
+  0x0ef8e37b;       (* arm_PMULL_VEC Q27 Q27 Q24 64 *)
+  0xce1c3631;       (* arm_EOR3 Q17 Q17 Q28 Q13 *)
+  0xce1a3a73;       (* arm_EOR3 Q19 Q19 Q26 Q14 *)
+  0xce1b3e52;       (* arm_EOR3 Q18 Q18 Q27 Q15 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc008d6;       (* arm_LDR Q22 X6 (Immediate_Offset (word 32)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef6e10d;       (* arm_PMULL2_VEC Q13 Q8 Q22 64 *)
+  0xce077529;       (* arm_EOR3 Q9 Q9 Q7 Q29 *)
+  0x0ef6e10e;       (* arm_PMULL_VEC Q14 Q8 Q22 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3dc004d5;       (* arm_LDR Q21 X6 (Immediate_Offset (word 16)) *)
+  0x6e1542aa;       (* arm_EXT Q10 Q21 Q21 64 *)
+  0x0eeae36f;       (* arm_PMULL_VEC Q15 Q27 Q10 64 *)
+  0x3dc000d4;       (* arm_LDR Q20 X6 (Immediate_Offset (word 0)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 *)
+  0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
+  0x6e084510;       (* arm_INS Q16 Q8 0 64 64 128 *)
+  0x4ef4e11c;       (* arm_PMULL2_VEC Q28 Q8 Q20 64 *)
+  0x0ef4e11a;       (* arm_PMULL_VEC Q26 Q8 Q20 64 *)
+  0x2e281e10;       (* arm_EOR_VEC Q16 Q16 Q8 64 *)
+  0x0ef5e210;       (* arm_PMULL_VEC Q16 Q16 Q21 64 *)
+  0xce1c3631;       (* arm_EOR3 Q17 Q17 Q28 Q13 *)
+  0xce1a3a73;       (* arm_EOR3 Q19 Q19 Q26 Q14 *)
+  0xce103e52;       (* arm_EOR3 Q18 Q18 Q16 Q15 *)
+  0xfd400150;       (* arm_LDR D16 X10 (Immediate_Offset (word 0)) *)
+  0x6e114235;       (* arm_EXT Q21 Q17 Q17 64 *)
+  0xce114e52;       (* arm_EOR3 Q18 Q18 Q17 Q19 *)
+  0x0ef0e23d;       (* arm_PMULL_VEC Q29 Q17 Q16 64 *)
+  0xce1d5652;       (* arm_EOR3 Q18 Q18 Q29 Q21 *)
+  0x0ef0e251;       (* arm_PMULL_VEC Q17 Q18 Q16 64 *)
+  0x6e124255;       (* arm_EXT Q21 Q18 Q18 64 *)
+  0xce115673;       (* arm_EOR3 Q19 Q19 Q17 Q21 *)
+  0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
+  0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
+  0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
+  0x17ffff47        (* arm_B (word 268434716) *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -6458,7 +6527,7 @@ let TAIL_Q19_FOLD_REM4 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM4 : tactic =
-  fold_q19_at `read Q19 s114 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
+  fold_q19_at `read Q19 s108 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM4 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6565,10 +6634,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM4 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM4]) THEN
-  MAP_EVERY NSTEP_GP (10--114) THEN
+  MAP_EVERY NSTEP_GP (10--108) THEN
   FOLD_Q19_REM4 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (115--117) THEN
+  MAP_EVERY NSTEP_GP (109--112) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN

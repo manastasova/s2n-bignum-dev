@@ -1283,7 +1283,7 @@ L256_enc_tail:	//TAIL
 
 	mov	v5.16b, v1.16b
 	sub	v30.4s, v30.4s, v31.4s
-	b.gt	L256_enc_blocks_more_than_3
+	b.gt	L256_enc_rem4_drain	//[s107] rem=4 (64B/192B) -> dedicated eor3-fused drain
 
 	cmp	x5, #32
 	mov	v7.16b, v6.16b
@@ -1726,6 +1726,84 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	ext	v21.16b, v18.16b, v18.16b, #8				//MODULO - other mid alignment
 
 .inst	0xce115673	//eor3 v19.16b, v19.16b, v17.16b, v21.16b		 	//MODULO - fold into low
+	ext	v19.16b, v19.16b, v19.16b, #8
+	rev64	v19.16b, v19.16b
+	st1	{ v19.16b }, [x3]
+	b	L256_enc_epilogue
+
+L256_enc_rem4_drain:  //[s107] dedicated rem=4 (64B/192B) GHASH drain, eor3-fused (s098 pattern)
+	// entry (shuffled by tail, x5=64): v9=ct(v0 block final-3), v5/v6/v7=keystreams for
+	// final-2/-1/final, v16=partial tag, v17/v18/v19=0, v29=rk14, v30=base+4, x0/x2/x3 positioned.
+	// pair (final-3,final-2) and (final-1,final): A-block products to free v13/v14/v15, B fuses.
+	// --- block final-3 (A): products -> v13(hi)/v14(lo)/v15(mid) ---
+	st1	{ v9.16b}, [x2], #16
+	ldr	q25, [x6, #80]			//h4l | h4h
+	rev64	v8.16b, v9.16b
+	eor	v8.16b, v8.16b, v16.16b		//feed in partial tag
+	ext	v27.16b, v8.16b, v8.16b, #8
+	pmull2	v13.1q, v8.2d, v25.2d		//[s107] final-3 high -> v13
+	ldr	q24, [x6, #64]			//h4k | h3k
+	ext	v11.16b, v24.16b, v24.16b, #8	//[R2b] mid key hi->lo lane
+	eor	v27.8b, v27.8b, v8.8b
+	ldr	q9, [x0], #16			//final-2 - load plaintext
+	pmull	v15.1q, v27.1d, v11.1d		//[s107] final-3 mid -> v15
+	pmull	v14.1q, v8.1d, v25.1d		//[s107] final-3 low -> v14
+.inst	0xce057529	//eor3 v9.16b, v9.16b, v5.16b, v29.16b		//final-2 - result
+	movi	v16.8b, #0
+	// --- block final-2 (B): products -> v28/v26/v27, fuse pair-1 ---
+	st1	{ v9.16b}, [x2], #16
+	ldr	q23, [x6, #48]			//h3l | h3h
+	rev64	v8.16b, v9.16b
+	ldr	q9, [x0], #16			//final-1 - load plaintext
+	eor	v8.16b, v8.16b, v16.16b
+	ext	v27.16b, v8.16b, v8.16b, #8
+	movi	v16.8b, #0
+	pmull2	v28.1q, v8.2d, v23.2d		//final-2 high
+.inst	0xce067529	//eor3 v9.16b, v9.16b, v6.16b, v29.16b		//final-1 - result
+	eor	v27.8b, v27.8b, v8.8b
+	pmull	v26.1q, v8.1d, v23.1d		//final-2 low
+	pmull	v27.1q, v27.1d, v24.1d		//final-2 mid
+.inst	0xce1c3631	//eor3 v17.16b, v17.16b, v28.16b, v13.16b	//[s107] fused high (pair-1)
+.inst	0xce1a3a73	//eor3 v19.16b, v19.16b, v26.16b, v14.16b	//[s107] fused low (pair-1)
+.inst	0xce1b3e52	//eor3 v18.16b, v18.16b, v27.16b, v15.16b	//[s107] fused mid (pair-1)
+	// --- block final-1 (A): products -> v13(hi)/v14(lo)/v15(mid) ---
+	st1	{ v9.16b}, [x2], #16
+	ldr	q22, [x6, #32]			//h2l | h2h
+	rev64	v8.16b, v9.16b
+	ldr	q9, [x0], #16			//final - load plaintext
+	eor	v8.16b, v8.16b, v16.16b
+	movi	v16.8b, #0
+	ext	v27.16b, v8.16b, v8.16b, #8
+	pmull2	v13.1q, v8.2d, v22.2d		//[s107] final-1 high -> v13
+.inst	0xce077529	//eor3 v9.16b, v9.16b, v7.16b, v29.16b		//final - result
+	pmull	v14.1q, v8.1d, v22.1d		//[s107] final-1 low -> v14
+	eor	v27.8b, v27.8b, v8.8b
+	ldr	q21, [x6, #16]			//h2k | h1k
+	ext	v10.16b, v21.16b, v21.16b, #8	//h2k hi->lo lane
+	pmull	v15.1q, v27.1d, v10.1d		//[s107] final-1 mid -> v15
+	// --- block final (B): products -> v28/v26/v16, fuse pair-2, then MODULO ---
+	ldr	q20, [x6]			//h1l | h1h
+	rev64	v8.16b, v9.16b
+	rev32	v30.16b, v30.16b
+	str	q30, [x16]			//store the updated counter
+	eor	v8.16b, v8.16b, v16.16b		//feed in tag
+	st1	{ v9.16b}, [x2]			//store all 16B
+	ins	v16.d[0], v8.d[1]		//final mid
+	pmull2	v28.1q, v8.2d, v20.2d		//final high
+	pmull	v26.1q, v8.1d, v20.1d		//final low
+	eor	v16.8b, v16.8b, v8.8b		//final mid
+	pmull	v16.1q, v16.1d, v21.1d		//final mid (h1k)
+.inst	0xce1c3631	//eor3 v17.16b, v17.16b, v28.16b, v13.16b	//[s107] fused high (pair-2)
+.inst	0xce1a3a73	//eor3 v19.16b, v19.16b, v26.16b, v14.16b	//[s107] fused low (pair-2)
+.inst	0xce103e52	//eor3 v18.16b, v18.16b, v16.16b, v15.16b	//[s107] fused mid (pair-2)
+	ldr	d16, [x10]			//MODULO - load modulo constant
+	ext	v21.16b, v17.16b, v17.16b, #8			//MODULO - other top alignment
+.inst	0xce114e52	//eor3 v18.16b, v18.16b, v17.16b, v19.16b		//MODULO - karatsuba tidy up
+	pmull	v29.1q, v17.1d, v16.1d			//MODULO - top 64b align with mid
+.inst	0xce1d5652	//eor3 v18.16b, v18.16b, v29.16b, v21.16b		//MODULO - fold into mid
+	pmull	v17.1q, v18.1d, v16.1d			//MODULO - mid 64b align with low
+	ext	v21.16b, v18.16b, v18.16b, #8			//MODULO - other mid alignment
+.inst	0xce115673	//eor3 v19.16b, v19.16b, v17.16b, v21.16b		//MODULO - fold into low
 	ext	v19.16b, v19.16b, v19.16b, #8
 	rev64	v19.16b, v19.16b
 	st1	{ v19.16b }, [x3]
