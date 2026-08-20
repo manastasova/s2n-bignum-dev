@@ -1835,8 +1835,63 @@ L256_enc_rem2_drain:  //[s109 A9] rem=2: eor3-fused 2-block drain (block1 produc
 	st1	{ v19.16b }, [x3]		//tag store
 	b	L256_enc_epilogue
 
+L256_enc_fast2_drain:  //[s116] dedicated g=0 drain, tbl tail-format (index v25 built in fast2)
+	sub	v30.4s, v30.4s, v31.4s
+	ldr	q22, [x6, #32]			//h2l|h2h
+	sub	v30.4s, v30.4s, v31.4s
+	ldr	q21, [x6, #16]			//h2k|h1k
+	sub	v30.4s, v30.4s, v31.4s
+	ldr	q20, [x6]			//h1l|h1h
+	sub	v30.4s, v30.4s, v31.4s
+	st1	{ v9.16b}, [x2], #16		//block1 ct
+	sub	v30.4s, v30.4s, v31.4s
+	rev64	v8.16b, v9.16b
+	sub	v30.4s, v30.4s, v31.4s
+	eor	v8.16b, v8.16b, v16.16b		//feed tag
+	ldr	q9, [x0], #16			//block2 PT
+	ext	v27.16b, v8.16b, v8.16b, #8
+	ext	v10.16b, v21.16b, v21.16b, #8	//h2k hi->lo
+	pmull2	v13.1q, v8.2d, v22.2d		//block1 hi -> v13
+	eor	v27.8b, v27.8b, v8.8b
+	pmull	v14.1q, v8.1d, v22.1d		//block1 lo -> v14
+	.inst	0xce017529	//eor3 v9,v9,v1,v29 (block2 ct, v1 direct)
+	pmull	v15.1q, v27.1d, v10.1d		//block1 mid -> v15
+	st1	{ v9.16b}, [x2]			//block2 ct
+	rev64	v8.16b, v9.16b
+	ins	v16.d[0], v8.d[1]		//block2 mid prep
+	pmull2	v28.1q, v8.2d, v20.2d		//block2 hi
+	pmull	v26.1q, v8.1d, v20.1d		//block2 lo
+	eor	v16.8b, v16.8b, v8.8b
+	pmull	v16.1q, v16.1d, v21.1d		//block2 mid (h1k)
+	eor	v17.16b, v13.16b, v28.16b	//fused hi
+	eor	v19.16b, v14.16b, v26.16b	//fused lo
+	eor	v18.16b, v15.16b, v16.16b	//fused mid
+	rev32	v30.16b, v30.16b
+	str	q30, [x16]			//ivec store
+	ldr	d16, [x10]			//modulo const
+	ext	v21.16b, v17.16b, v17.16b, #8
+	.inst	0xce114e52	//eor3 v18,v18,v17,v19
+	pmull	v29.1q, v17.1d, v16.1d
+	.inst	0xce1d5652	//eor3 v18,v18,v29,v21
+	pmull	v17.1q, v18.1d, v16.1d
+	ext	v21.16b, v18.16b, v18.16b, #8
+	.inst	0xce115673	//eor3 v19,v19,v17,v21
+	tbl	v19.16b, {v19.16b}, v25.16b	//[s116] ext+rev64 -> tbl (16B reverse)
+	st1	{ v19.16b }, [x3]		//tag store
+	b	L256_enc_epilogue
+
 L256_enc_fast2:  //[s112] nb==2 (32B): 2-block AES (blocks 0,1 only) + rem2 drain. Skips wasted blocks 2-7.
 	// v26=rk0, v27=rk1 already loaded (before the dispatch). v30=base+8, v31=incr, v19=folded tag.
+	movz	x7, #0x0e0f
+	movk	x7, #0x0c0d, lsl #16
+	movk	x7, #0x0a0b, lsl #32
+	movk	x7, #0x0809, lsl #48
+	movz	x8, #0x0607
+	movk	x8, #0x0405, lsl #16
+	movk	x8, #0x0203, lsl #32
+	movk	x8, #0x0001, lsl #48
+	fmov	d25, x7
+	mov	v25.d[1], x8	//[s116] rev index in fast2 shadow
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
 	aese	v1.16b, v26.16b
@@ -1903,7 +1958,7 @@ L256_enc_fast2:  //[s112] nb==2 (32B): 2-block AES (blocks 0,1 only) + rem2 drai
 	ext	v16.16b, v19.16b, v19.16b, #8	//tag prep
 	mov	v29.16b, v28.16b		//v29 = rk14
 	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block1 ct)
-	b	L256_enc_rem2_drain
+	b	L256_enc_fast2_drain	//[s116] dedicated drain w/ tbl
 
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)
 
