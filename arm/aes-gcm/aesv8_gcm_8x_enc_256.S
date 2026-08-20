@@ -110,6 +110,9 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 	rev64	v19.16b, v19.16b
 	add	v30.4s, v30.4s, v31.4s		//CTR block 8 (advance for tail)
 
+	cmp	x9, #32				//[s112 fast2] nb==2 (32B)? -> dedicated 2-block fast path (skip wasted blocks 2-7)
+	b.eq	L256_enc_fast2
+
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 0
 	aese	v1.16b, v26.16b
@@ -1831,6 +1834,76 @@ L256_enc_rem2_drain:  //[s109 A9] rem=2: eor3-fused 2-block drain (block1 produc
 	rev64	v19.16b, v19.16b
 	st1	{ v19.16b }, [x3]		//tag store
 	b	L256_enc_epilogue
+
+L256_enc_fast2:  //[s112] nb==2 (32B): 2-block AES (blocks 0,1 only) + rem2 drain. Skips wasted blocks 2-7.
+	// v26=rk0, v27=rk1 already loaded (before the dispatch). v30=base+8, v31=incr, v19=folded tag.
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//blk0 r0
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//blk1 r0
+	ldp	q28, q26, [x11, #32]		//rk2, rk3
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r1
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r2 (rk2)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q27, q28, [x11, #64]		//rk4, rk5
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r4 (rk4)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q26, q27, [x11, #96]		//rk6, rk7
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r5 (rk5)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r6 (rk6)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q28, q26, [x11, #128]		//rk8, rk9
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r7 (rk7)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r8 (rk8)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q27, q28, [x11, #160]		//rk10, rk11
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r9 (rk9)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r10 (rk10)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q26, q27, [x11, #192]		//rk12, rk13
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r11 (rk11)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldr	q28, [x11, #224]		//rk14
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r12 (rk12)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
+	aese	v1.16b, v27.16b
+	// v28 = rk14; set up tail-entry state for rem2_drain
+	ldr	q8, [x0], #16			//block1 PT (x0 -> block2 PT)
+	ext	v16.16b, v19.16b, v19.16b, #8	//tag prep
+	mov	v29.16b, v28.16b		//v29 = rk14
+	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block1 ct)
+	b	L256_enc_rem2_drain
 
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)
 
