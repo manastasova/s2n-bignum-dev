@@ -1359,17 +1359,50 @@ let aesv8_gcm_8x_enc_256_mc =
   0xf10080bf;       (* arm_CMP X5 (rvalue (word 32)) *)
   0x54000040;       (* arm_BEQ (word 8) *)
   0x17fffe94;       (* arm_B (word 268434000) *)
-  0x4ea11c27;       (* arm_MOV_VEC Q7 Q1 128 *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
-  0x0f00e411;       (* arm_MOVI D17 (word 0) *)
+  0x3dc008d6;       (* arm_LDR Q22 X6 (Immediate_Offset (word 32)) *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
-  0x0f00e412;       (* arm_MOVI D18 (word 0) *)
+  0x3dc004d5;       (* arm_LDR Q21 X6 (Immediate_Offset (word 16)) *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
-  0x0f00e413;       (* arm_MOVI D19 (word 0) *)
+  0x3dc000d4;       (* arm_LDR Q20 X6 (Immediate_Offset (word 0)) *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
-  0x17ffff0e        (* arm_B (word 268434488) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x6e1542aa;       (* arm_EXT Q10 Q21 Q21 64 *)
+  0x4ef6e10d;       (* arm_PMULL2_VEC Q13 Q8 Q22 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x0ef6e10e;       (* arm_PMULL_VEC Q14 Q8 Q22 64 *)
+  0xce017529;       (* arm_EOR3 Q9 Q9 Q1 Q29 *)
+  0x0eeae36f;       (* arm_PMULL_VEC Q15 Q27 Q10 64 *)
+  0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e084510;       (* arm_INS Q16 Q8 0 64 64 128 *)
+  0x4ef4e11c;       (* arm_PMULL2_VEC Q28 Q8 Q20 64 *)
+  0x0ef4e11a;       (* arm_PMULL_VEC Q26 Q8 Q20 64 *)
+  0x2e281e10;       (* arm_EOR_VEC Q16 Q16 Q8 64 *)
+  0x0ef5e210;       (* arm_PMULL_VEC Q16 Q16 Q21 64 *)
+  0x6e3c1db1;       (* arm_EOR_VEC Q17 Q13 Q28 128 *)
+  0x6e3a1dd3;       (* arm_EOR_VEC Q19 Q14 Q26 128 *)
+  0x6e301df2;       (* arm_EOR_VEC Q18 Q15 Q16 128 *)
+  0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 *)
+  0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
+  0xfd400150;       (* arm_LDR D16 X10 (Immediate_Offset (word 0)) *)
+  0x6e114235;       (* arm_EXT Q21 Q17 Q17 64 *)
+  0xce114e52;       (* arm_EOR3 Q18 Q18 Q17 Q19 *)
+  0x0ef0e23d;       (* arm_PMULL_VEC Q29 Q17 Q16 64 *)
+  0xce1d5652;       (* arm_EOR3 Q18 Q18 Q29 Q21 *)
+  0x0ef0e251;       (* arm_PMULL_VEC Q17 Q18 Q16 64 *)
+  0x6e124255;       (* arm_EXT Q21 Q18 Q18 64 *)
+  0xce115673;       (* arm_EOR3 Q19 Q19 Q17 Q21 *)
+  0x6e134273;       (* arm_EXT Q19 Q19 Q19 64 *)
+  0x4e200a73;       (* arm_REV64_VEC Q19 Q19 8 *)
+  0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
+  0x17ffff17        (* arm_B (word 268434524) *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -6116,7 +6149,7 @@ let TAIL_Q19_FOLD_REM2 =
 (* Fold `read Q19 s92` (raw 2-block reduce) -> compact nist_ghash..(8*g+2)     *)
 (* in place BEFORE ext/rev64/store (mirror FOLD_Q19_S136/FOLD_Q19_REM1).       *)
 let FOLD_Q19_REM2 : tactic =
-  fold_q19_at `read Q19 s63 : int128` `8 * g + 2` TAIL_Q19_FOLD_REM2;;
+  fold_q19_at `read Q19 s53 : int128` `8 * g + 2` TAIL_Q19_FOLD_REM2;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM2 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -6224,13 +6257,13 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM2 = prove
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM2]) THEN
   (* Steps 10..92: cascade fall-through + 2-block fold + reduce, up to the      *)
   (* final reduce eor3@0x1194 (s92: read Q19 = raw ~250k 2-block reduce).        *)
-  MAP_EVERY NSTEP_GP (10--63) THEN
+  MAP_EVERY NSTEP_GP (10--53) THEN
   (* Fold Q19 to compact nist_ghash..(8*g+2) BEFORE ext/rev64/store, then drop  *)
   (* the dead reduce scratch.                                                   *)
   FOLD_Q19_REM2 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
   (* Steps 93..95: ext@0x1198 ; rev64@0x119c ; st1@0x11a0 (tag) ; exit@0x11a4.  *)
-  MAP_EVERY NSTEP_GP (64--66) THEN
+  MAP_EVERY NSTEP_GP (54--57) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   (* ivec store: 6 fall-through `sub v30` roll ctr 8g+10 -> 8g+4 = nb+2.        *)
   CONJ_TAC THENL

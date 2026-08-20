@@ -1816,18 +1816,51 @@ L256_enc_tail_dispatch:  //[s109] flags still hold (x5 vs #112) from the tail-en
 	b.eq	L256_enc_rem2_drain
 	b	L256_enc_tail_slides	//rem in {1,3,4,5,6,7}: rejoin the slide cascade
 
-L256_enc_rem2_drain:  //[s109] rem=2 (32B): skip the 21 keystream slides; set more_than_1's inputs directly
-	mov	v7.16b, v1.16b			//block2 keystream (was slid v1->v7)
-	sub	v30.4s, v30.4s, v31.4s		//counter roll: 6 decrements (8g+10 -> 8g+4 = nb+2)
-	movi	v17.8b, #0
+L256_enc_rem2_drain:  //[s109 A9] rem=2: eor3-fused 2-block drain (block1 products -> v13/14/15, fused accum)
 	sub	v30.4s, v30.4s, v31.4s
-	movi	v18.8b, #0
+	ldr	q22, [x6, #32]			//h2l|h2h
 	sub	v30.4s, v30.4s, v31.4s
-	movi	v19.8b, #0
+	ldr	q21, [x6, #16]			//h2k|h1k
 	sub	v30.4s, v30.4s, v31.4s
+	ldr	q20, [x6]			//h1l|h1h
 	sub	v30.4s, v30.4s, v31.4s
+	st1	{ v9.16b}, [x2], #16		//block1 ct
 	sub	v30.4s, v30.4s, v31.4s
-	b	L256_enc_blocks_more_than_1
+	rev64	v8.16b, v9.16b
+	sub	v30.4s, v30.4s, v31.4s
+	eor	v8.16b, v8.16b, v16.16b		//feed tag
+	ldr	q9, [x0], #16			//block2 PT
+	ext	v27.16b, v8.16b, v8.16b, #8
+	ext	v10.16b, v21.16b, v21.16b, #8	//h2k hi->lo
+	pmull2	v13.1q, v8.2d, v22.2d		//block1 hi -> v13
+	eor	v27.8b, v27.8b, v8.8b
+	pmull	v14.1q, v8.1d, v22.1d		//block1 lo -> v14
+	.inst	0xce017529	//eor3 v9,v9,v1,v29 (block2 ct, v1 direct)
+	pmull	v15.1q, v27.1d, v10.1d		//block1 mid -> v15
+	st1	{ v9.16b}, [x2]			//block2 ct
+	rev64	v8.16b, v9.16b
+	ins	v16.d[0], v8.d[1]		//block2 mid prep
+	pmull2	v28.1q, v8.2d, v20.2d		//block2 hi
+	pmull	v26.1q, v8.1d, v20.1d		//block2 lo
+	eor	v16.8b, v16.8b, v8.8b
+	pmull	v16.1q, v16.1d, v21.1d		//block2 mid (h1k)
+	eor	v17.16b, v13.16b, v28.16b	//fused hi
+	eor	v19.16b, v14.16b, v26.16b	//fused lo
+	eor	v18.16b, v15.16b, v16.16b	//fused mid
+	rev32	v30.16b, v30.16b
+	str	q30, [x16]			//ivec store
+	ldr	d16, [x10]			//modulo const
+	ext	v21.16b, v17.16b, v17.16b, #8
+	.inst	0xce114e52	//eor3 v18,v18,v17,v19
+	pmull	v29.1q, v17.1d, v16.1d
+	.inst	0xce1d5652	//eor3 v18,v18,v29,v21
+	pmull	v17.1q, v18.1d, v16.1d
+	ext	v21.16b, v18.16b, v18.16b, #8
+	.inst	0xce115673	//eor3 v19,v19,v17,v21
+	ext	v19.16b, v19.16b, v19.16b, #8
+	rev64	v19.16b, v19.16b
+	st1	{ v19.16b }, [x3]		//tag store
+	b	L256_enc_epilogue
 
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)
 
