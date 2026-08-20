@@ -101,281 +101,251 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 	rev32	v5.16b, v17.16b		//CTR block 5 (rev32)
 	rev32	v6.16b, v18.16b		//CTR block 6 (rev32)
 	rev32	v7.16b, v30.16b		//CTR block 7 (rev32)
-	ldp	q26, q27, [x11, #0]		//load rk0, rk1
-
-	aese	v3.16b, v26.16b
-	aesmc	v3.16b, v3.16b			//AES block 3 - round 0
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 0
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 0
+	// [s110] SETUP AES rewritten round-major, keystream blocks 0,1 issued FIRST each round so
+	// the g=0 tail (which consumes v0,v1) sees them complete before the 6 wasted blocks 2-7.
+	// Pure permutation of the generator's 112 aese/104 aesmc + 8 key loads (same .o multiset).
+	ldp	q26, q27, [x11, #0]			//load rk0, rk1
+	ld1	{ v19.16b}, [x3]				//load tag
+	ext	v19.16b, v19.16b, v19.16b, #8
+	rev64	v19.16b, v19.16b
+	add	v30.4s, v30.4s, v31.4s		//CTR block 8 (advance for tail)
 
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 0
 	aese	v1.16b, v26.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 0
-	aese	v6.16b, v26.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 0
-
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 0
+	aese	v3.16b, v26.16b
+	aesmc	v3.16b, v3.16b			//AES block 3 - round 0
+	aese	v4.16b, v26.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 0
 	aese	v5.16b, v26.16b
 	aesmc	v5.16b, v5.16b			//AES block 5 - round 0
+	aese	v6.16b, v26.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 0
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 0
-	ldp	q28, q26, [x11, #32]				//load rk2, rk3
+	ldp	q28, q26, [x11, #32]			//load rk2, rk3
 
-	aese	v4.16b, v27.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 1
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 1
 	aese	v1.16b, v27.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 1
-	aese	v3.16b, v27.16b
-	aesmc	v3.16b, v3.16b			//AES block 3 - round 1
-
-	aese	v6.16b, v27.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 1
-	aese	v5.16b, v27.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 1
-
 	aese	v2.16b, v27.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 1
-
+	aese	v3.16b, v27.16b
+	aesmc	v3.16b, v3.16b			//AES block 3 - round 1
+	aese	v4.16b, v27.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 1
+	aese	v5.16b, v27.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 1
+	aese	v6.16b, v27.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 1
 	aese	v7.16b, v27.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 1
 
-	aese	v2.16b, v28.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 2
-	aese	v3.16b, v28.16b
-	aesmc	v3.16b, v3.16b			//AES block 3 - round 2
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 1
-
-	aese	v7.16b, v28.16b
-	aesmc	v7.16b, v7.16b			//AES block 7 - round 2
-	aese	v6.16b, v28.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 2
-	aese	v5.16b, v28.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 2
-
-	aese	v4.16b, v28.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 2
 	aese	v0.16b, v28.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 2
 	aese	v1.16b, v28.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 2
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 2
+	aese	v3.16b, v28.16b
+	aesmc	v3.16b, v3.16b			//AES block 3 - round 2
+	aese	v4.16b, v28.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 2
+	aese	v5.16b, v28.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 2
+	aese	v6.16b, v28.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 2
+	aese	v7.16b, v28.16b
+	aesmc	v7.16b, v7.16b			//AES block 7 - round 2
+	ldp	q27, q28, [x11, #64]			//load rk4, rk5
 
-	aese	v5.16b, v26.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 3
-	aese	v3.16b, v26.16b
-	aesmc	v3.16b, v3.16b			//AES block 3 - round 3
-	ldp	q27, q28, [x11, #64]				//load rk4, rk5
-
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 3
-
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 3
 	aese	v1.16b, v26.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 3
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 3
+	aese	v3.16b, v26.16b
+	aesmc	v3.16b, v3.16b			//AES block 3 - round 3
+	aese	v4.16b, v26.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 3
+	aese	v5.16b, v26.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 3
 	aese	v6.16b, v26.16b
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 3
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 3
 
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 3
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 3
-
-	aese	v4.16b, v27.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 4
-	aese	v6.16b, v27.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 4
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 4
-
-	aese	v2.16b, v27.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 4
 	aese	v0.16b, v27.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 4
-
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 4
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 4
 	aese	v3.16b, v27.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 4
-	aese	v7.16b, v27.16b
-	aesmc	v7.16b, v7.16b			//AES block 7 - round 4
+	aese	v4.16b, v27.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 4
 	aese	v5.16b, v27.16b
 	aesmc	v5.16b, v5.16b			//AES block 5 - round 4
+	aese	v6.16b, v27.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 4
+	aese	v7.16b, v27.16b
+	aesmc	v7.16b, v7.16b			//AES block 7 - round 4
+	ldp	q26, q27, [x11, #96]			//load rk6, rk7
 
 	aese	v0.16b, v28.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 5
-	aese	v2.16b, v28.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 5
-	ldp	q26, q27, [x11, #96]				//load rk6, rk7
-
 	aese	v1.16b, v28.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 5
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 5
+	aese	v3.16b, v28.16b
+	aesmc	v3.16b, v3.16b			//AES block 3 - round 5
 	aese	v4.16b, v28.16b
 	aesmc	v4.16b, v4.16b			//AES block 4 - round 5
 	aese	v5.16b, v28.16b
 	aesmc	v5.16b, v5.16b			//AES block 5 - round 5
-
-	aese	v3.16b, v28.16b
-	aesmc	v3.16b, v3.16b			//AES block 3 - round 5
 	aese	v6.16b, v28.16b
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 5
 	aese	v7.16b, v28.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 5
 
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 6
-	aese	v5.16b, v26.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 6
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 6
-
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 6
-	aese	v6.16b, v26.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 6
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 6
-
-	aese	v7.16b, v26.16b
-	aesmc	v7.16b, v7.16b			//AES block 7 - round 6
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 6
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 6
 	aese	v3.16b, v26.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 6
-	ldp	q28, q26, [x11, #128]				//load rk8, rk9
+	aese	v4.16b, v26.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 6
+	aese	v5.16b, v26.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 6
+	aese	v6.16b, v26.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 6
+	aese	v7.16b, v26.16b
+	aesmc	v7.16b, v7.16b			//AES block 7 - round 6
+	ldp	q28, q26, [x11, #128]			//load rk8, rk9
 
-	aese	v2.16b, v27.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 7
 	aese	v0.16b, v27.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 7
-
-	aese	v7.16b, v27.16b
-	aesmc	v7.16b, v7.16b			//AES block 7 - round 7
-	aese	v6.16b, v27.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 7
 	aese	v1.16b, v27.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 7
-
-	aese	v5.16b, v27.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 7
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 7
 	aese	v3.16b, v27.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 7
-
 	aese	v4.16b, v27.16b
 	aesmc	v4.16b, v4.16b			//AES block 4 - round 7
+	aese	v5.16b, v27.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 7
+	aese	v6.16b, v27.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 7
+	aese	v7.16b, v27.16b
+	aesmc	v7.16b, v7.16b			//AES block 7 - round 7
 
-	aese	v6.16b, v28.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 8
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 8
-
-	aese	v3.16b, v28.16b
-	aesmc	v3.16b, v3.16b			//AES block 3 - round 8
 	aese	v0.16b, v28.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 8
-	aese	v7.16b, v28.16b
-	aesmc	v7.16b, v7.16b			//AES block 7 - round 8
-
-	aese	v5.16b, v28.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 8
-	aese	v4.16b, v28.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 8
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 8
 	aese	v2.16b, v28.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 8
+	aese	v3.16b, v28.16b
+	aesmc	v3.16b, v3.16b			//AES block 3 - round 8
+	aese	v4.16b, v28.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 8
+	aese	v5.16b, v28.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 8
+	aese	v6.16b, v28.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 8
+	aese	v7.16b, v28.16b
+	aesmc	v7.16b, v7.16b			//AES block 7 - round 8
+	ldp	q27, q28, [x11, #160]			//load rk10, rk11
 
-	ld1	{ v19.16b}, [x3]
-	ext	v19.16b, v19.16b, v19.16b, #8
-	rev64	v19.16b, v19.16b
-	ldp	q27, q28, [x11, #160]				//load rk10, rk11
-
-	aese	v6.16b, v26.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 9
-	aese	v7.16b, v26.16b
-	aesmc	v7.16b, v7.16b			//AES block 7 - round 9
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 9
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 9
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 9
 	aese	v3.16b, v26.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 9
-
 	aese	v4.16b, v26.16b
 	aesmc	v4.16b, v4.16b			//AES block 4 - round 9
 	aese	v5.16b, v26.16b
 	aesmc	v5.16b, v5.16b			//AES block 5 - round 9
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 9
+	aese	v6.16b, v26.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 9
+	aese	v7.16b, v26.16b
+	aesmc	v7.16b, v7.16b			//AES block 7 - round 9
 
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 9
-
-	aese	v7.16b, v27.16b
-	aesmc	v7.16b, v7.16b			//AES block 7 - round 10
-	aese	v4.16b, v27.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 10
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 9
-
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 10
-	aese	v5.16b, v27.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 10
-	aese	v3.16b, v27.16b
-	aesmc	v3.16b, v3.16b			//AES block 3 - round 10
-
-	aese	v2.16b, v27.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 10
 	aese	v0.16b, v27.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 10
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 10
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 10
+	aese	v3.16b, v27.16b
+	aesmc	v3.16b, v3.16b			//AES block 3 - round 10
+	aese	v4.16b, v27.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 10
+	aese	v5.16b, v27.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 10
 	aese	v6.16b, v27.16b
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 10
-
-	aese	v4.16b, v28.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 11
-	ldp	q26, q27, [x11, #192]				//load rk12, rk13
-	aese	v5.16b, v28.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 11
-
-	aese	v2.16b, v28.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 11
-	aese	v6.16b, v28.16b
-	aesmc	v6.16b, v6.16b			//AES block 6 - round 11
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 11
+	aese	v7.16b, v27.16b
+	aesmc	v7.16b, v7.16b			//AES block 7 - round 10
+	ldp	q26, q27, [x11, #192]			//load rk12, rk13
 
 	aese	v0.16b, v28.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 11
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 11
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 11
 	aese	v3.16b, v28.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 11
+	aese	v4.16b, v28.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 11
+	aese	v5.16b, v28.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 11
+	aese	v6.16b, v28.16b
+	aesmc	v6.16b, v6.16b			//AES block 6 - round 11
 	aese	v7.16b, v28.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 11
-
-	add	v30.4s, v30.4s, v31.4s		//CTR block 7
-	ldr	q28, [x11, #224]					//load rk14
-
-	aese	v4.16b, v26.16b
-	aesmc	v4.16b, v4.16b			//AES block 4 - round 12
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b			//AES block 2 - round 12
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 12
+	ldr	q28, [x11, #224]				//load rk14
 
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 12
-	aese	v5.16b, v26.16b
-	aesmc	v5.16b, v5.16b			//AES block 5 - round 12
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 12
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b			//AES block 2 - round 12
 	aese	v3.16b, v26.16b
 	aesmc	v3.16b, v3.16b			//AES block 3 - round 12
-
-	aese	v2.16b, v27.16b						//AES block 2 - round 13
-	aese	v1.16b, v27.16b						//AES block 1 - round 13
-	aese	v4.16b, v27.16b						//AES block 4 - round 13
-
+	aese	v4.16b, v26.16b
+	aesmc	v4.16b, v4.16b			//AES block 4 - round 12
+	aese	v5.16b, v26.16b
+	aesmc	v5.16b, v5.16b			//AES block 5 - round 12
 	aese	v6.16b, v26.16b
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 12
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 12
 
-	aese	v0.16b, v27.16b						//AES block 0 - round 13
-	aese	v5.16b, v27.16b						//AES block 5 - round 13
-
-	aese	v6.16b, v27.16b						//AES block 6 - round 13
-	aese	v7.16b, v27.16b						//AES block 7 - round 13
-	aese	v3.16b, v27.16b						//AES block 3 - round 13
+	aese	v0.16b, v27.16b			//AES block 0 - round 13
+	aese	v1.16b, v27.16b			//AES block 1 - round 13
+	aese	v2.16b, v27.16b			//AES block 2 - round 13
+	aese	v3.16b, v27.16b			//AES block 3 - round 13
+	aese	v4.16b, v27.16b			//AES block 4 - round 13
+	aese	v5.16b, v27.16b			//AES block 5 - round 13
+	aese	v6.16b, v27.16b			//AES block 6 - round 13
+	aese	v7.16b, v27.16b			//AES block 7 - round 13
 
 	add	x4, x0, x1, lsr #3		//end_input_ptr
 	cmp	x0, x5				//check if we have <= 8 blocks
