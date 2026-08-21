@@ -2097,9 +2097,7 @@ L256_enc_fast4:  //[s121] nb==4 (64B): 4-block AES (blocks 0-3 only) + rem4 drai
 	sub	v30.4s, v30.4s, v31.4s		//+6
 	sub	v30.4s, v30.4s, v31.4s		//+5
 	sub	v30.4s, v30.4s, v31.4s		//+4 (= nb+2 counter to store)
-	mov	v5.16b, v1.16b			//blk1 keystream
-	mov	v6.16b, v2.16b			//blk2 keystream
-	mov	v7.16b, v3.16b			//blk3 keystream
+	// [s122 A1] dropped mov v5/6/7 <- v1/2/3; fast4_drain reads v1/v2/v3 directly
 	movi	v17.8b, #0
 	movi	v18.8b, #0
 	movi	v19.8b, #0
@@ -2119,17 +2117,14 @@ L256_enc_fast4_drain:  //[s121tbl] dedicated fast4 (64B) drain = rem4_drain w/ t
 	ldr	q9, [x0], #16			//final-2 - load plaintext
 	pmull	v15.1q, v27.1d, v11.1d		//final-3 mid -> v15
 	pmull	v14.1q, v8.1d, v25.1d		//final-3 low -> v14
-	.inst	0xce057529	//eor3 v9,v9,v5,v29		//final-2 - result
-	movi	v16.8b, #0
+	.inst	0xce017529	//eor3 v9,v9,v1,v29 [s122A1]	//final-2 - result
 	st1	{ v9.16b}, [x2], #16
 	ldr	q23, [x6, #48]			//h3l | h3h
-	rev64	v8.16b, v9.16b
+	rev64	v8.16b, v9.16b			//[s122 A4] no-op tag eor + movi removed (s097)
 	ldr	q9, [x0], #16			//final-1 - load plaintext
-	eor	v8.16b, v8.16b, v16.16b
 	ext	v27.16b, v8.16b, v8.16b, #8
-	movi	v16.8b, #0
 	pmull2	v28.1q, v8.2d, v23.2d		//final-2 high
-	.inst	0xce067529	//eor3 v9,v9,v6,v29		//final-1 - result
+	.inst	0xce027529	//eor3 v9,v9,v2,v29 [s122A1]	//final-1 - result
 	eor	v27.8b, v27.8b, v8.8b
 	pmull	v26.1q, v8.1d, v23.1d		//final-2 low
 	pmull	v27.1q, v27.1d, v24.1d		//final-2 mid
@@ -2138,13 +2133,11 @@ L256_enc_fast4_drain:  //[s121tbl] dedicated fast4 (64B) drain = rem4_drain w/ t
 	.inst	0xce1b3e52	//eor3 v18,v18,v27,v15	//fused mid (pair-1)
 	st1	{ v9.16b}, [x2], #16
 	ldr	q22, [x6, #32]			//h2l | h2h
-	rev64	v8.16b, v9.16b
+	rev64	v8.16b, v9.16b			//[s122 A4] no-op tag eor + movi removed (s097)
 	ldr	q9, [x0], #16			//final - load plaintext
-	eor	v8.16b, v8.16b, v16.16b
-	movi	v16.8b, #0
 	ext	v27.16b, v8.16b, v8.16b, #8
 	pmull2	v13.1q, v8.2d, v22.2d		//final-1 high -> v13
-	.inst	0xce077529	//eor3 v9,v9,v7,v29		//final - result
+	.inst	0xce037529	//eor3 v9,v9,v3,v29 [s122A1]	//final - result
 	pmull	v14.1q, v8.1d, v22.1d		//final-1 low -> v14
 	eor	v27.8b, v27.8b, v8.8b
 	ldr	q21, [x6, #16]			//h2k | h1k
@@ -2154,8 +2147,7 @@ L256_enc_fast4_drain:  //[s121tbl] dedicated fast4 (64B) drain = rem4_drain w/ t
 	rev64	v8.16b, v9.16b
 	rev32	v30.16b, v30.16b
 	str	q30, [x16]			//store the updated counter
-	eor	v8.16b, v8.16b, v16.16b		//feed in tag
-	st1	{ v9.16b}, [x2]			//store all 16B
+	st1	{ v9.16b}, [x2]			//store all 16B [s122 A4] no-op tag eor removed
 	ins	v16.d[0], v8.d[1]		//final mid
 	pmull2	v28.1q, v8.2d, v20.2d		//final high
 	pmull	v26.1q, v8.1d, v20.1d		//final low

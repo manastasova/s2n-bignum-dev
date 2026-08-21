@@ -1658,9 +1658,6 @@ let aesv8_gcm_8x_enc_256_mc =
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
   0x6ebf87de;       (* arm_SUB_VEC Q30 Q30 Q31 32 128 *)
-  0x4ea11c25;       (* arm_MOV_VEC Q5 Q1 128 *)
-  0x4ea21c46;       (* arm_MOV_VEC Q6 Q2 128 *)
-  0x4ea31c67;       (* arm_MOV_VEC Q7 Q3 128 *)
   0x0f00e411;       (* arm_MOVI D17 (word 0) *)
   0x0f00e412;       (* arm_MOVI D18 (word 0) *)
   0x0f00e413;       (* arm_MOVI D19 (word 0) *)
@@ -1678,17 +1675,14 @@ let aesv8_gcm_8x_enc_256_mc =
   0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
   0x0eebe36f;       (* arm_PMULL_VEC Q15 Q27 Q11 64 *)
   0x0ef9e10e;       (* arm_PMULL_VEC Q14 Q8 Q25 64 *)
-  0xce057529;       (* arm_EOR3 Q9 Q9 Q5 Q29 *)
-  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0xce017529;       (* arm_EOR3 Q9 Q9 Q1 Q29 *)
   0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
   0x3dc00cd7;       (* arm_LDR Q23 X6 (Immediate_Offset (word 48)) *)
   0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
   0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
-  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
   0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
-  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
   0x4ef7e11c;       (* arm_PMULL2_VEC Q28 Q8 Q23 64 *)
-  0xce067529;       (* arm_EOR3 Q9 Q9 Q6 Q29 *)
+  0xce027529;       (* arm_EOR3 Q9 Q9 Q2 Q29 *)
   0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
   0x0ef7e11a;       (* arm_PMULL_VEC Q26 Q8 Q23 64 *)
   0x0ef8e37b;       (* arm_PMULL_VEC Q27 Q27 Q24 64 *)
@@ -1699,11 +1693,9 @@ let aesv8_gcm_8x_enc_256_mc =
   0x3dc008d6;       (* arm_LDR Q22 X6 (Immediate_Offset (word 32)) *)
   0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
   0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
-  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
-  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
   0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
   0x4ef6e10d;       (* arm_PMULL2_VEC Q13 Q8 Q22 64 *)
-  0xce077529;       (* arm_EOR3 Q9 Q9 Q7 Q29 *)
+  0xce037529;       (* arm_EOR3 Q9 Q9 Q3 Q29 *)
   0x0ef6e10e;       (* arm_PMULL_VEC Q14 Q8 Q22 64 *)
   0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
   0x3dc004d5;       (* arm_LDR Q21 X6 (Immediate_Offset (word 16)) *)
@@ -1713,7 +1705,6 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
   0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 *)
   0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
-  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
   0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
   0x6e084510;       (* arm_INS Q16 Q8 0 64 64 128 *)
   0x4ef4e11c;       (* arm_PMULL2_VEC Q28 Q8 Q20 64 *)
@@ -1733,7 +1724,7 @@ let aesv8_gcm_8x_enc_256_mc =
   0xce115673;       (* arm_EOR3 Q19 Q19 Q17 Q21 *)
   0x4e0c0273;       (* arm_TBL Q19 [Q19] Q12 128 *)
   0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
-  0x17fffdd0        (* arm_B (word 268433216) *)
+  0x17fffdd9        (* arm_B (word 268433252) *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -7408,11 +7399,11 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM4 = prove
 (* 1/2/3 keystreams) then the SHARED rem4_drain (0x13a0), ending pc+0x11cc. *)
 (* Q30 = ctr(8g+10) at entry (base+8, unchanged from counter build) and the *)
 (* 4 tail-setup subs roll it to 8g+6 = nb+2, so the counter closer REUSES   *)
-(* TAIL_REM4's verbatim.  Fold Q19 at s80 (15 tail-setup + 65 drain).       *)
+(* TAIL_REM4's verbatim.  Fold Q19 at s71 (12 tail-setup + 59 drain) [s122: -3 movs -6 no-op].       *)
 (* ===================================================================== *)
 
 let FOLD_Q19_REM4_FAST4 : tactic =
-  fold_q19_at `read Q19 s80 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
+  fold_q19_at `read Q19 s71 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
 
 let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
  (`!in_p out_p tag_p ivec_p htable_p mod_p
@@ -7495,12 +7486,12 @@ let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
     REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC;
     ALL_TAC] THEN
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
-  MAP_EVERY NSTEP_GP (1--80) THEN
+  MAP_EVERY NSTEP_GP (1--71) THEN
   FOLD_Q19_REM4_FAST4 THEN
   (*[s121tbl] KEEP Q12 (live tbl index) -> explicit discard = DISCARD_DEAD_REDUCE_SCRATCH minus Q12*)
   DISCARD_REGS ["Q17"; "Q18"; "Q20"; "Q21"; "Q22"; "Q23"; "Q24"; "Q25"; "Q26";
      "Q29"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q13"; "Q14"; "Q15"] THEN
-  MAP_EVERY NSTEP_GP (81--83) THEN
+  MAP_EVERY NSTEP_GP (72--74) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
