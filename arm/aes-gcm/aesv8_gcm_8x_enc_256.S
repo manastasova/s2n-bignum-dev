@@ -1962,8 +1962,18 @@ L256_enc_fast2:  //[s112] nb==2 (32B): 2-block AES (blocks 0,1 only) + rem2 drai
 	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block1 ct)
 	b	L256_enc_fast2_drain	//[s116] dedicated drain w/ tbl
 
-L256_enc_fast4:  //[s121] nb==4 (64B): 4-block AES (blocks 0-3 only) + shared rem4 drain. Skips wasted blocks 4-7.
+L256_enc_fast4:  //[s121] nb==4 (64B): 4-block AES (blocks 0-3 only) + rem4 drain. Skips wasted blocks 4-7.
 	// v26=rk0, v27=rk1 loaded (before dispatch). v30=base+8 (from counter build), v31=incr, v19=folded tag.
+	movz	x7, #0x0e0f
+	movk	x7, #0x0c0d, lsl #16
+	movk	x7, #0x0a0b, lsl #32
+	movk	x7, #0x0809, lsl #48
+	movz	x8, #0x0607
+	movk	x8, #0x0405, lsl #16
+	movk	x8, #0x0203, lsl #32
+	movk	x8, #0x0001, lsl #48
+	fmov	d12, x7
+	mov	v12.d[1], x8	//[s121tbl] rev index in fast4 shadow (v12=dead +5 incr)
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
 	aese	v1.16b, v26.16b
@@ -2094,7 +2104,77 @@ L256_enc_fast4:  //[s121] nb==4 (64B): 4-block AES (blocks 0-3 only) + shared re
 	movi	v18.8b, #0
 	movi	v19.8b, #0
 	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block0 ct)
-	b	L256_enc_rem4_drain
+	b	L256_enc_fast4_drain
+
+L256_enc_fast4_drain:  //[s121tbl] dedicated fast4 (64B) drain = rem4_drain w/ tbl tail-format (index v12)
+	st1	{ v9.16b}, [x2], #16
+	ldr	q25, [x6, #80]			//h4l | h4h
+	rev64	v8.16b, v9.16b
+	eor	v8.16b, v8.16b, v16.16b		//feed in partial tag
+	ext	v27.16b, v8.16b, v8.16b, #8
+	pmull2	v13.1q, v8.2d, v25.2d		//final-3 high -> v13
+	ldr	q24, [x6, #64]			//h4k | h3k
+	ext	v11.16b, v24.16b, v24.16b, #8	//mid key hi->lo lane
+	eor	v27.8b, v27.8b, v8.8b
+	ldr	q9, [x0], #16			//final-2 - load plaintext
+	pmull	v15.1q, v27.1d, v11.1d		//final-3 mid -> v15
+	pmull	v14.1q, v8.1d, v25.1d		//final-3 low -> v14
+	.inst	0xce057529	//eor3 v9,v9,v5,v29		//final-2 - result
+	movi	v16.8b, #0
+	st1	{ v9.16b}, [x2], #16
+	ldr	q23, [x6, #48]			//h3l | h3h
+	rev64	v8.16b, v9.16b
+	ldr	q9, [x0], #16			//final-1 - load plaintext
+	eor	v8.16b, v8.16b, v16.16b
+	ext	v27.16b, v8.16b, v8.16b, #8
+	movi	v16.8b, #0
+	pmull2	v28.1q, v8.2d, v23.2d		//final-2 high
+	.inst	0xce067529	//eor3 v9,v9,v6,v29		//final-1 - result
+	eor	v27.8b, v27.8b, v8.8b
+	pmull	v26.1q, v8.1d, v23.1d		//final-2 low
+	pmull	v27.1q, v27.1d, v24.1d		//final-2 mid
+	.inst	0xce1c3631	//eor3 v17,v17,v28,v13	//fused high (pair-1)
+	.inst	0xce1a3a73	//eor3 v19,v19,v26,v14	//fused low (pair-1)
+	.inst	0xce1b3e52	//eor3 v18,v18,v27,v15	//fused mid (pair-1)
+	st1	{ v9.16b}, [x2], #16
+	ldr	q22, [x6, #32]			//h2l | h2h
+	rev64	v8.16b, v9.16b
+	ldr	q9, [x0], #16			//final - load plaintext
+	eor	v8.16b, v8.16b, v16.16b
+	movi	v16.8b, #0
+	ext	v27.16b, v8.16b, v8.16b, #8
+	pmull2	v13.1q, v8.2d, v22.2d		//final-1 high -> v13
+	.inst	0xce077529	//eor3 v9,v9,v7,v29		//final - result
+	pmull	v14.1q, v8.1d, v22.1d		//final-1 low -> v14
+	eor	v27.8b, v27.8b, v8.8b
+	ldr	q21, [x6, #16]			//h2k | h1k
+	ext	v10.16b, v21.16b, v21.16b, #8	//h2k hi->lo lane
+	pmull	v15.1q, v27.1d, v10.1d		//final-1 mid -> v15
+	ldr	q20, [x6]			//h1l | h1h
+	rev64	v8.16b, v9.16b
+	rev32	v30.16b, v30.16b
+	str	q30, [x16]			//store the updated counter
+	eor	v8.16b, v8.16b, v16.16b		//feed in tag
+	st1	{ v9.16b}, [x2]			//store all 16B
+	ins	v16.d[0], v8.d[1]		//final mid
+	pmull2	v28.1q, v8.2d, v20.2d		//final high
+	pmull	v26.1q, v8.1d, v20.1d		//final low
+	eor	v16.8b, v16.8b, v8.8b		//final mid
+	pmull	v16.1q, v16.1d, v21.1d		//final mid (h1k)
+	.inst	0xce1c3631	//eor3 v17,v17,v28,v13	//fused high (pair-2)
+	.inst	0xce1a3a73	//eor3 v19,v19,v26,v14	//fused low (pair-2)
+	.inst	0xce103e52	//eor3 v18,v18,v16,v15	//fused mid (pair-2)
+	ldr	d16, [x10]			//MODULO - load modulo constant
+	ext	v21.16b, v17.16b, v17.16b, #8			//MODULO - other top alignment
+	.inst	0xce114e52	//eor3 v18,v18,v17,v19		//MODULO - karatsuba tidy up
+	pmull	v29.1q, v17.1d, v16.1d			//MODULO - top 64b align with mid
+	.inst	0xce1d5652	//eor3 v18,v18,v29,v21		//MODULO - fold into mid
+	pmull	v17.1q, v18.1d, v16.1d			//MODULO - mid 64b align with low
+	ext	v21.16b, v18.16b, v18.16b, #8			//MODULO - other mid alignment
+	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
+	tbl	v19.16b, { v19.16b }, v12.16b	//[s121tbl] ext+rev64 -> tbl (16B reverse)
+	st1	{ v19.16b }, [x3]
+	b	L256_enc_epilogue
 
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)
 

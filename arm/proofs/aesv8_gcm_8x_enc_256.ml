@@ -1526,6 +1526,16 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4ebc1f9d;       (* arm_MOV_VEC Q29 Q28 128 *)
   0xce007509;       (* arm_EOR3 Q9 Q8 Q0 Q29 *)
   0x17ffff8a;       (* arm_B (word 268434984) *)
+  0xd281c1e7;       (* arm_MOV X7 (rvalue (word 3599)) *)
+  0xf2a181a7;       (* arm_MOVK X7 (word 3085) 16 *)
+  0xf2c14167;       (* arm_MOVK X7 (word 2571) 32 *)
+  0xf2e10127;       (* arm_MOVK X7 (word 2057) 48 *)
+  0xd280c0e8;       (* arm_MOV X8 (rvalue (word 1543)) *)
+  0xf2a080a8;       (* arm_MOVK X8 (word 1029) 16 *)
+  0xf2c04068;       (* arm_MOVK X8 (word 515) 32 *)
+  0xf2e00028;       (* arm_MOVK X8 (word 1) 48 *)
+  0x9e6700ec;       (* arm_FMOV_ItoF Q12 X7 0 *)
+  0x4e181d0c;       (* arm_INS_GEN Q12 X8 64 64 *)
   0x4e284b40;       (* arm_AESE Q0 Q26 *)
   0x4e286800;       (* arm_AESMC Q0 Q0 *)
   0x4e284b41;       (* arm_AESE Q1 Q26 *)
@@ -1655,7 +1665,75 @@ let aesv8_gcm_8x_enc_256_mc =
   0x0f00e412;       (* arm_MOVI D18 (word 0) *)
   0x0f00e413;       (* arm_MOVI D19 (word 0) *)
   0xce007509;       (* arm_EOR3 Q9 Q8 Q0 Q29 *)
-  0x17fffe93        (* arm_B (word 268433996) *)
+  0x14000001;       (* arm_B (word 4) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc014d9;       (* arm_LDR Q25 X6 (Immediate_Offset (word 80)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef9e10d;       (* arm_PMULL2_VEC Q13 Q8 Q25 64 *)
+  0x3dc010d8;       (* arm_LDR Q24 X6 (Immediate_Offset (word 64)) *)
+  0x6e18430b;       (* arm_EXT Q11 Q24 Q24 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x0eebe36f;       (* arm_PMULL_VEC Q15 Q27 Q11 64 *)
+  0x0ef9e10e;       (* arm_PMULL_VEC Q14 Q8 Q25 64 *)
+  0xce057529;       (* arm_EOR3 Q9 Q9 Q5 Q29 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc00cd7;       (* arm_LDR Q23 X6 (Immediate_Offset (word 48)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x4ef7e11c;       (* arm_PMULL2_VEC Q28 Q8 Q23 64 *)
+  0xce067529;       (* arm_EOR3 Q9 Q9 Q6 Q29 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x0ef7e11a;       (* arm_PMULL_VEC Q26 Q8 Q23 64 *)
+  0x0ef8e37b;       (* arm_PMULL_VEC Q27 Q27 Q24 64 *)
+  0xce1c3631;       (* arm_EOR3 Q17 Q17 Q28 Q13 *)
+  0xce1a3a73;       (* arm_EOR3 Q19 Q19 Q26 Q14 *)
+  0xce1b3e52;       (* arm_EOR3 Q18 Q18 Q27 Q15 *)
+  0x4c9f7049;       (* arm_STR Q9 X2 (Postimmediate_Offset (word 16)) *)
+  0x3dc008d6;       (* arm_LDR Q22 X6 (Immediate_Offset (word 32)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x3cc10409;       (* arm_LDR Q9 X0 (Postimmediate_Offset (word 16)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x0f00e410;       (* arm_MOVI D16 (word 0) *)
+  0x6e08411b;       (* arm_EXT Q27 Q8 Q8 64 *)
+  0x4ef6e10d;       (* arm_PMULL2_VEC Q13 Q8 Q22 64 *)
+  0xce077529;       (* arm_EOR3 Q9 Q9 Q7 Q29 *)
+  0x0ef6e10e;       (* arm_PMULL_VEC Q14 Q8 Q22 64 *)
+  0x2e281f7b;       (* arm_EOR_VEC Q27 Q27 Q8 64 *)
+  0x3dc004d5;       (* arm_LDR Q21 X6 (Immediate_Offset (word 16)) *)
+  0x6e1542aa;       (* arm_EXT Q10 Q21 Q21 64 *)
+  0x0eeae36f;       (* arm_PMULL_VEC Q15 Q27 Q10 64 *)
+  0x3dc000d4;       (* arm_LDR Q20 X6 (Immediate_Offset (word 0)) *)
+  0x4e200928;       (* arm_REV64_VEC Q8 Q9 8 *)
+  0x6e200bde;       (* arm_REV32_VEC Q30 Q30 8 *)
+  0x3d80021e;       (* arm_STR Q30 X16 (Immediate_Offset (word 0)) *)
+  0x6e301d08;       (* arm_EOR_VEC Q8 Q8 Q16 128 *)
+  0x4c007049;       (* arm_STR Q9 X2 No_Offset *)
+  0x6e084510;       (* arm_INS Q16 Q8 0 64 64 128 *)
+  0x4ef4e11c;       (* arm_PMULL2_VEC Q28 Q8 Q20 64 *)
+  0x0ef4e11a;       (* arm_PMULL_VEC Q26 Q8 Q20 64 *)
+  0x2e281e10;       (* arm_EOR_VEC Q16 Q16 Q8 64 *)
+  0x0ef5e210;       (* arm_PMULL_VEC Q16 Q16 Q21 64 *)
+  0xce1c3631;       (* arm_EOR3 Q17 Q17 Q28 Q13 *)
+  0xce1a3a73;       (* arm_EOR3 Q19 Q19 Q26 Q14 *)
+  0xce103e52;       (* arm_EOR3 Q18 Q18 Q16 Q15 *)
+  0xfd400150;       (* arm_LDR D16 X10 (Immediate_Offset (word 0)) *)
+  0x6e114235;       (* arm_EXT Q21 Q17 Q17 64 *)
+  0xce114e52;       (* arm_EOR3 Q18 Q18 Q17 Q19 *)
+  0x0ef0e23d;       (* arm_PMULL_VEC Q29 Q17 Q16 64 *)
+  0xce1d5652;       (* arm_EOR3 Q18 Q18 Q29 Q21 *)
+  0x0ef0e251;       (* arm_PMULL_VEC Q17 Q18 Q16 64 *)
+  0x6e124255;       (* arm_EXT Q21 Q18 Q18 64 *)
+  0xce115673;       (* arm_EOR3 Q19 Q19 Q17 Q21 *)
+  0x4e0c0273;       (* arm_TBL Q19 [Q19] Q12 128 *)
+  0x4c007073;       (* arm_STR Q19 X3 No_Offset *)
+  0x17fffdd0        (* arm_B (word 268433216) *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -7349,13 +7427,14 @@ let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
-           read PC s = word (pc + 0x191c) /\
+           read PC s = word (pc + 0x1944) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
            read X6 s = htable_p /\
            read X10 s = mod_p /\
            read X16 s = ivec_p /\
+           read Q12 s = word 0x000102030405060708090a0b0c0d0e0f /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
            word_xor (read Q0 s) (word_reversefields 8 (EL 14 rk)) =
              word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * g + 2)) rk) /\
@@ -7418,8 +7497,10 @@ let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--80) THEN
   FOLD_Q19_REM4_FAST4 THEN
-  DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (81--84) THEN
+  (*[s121tbl] KEEP Q12 (live tbl index) -> explicit discard = DISCARD_DEAD_REDUCE_SCRATCH minus Q12*)
+  DISCARD_REGS ["Q17"; "Q18"; "Q20"; "Q21"; "Q22"; "Q23"; "Q24"; "Q25"; "Q26";
+     "Q29"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q13"; "Q14"; "Q15"] THEN
+  MAP_EVERY NSTEP_GP (81--83) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -11480,13 +11561,14 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
-  ENSURES_SEQUENCE_TAC `pc + 0x191c`
+  ENSURES_SEQUENCE_TAC `pc + 0x1944`
    `\s. read X0 s = word_add in_p (word (128 * 0)) /\
            read X2 s = word_add out_p (word (128 * 0)) /\
            read X3 s = tag_p /\
            read X6 s = htable_p /\
            read X10 s = word_add stackpointer (word 0x40) /\
            read X16 s = ivec_p /\
+           read Q12 s = word 0x000102030405060708090a0b0c0d0e0f /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s = word 0xc200000000000000 /\
            word_xor (read Q0 s) (word_reversefields 8 (EL 14 rk)) =
              word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk) /\
@@ -11524,17 +11606,17 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
     NSTEP 37 THEN NSTEP 38 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_TAKEN (ASSUME `nb = 4`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (39--153) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s153) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (39--163) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s163) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q1 s153) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q1 s163) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 3)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q2 s153) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q2 s163) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 4)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q3 s153) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q3 s163) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 5)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
