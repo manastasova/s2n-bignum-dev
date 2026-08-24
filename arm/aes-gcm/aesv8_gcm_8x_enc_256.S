@@ -110,94 +110,15 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 	rev64	v19.16b, v19.16b
 	add	v30.4s, v30.4s, v31.4s		//CTR block 8 (advance for tail)
 
+	cmp	x9, #32				//[s112 fast2] nb==2 (32B)? -> dedicated 2-block fast path (skip wasted blocks 2-7)
+	b.eq	L256_enc_fast2
 	cmp	x9, #64				//[s121 fast4] nb==4 (64B)? -> dedicated 4-block fast path (skip wasted blocks 4-7)
 	b.eq	L256_enc_fast4
 
-
-	// [FL] phase 0: blocks 01 run all 14 rounds
-	//      exit label available here for nb==2
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 0
 	aese	v1.16b, v26.16b
 	aesmc	v1.16b, v1.16b			//AES block 1 - round 0
-
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 1
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 1
-
-	ldp	q28, q26, [x11, #32]			//load rk2, rk3
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 2
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 2
-
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 3
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 3
-
-	ldp	q27, q28, [x11, #64]			//load rk4, rk5
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 4
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 4
-
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 5
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 5
-
-	ldp	q26, q27, [x11, #96]			//load rk6, rk7
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 6
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 6
-
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 7
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 7
-
-	ldp	q28, q26, [x11, #128]			//load rk8, rk9
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 8
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 8
-
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 9
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 9
-
-	ldp	q27, q28, [x11, #160]			//load rk10, rk11
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 10
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 10
-
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 11
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 11
-
-	ldp	q26, q27, [x11, #192]			//load rk12, rk13
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//AES block 0 - round 12
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//AES block 1 - round 12
-
-	ldr	q28, [x11, #224]				//load rk14
-	aese	v0.16b, v27.16b			//AES block 0 - round 13
-	aese	v1.16b, v27.16b			//AES block 1 - round 13
-
-L256_enc_fl_phase0_end:
-	cmp	x9, #32			//[FL] nb==2 (32B)? blocks 0,1 done -> exit the braid here
-	b.eq	L256_enc_fast2_stub
-
-	// [FL] phase 1: blocks 234567 run all 14 rounds
-	//      exit label available here for nb==8
-	ldp	q26, q27, [x11, #0]			//reload rk0, rk1
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 0
 	aese	v3.16b, v26.16b
@@ -210,7 +131,12 @@ L256_enc_fl_phase0_end:
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 0
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 0
+	ldp	q28, q26, [x11, #32]			//load rk2, rk3
 
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 1
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 1
 	aese	v2.16b, v27.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 1
 	aese	v3.16b, v27.16b
@@ -224,7 +150,10 @@ L256_enc_fl_phase0_end:
 	aese	v7.16b, v27.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 1
 
-	ldp	q28, q26, [x11, #32]			//load rk2, rk3
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 2
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 2
 	aese	v2.16b, v28.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 2
 	aese	v3.16b, v28.16b
@@ -237,7 +166,12 @@ L256_enc_fl_phase0_end:
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 2
 	aese	v7.16b, v28.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 2
+	ldp	q27, q28, [x11, #64]			//load rk4, rk5
 
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 3
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 3
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 3
 	aese	v3.16b, v26.16b
@@ -251,7 +185,10 @@ L256_enc_fl_phase0_end:
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 3
 
-	ldp	q27, q28, [x11, #64]			//load rk4, rk5
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 4
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 4
 	aese	v2.16b, v27.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 4
 	aese	v3.16b, v27.16b
@@ -264,7 +201,12 @@ L256_enc_fl_phase0_end:
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 4
 	aese	v7.16b, v27.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 4
+	ldp	q26, q27, [x11, #96]			//load rk6, rk7
 
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 5
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 5
 	aese	v2.16b, v28.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 5
 	aese	v3.16b, v28.16b
@@ -278,7 +220,10 @@ L256_enc_fl_phase0_end:
 	aese	v7.16b, v28.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 5
 
-	ldp	q26, q27, [x11, #96]			//load rk6, rk7
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 6
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 6
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 6
 	aese	v3.16b, v26.16b
@@ -291,7 +236,12 @@ L256_enc_fl_phase0_end:
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 6
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 6
+	ldp	q28, q26, [x11, #128]			//load rk8, rk9
 
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 7
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 7
 	aese	v2.16b, v27.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 7
 	aese	v3.16b, v27.16b
@@ -305,7 +255,10 @@ L256_enc_fl_phase0_end:
 	aese	v7.16b, v27.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 7
 
-	ldp	q28, q26, [x11, #128]			//load rk8, rk9
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 8
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 8
 	aese	v2.16b, v28.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 8
 	aese	v3.16b, v28.16b
@@ -318,7 +271,12 @@ L256_enc_fl_phase0_end:
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 8
 	aese	v7.16b, v28.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 8
+	ldp	q27, q28, [x11, #160]			//load rk10, rk11
 
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 9
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 9
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 9
 	aese	v3.16b, v26.16b
@@ -332,7 +290,10 @@ L256_enc_fl_phase0_end:
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 9
 
-	ldp	q27, q28, [x11, #160]			//load rk10, rk11
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 10
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 10
 	aese	v2.16b, v27.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 10
 	aese	v3.16b, v27.16b
@@ -345,7 +306,12 @@ L256_enc_fl_phase0_end:
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 10
 	aese	v7.16b, v27.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 10
+	ldp	q26, q27, [x11, #192]			//load rk12, rk13
 
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 11
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 11
 	aese	v2.16b, v28.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 11
 	aese	v3.16b, v28.16b
@@ -358,8 +324,12 @@ L256_enc_fl_phase0_end:
 	aesmc	v6.16b, v6.16b			//AES block 6 - round 11
 	aese	v7.16b, v28.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 11
+	ldr	q28, [x11, #224]				//load rk14
 
-	ldp	q26, q27, [x11, #192]			//load rk12, rk13
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//AES block 0 - round 12
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//AES block 1 - round 12
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b			//AES block 2 - round 12
 	aese	v3.16b, v26.16b
@@ -373,15 +343,14 @@ L256_enc_fl_phase0_end:
 	aese	v7.16b, v26.16b
 	aesmc	v7.16b, v7.16b			//AES block 7 - round 12
 
-	ldr	q28, [x11, #224]				//load rk14
+	aese	v0.16b, v27.16b			//AES block 0 - round 13
+	aese	v1.16b, v27.16b			//AES block 1 - round 13
 	aese	v2.16b, v27.16b			//AES block 2 - round 13
 	aese	v3.16b, v27.16b			//AES block 3 - round 13
 	aese	v4.16b, v27.16b			//AES block 4 - round 13
 	aese	v5.16b, v27.16b			//AES block 5 - round 13
 	aese	v6.16b, v27.16b			//AES block 6 - round 13
 	aese	v7.16b, v27.16b			//AES block 7 - round 13
-
-L256_enc_fl_phase1_end:
 
 	add	x4, x0, x1, lsr #3		//end_input_ptr
 	cmp	x0, x5				//check if we have <= 8 blocks
@@ -1913,7 +1882,8 @@ L256_enc_fast2_drain:  //[s116] dedicated g=0 drain, tbl tail-format (index v25 
 	st1	{ v19.16b }, [x3]		//tag store
 	b	L256_enc_epilogue
 
-L256_enc_fast2_stub:  //[FL] keystreams v0,v1 already computed in shared SETUP phase 0
+L256_enc_fast2:  //[s112] nb==2 (32B): 2-block AES (blocks 0,1 only) + rem2 drain. Skips wasted blocks 2-7.
+	// v26=rk0, v27=rk1 already loaded (before the dispatch). v30=base+8, v31=incr, v19=folded tag.
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -1923,7 +1893,68 @@ L256_enc_fast2_stub:  //[FL] keystreams v0,v1 already computed in shared SETUP p
 	movk	x8, #0x0203, lsl #32
 	movk	x8, #0x0001, lsl #48
 	fmov	d25, x7
-	mov	v25.d[1], x8	//rev index (EXPOSED - v25 live in main loop, cannot hoist)
+	mov	v25.d[1], x8	//[s116] rev index in fast2 shadow
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//blk0 r0
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//blk1 r0
+	ldp	q28, q26, [x11, #32]		//rk2, rk3
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r1
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r2 (rk2)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q27, q28, [x11, #64]		//rk4, rk5
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r4 (rk4)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q26, q27, [x11, #96]		//rk6, rk7
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r5 (rk5)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r6 (rk6)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q28, q26, [x11, #128]		//rk8, rk9
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r7 (rk7)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r8 (rk8)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q27, q28, [x11, #160]		//rk10, rk11
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r9 (rk9)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r10 (rk10)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q26, q27, [x11, #192]		//rk12, rk13
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r11 (rk11)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldr	q28, [x11, #224]		//rk14
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r12 (rk12)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
+	aese	v1.16b, v27.16b
 	// v28 = rk14; set up tail-entry state for rem2_drain
 	ldr	q8, [x0], #16			//block1 PT (x0 -> block2 PT)
 	ext	v16.16b, v19.16b, v19.16b, #8	//tag prep
