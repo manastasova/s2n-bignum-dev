@@ -114,6 +114,10 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 	b.eq	L256_enc_fast2
 	cmp	x9, #64				//[s121 fast4] nb==4 (64B)? -> dedicated 4-block fast path (skip wasted blocks 4-7)
 	b.eq	L256_enc_fast4
+	cmp	x9, #16				//[s126 fast1] nb==1 (16B)? -> dedicated 1-block fast path (skip wasted blocks 1-7)
+	b.eq	L256_enc_fast1
+	cmp	x9, #48				//[s126 fast3] nb==3 (48B)? -> dedicated 3-block fast path (skip wasted blocks 3-7)
+	b.eq	L256_enc_fast3
 
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//AES block 0 - round 0
@@ -2165,6 +2169,238 @@ L256_enc_fast4_drain:  //[s121tbl] dedicated fast4 (64B) drain = rem4_drain w/ t
 	ext	v21.16b, v18.16b, v18.16b, #8			//MODULO - other mid alignment
 	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
 	tbl	v19.16b, { v19.16b }, v12.16b	//[s121tbl] ext+rev64 -> tbl (16B reverse)
+	st1	{ v19.16b }, [x3]
+	b	L256_enc_epilogue
+
+L256_enc_fast1:  //[s126] nb==1 (16B): 1-block AES (block 0 only) + single-block drain. Skips wasted blocks 1-7.
+	// v26=rk0, v27=rk1 loaded (before dispatch). v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//blk0 r0 (rk0)
+	ldp	q28, q26, [x11, #32]		//rk2, rk3
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r1 (rk1)
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r2 (rk2)
+	ldp	q27, q28, [x11, #64]		//rk4, rk5
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r4 (rk4)
+	ldp	q26, q27, [x11, #96]		//rk6, rk7
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r5 (rk5)
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r6 (rk6)
+	ldp	q28, q26, [x11, #128]		//rk8, rk9
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r7 (rk7)
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r8 (rk8)
+	ldp	q27, q28, [x11, #160]		//rk10, rk11
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r9 (rk9)
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r10 (rk10)
+	ldp	q26, q27, [x11, #192]		//rk12, rk13
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r11 (rk11)
+	ldr	q28, [x11, #224]		//rk14
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r12 (rk12)
+	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
+	// v28 = rk14; set up single-block drain entry state
+	ldr	q8, [x0]			//block0 PT
+	ext	v16.16b, v19.16b, v19.16b, #8	//partial tag
+	mov	v29.16b, v28.16b		//v29 = rk14
+	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block0 ct)
+L256_enc_fast1_drain:  //[s126] single-block GHASH + MODULO (g=0, no accumulators)
+	// 7 subs roll v30 base+8 (=ctr(8g+10)) -> base+1 = ctr(nb+2), interleaved w/ loads
+	sub	v30.4s, v30.4s, v31.4s
+	ldr	q20, [x6]			//h1l | h1h
+	sub	v30.4s, v30.4s, v31.4s
+	ldr	q21, [x6, #16]			//h2k | h1k
+	sub	v30.4s, v30.4s, v31.4s
+	rev64	v8.16b, v9.16b			//GHASH block
+	sub	v30.4s, v30.4s, v31.4s
+	eor	v8.16b, v8.16b, v16.16b		//feed in tag
+	sub	v30.4s, v30.4s, v31.4s
+	st1	{ v9.16b}, [x2]			//store all 16B
+	sub	v30.4s, v30.4s, v31.4s
+	ins	v16.d[0], v8.d[1]		//mid prep
+	sub	v30.4s, v30.4s, v31.4s		//7th sub -> base+1
+	pmull2	v17.1q, v8.2d, v20.2d		//high -> v17
+	pmull	v19.1q, v8.1d, v20.1d		//low -> v19
+	eor	v16.8b, v16.8b, v8.8b		//mid
+	pmull	v18.1q, v16.1d, v21.1d		//mid -> v18 (h1k low lane)
+	rev32	v30.16b, v30.16b
+	str	q30, [x16]			//store the updated counter (base+1 = ctr(nb+2))
+	ldr	d16, [x10]			//MODULO - load modulo constant
+	ext	v21.16b, v17.16b, v17.16b, #8	//MODULO - other top alignment
+	.inst	0xce114e52	//eor3 v18,v18,v17,v19		//MODULO - karatsuba tidy up
+	pmull	v29.1q, v17.1d, v16.1d		//MODULO - top 64b align with mid
+	.inst	0xce1d5652	//eor3 v18,v18,v29,v21		//MODULO - fold into mid
+	pmull	v17.1q, v18.1d, v16.1d		//MODULO - mid 64b align with low
+	ext	v21.16b, v18.16b, v18.16b, #8	//MODULO - other mid alignment
+	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
+	ext	v19.16b, v19.16b, v19.16b, #8
+	rev64	v19.16b, v19.16b
+	st1	{ v19.16b }, [x3]
+	b	L256_enc_epilogue
+
+L256_enc_fast3:  //[s126] nb==3 (48B): 3-block AES (blocks 0-2 only) + 3-block drain. Skips wasted blocks 3-7.
+	// v26=rk0, v27=rk1 loaded. v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//blk0 r0
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//blk1 r0
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b			//blk2 r0
+	ldp	q28, q26, [x11, #32]		//rk2, rk3
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r1 (rk1)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r2 (rk2)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	ldp	q27, q28, [x11, #64]		//rk4, rk5
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r4 (rk4)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	ldp	q26, q27, [x11, #96]		//rk6, rk7
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r5 (rk5)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r6 (rk6)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	ldp	q28, q26, [x11, #128]		//rk8, rk9
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r7 (rk7)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r8 (rk8)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	ldp	q27, q28, [x11, #160]		//rk10, rk11
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r9 (rk9)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r10 (rk10)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	ldp	q26, q27, [x11, #192]		//rk12, rk13
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r11 (rk11)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	ldr	q28, [x11, #224]		//rk14
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r12 (rk12)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
+	aese	v1.16b, v27.16b
+	aese	v2.16b, v27.16b
+	// v28 = rk14; set up 3-block drain entry state (v1/v2 = blk1/blk2 keystreams)
+	ldr	q8, [x0], #16			//block0 PT (x0 -> block1 PT)
+	ext	v16.16b, v19.16b, v19.16b, #8	//partial tag
+	mov	v29.16b, v28.16b		//v29 = rk14
+	sub	v30.4s, v30.4s, v31.4s		//5 subs roll base+8 (=ctr(8g+10)) -> base+3 = ctr(nb+2)
+	sub	v30.4s, v30.4s, v31.4s
+	sub	v30.4s, v30.4s, v31.4s
+	sub	v30.4s, v30.4s, v31.4s
+	sub	v30.4s, v30.4s, v31.4s
+	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block0 ct)
+L256_enc_fast3_drain:  //[s126] 3-block GHASH: blk0(A,H^3) feed tag, blk1(B,H^2) fuse, blk2(lone,H^1)+MODULO
+	// --- block0 (A): H^3, feed tag, products -> v13(hi)/v14(lo)/v15(mid) ---
+	st1	{ v9.16b}, [x2], #16		//block0 ct
+	ldr	q23, [x6, #48]			//h3l | h3h
+	rev64	v8.16b, v9.16b
+	eor	v8.16b, v8.16b, v16.16b		//feed in partial tag
+	ldr	q24, [x6, #64]			//h4k | h3k (h3k = low lane)
+	ext	v27.16b, v8.16b, v8.16b, #8
+	pmull2	v13.1q, v8.2d, v23.2d		//block0 hi -> v13 (H^3)
+	eor	v27.8b, v27.8b, v8.8b
+	ldr	q9, [x0], #16			//block1 PT
+	pmull	v14.1q, v8.1d, v23.1d		//block0 lo -> v14
+	pmull	v15.1q, v27.1d, v24.1d		//block0 mid -> v15 (h3k, v24 low lane, no ext)
+	.inst	0xce017529	//eor3 v9,v9,v1,v29	//block1 ct
+	// --- block1 (B): H^2, products, fuse pair into v17/18/19 (first accum: plain eor) ---
+	st1	{ v9.16b}, [x2], #16		//block1 ct
+	ldr	q22, [x6, #32]			//h2l | h2h
+	rev64	v8.16b, v9.16b
+	ldr	q9, [x0], #16			//block2 PT
+	ext	v27.16b, v8.16b, v8.16b, #8
+	pmull2	v28.1q, v8.2d, v22.2d		//block1 hi (H^2)
+	.inst	0xce027529	//eor3 v9,v9,v2,v29	//block2 ct
+	eor	v27.8b, v27.8b, v8.8b
+	pmull	v26.1q, v8.1d, v22.1d		//block1 lo
+	ldr	q21, [x6, #16]			//h2k | h1k
+	ext	v10.16b, v21.16b, v21.16b, #8	//h2k hi->lo lane
+	pmull	v27.1q, v27.1d, v10.1d		//block1 mid (h2k)
+	eor	v17.16b, v28.16b, v13.16b	//fused hi = blk1 ^ blk0
+	eor	v19.16b, v26.16b, v14.16b	//fused lo
+	eor	v18.16b, v27.16b, v15.16b	//fused mid
+	// --- block2 (lone): H^1, final products + accumulate + MODULO ---
+	ldr	q20, [x6]			//h1l | h1h
+	rev64	v8.16b, v9.16b
+	rev32	v30.16b, v30.16b
+	str	q30, [x16]			//store the updated counter
+	st1	{ v9.16b}, [x2]			//block2 ct (16B, no inc)
+	ins	v16.d[0], v8.d[1]		//final mid prep
+	pmull2	v28.1q, v8.2d, v20.2d		//block2 hi (H^1)
+	pmull	v26.1q, v8.1d, v20.1d		//block2 lo
+	eor	v16.8b, v16.8b, v8.8b		//final mid
+	pmull	v16.1q, v16.1d, v21.1d		//final mid (h1k low lane)
+	eor	v17.16b, v17.16b, v28.16b	//accumulate hi
+	eor	v19.16b, v19.16b, v26.16b	//accumulate lo
+	eor	v18.16b, v18.16b, v16.16b	//accumulate mid
+	ldr	d16, [x10]			//MODULO - load modulo constant
+	ext	v21.16b, v17.16b, v17.16b, #8	//MODULO - other top alignment
+	.inst	0xce114e52	//eor3 v18,v18,v17,v19		//MODULO - karatsuba tidy up
+	pmull	v29.1q, v17.1d, v16.1d		//MODULO - top 64b align with mid
+	.inst	0xce1d5652	//eor3 v18,v18,v29,v21		//MODULO - fold into mid
+	pmull	v17.1q, v18.1d, v16.1d		//MODULO - mid 64b align with low
+	ext	v21.16b, v18.16b, v18.16b, #8	//MODULO - other mid alignment
+	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
+	ext	v19.16b, v19.16b, v19.16b, #8
+	rev64	v19.16b, v19.16b
 	st1	{ v19.16b }, [x3]
 	b	L256_enc_epilogue
 
