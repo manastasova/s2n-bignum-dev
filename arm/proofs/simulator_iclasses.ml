@@ -575,9 +575,11 @@ let check_insns () =
     "0x0011001x0xxxxx0100xxxxxxxxxxxx";
 
     (*** st1 (3 registers, Post-immediate offset) 128-bit ***)
+    (*** modeled (arm_ldstp_3q); cosim-tested via cosimulate_ldst_1_3reg ***)
     "01001100100111110110xxxxxxxxxxxx";
 
     (*** st1 (3 registers, no offset) 128-bit ***)
+    (*** modeled (arm_ldstp_3q); cosim-tested via cosimulate_ldst_1_3reg ***)
     "01001100000000000110xxxxxxxxxxxx";
 
     (*** stp ***)
