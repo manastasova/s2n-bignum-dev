@@ -292,6 +292,7 @@ for arch in ["arm", "x86"]:
 onlyInArm = [
   "aes_xts_decrypt",
   "aes_xts_encrypt",
+  "aesv8_gcm_8x_enc_256",
   "bignum_copy_row_from_table_8n",
   "bignum_copy_row_from_table_16",
   "bignum_copy_row_from_table_32",
@@ -417,7 +418,8 @@ for archname in ["arm","x86"]:
     arg_elem_bytesizes = dict()
     isPtr = lambda fullty, elemty: fullty.startswith(elemty + "*")
     isPtrOrArray = lambda fullty, elemty: fullty.startswith(elemty + "[") or fullty.startswith(elemty + "*")
-    for argname, argtype, _ in fnsig.args:
+    for argname_decl, argtype, _ in fnsig.args:
+      argname = argname_decl.lower()
       if isPtrOrArray(argtype, "int64_t") or isPtrOrArray(argtype, "uint64_t"):
         arg_elem_bytesizes[argname] = 8
       elif isPtrOrArray(argtype, "int32_t") or isPtrOrArray(argtype, "uint32_t"):

@@ -22,10 +22,10 @@
 // masks len to whole blocks).
 //
 //    extern size_t aesv8_gcm_8x_enc_256(const uint8_t *in, size_t bit_len,
-//                                          uint8_t *out, uint8_t *Xi,
-//                                          uint8_t ivec[16],
+//                                          uint8_t *out, uint8_t Xi[static 16],
+//                                          uint8_t ivec[static 16],
 //                                          const s2n_bignum_AES_KEY *key,
-//                                          const u128 Htable[16]);
+//                                          const uint64_t Htable[static 32]);
 //
 // Standard ARM ABI: X0 = in, X1 = bit_len, X2 = out, X3 = Xi, X4 = ivec,
 //                   X5 = key, X6 = Htable, result in X0
