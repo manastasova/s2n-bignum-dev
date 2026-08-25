@@ -16805,9 +16805,15 @@ static int gcm_kernel_difftest(const char *name, gcm_enc_kernel_fn kern)
   uint8_t key[32], ivec[16], xi_in[16];
   s2n_bignum_AES_KEY ek;
   size_t len;
-  // Fixed sweep over every benchmarked length, then random block counts 1..64
-  // (1..8 hit the dedicated small-size paths; >8 exercise the main loop).
-  uint64_t ncases = GCM_BENCH_NLENS + (uint64_t)tests;
+  // Deterministic coverage, then random on top:
+  //   (a) every length benchmarks/benchmark.c measures;
+  //   (b) EXHAUSTIVELY every block count 1..64. The kernel selects its path from
+  //       the exact block count -- g = (nb-1)/8 groups and rem = (nb-1)%8 + 1 --
+  //       so 1..64 covers every (g,rem) pair for g = 0..7, which is exactly the
+  //       case structure the proof is split along. Random draws alone left ~28 of
+  //       the 64 block counts untested on any given run.
+  //   (c) extra random block counts for good measure.
+  uint64_t ncases = GCM_BENCH_NLENS + 64 + (uint64_t)tests;
 
   for (t = 0; t < ncases; ++t)
    { random_bytes(key, 32);
@@ -16815,6 +16821,7 @@ static int gcm_kernel_difftest(const char *name, gcm_enc_kernel_fn kern)
      random_bytes(xi_in, 16);
 
      if (t < GCM_BENCH_NLENS) len = gcm_bench_lens[t];
+     else if (t < GCM_BENCH_NLENS + 64) len = (t - GCM_BENCH_NLENS + 1) * 16;
      else { size_t blocks = 1 + (rand() % 64); len = blocks * 16; }
 
      random_bytes(bb1, len);
