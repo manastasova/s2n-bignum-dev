@@ -1176,6 +1176,35 @@ void call_aes_xts_decrypt_256(void) {}
 void call_aes_xts_decrypt_512(void) {}
 
 void call_aesv8_gcm_8x_enc_256_16(void) {}
+
+// aws-lc ORIGINAL 8x AES-256-GCM enc kernel (unroll8-enc-256.pl) -- reference only, see benchmarks/reference/
+void call_aesv8_gcm_8x_enc_256_org_16(void) {}
+void call_aesv8_gcm_8x_enc_256_org_32(void) {}
+void call_aesv8_gcm_8x_enc_256_org_48(void) {}
+void call_aesv8_gcm_8x_enc_256_org_64(void) {}
+void call_aesv8_gcm_8x_enc_256_org_80(void) {}
+void call_aesv8_gcm_8x_enc_256_org_96(void) {}
+void call_aesv8_gcm_8x_enc_256_org_112(void) {}
+void call_aesv8_gcm_8x_enc_256_org_128(void) {}
+void call_aesv8_gcm_8x_enc_256_org_192(void) {}
+void call_aesv8_gcm_8x_enc_256_org_256(void) {}
+void call_aesv8_gcm_8x_enc_256_org_512(void) {}
+void call_aesv8_gcm_8x_enc_256_org_1024(void) {}
+void call_aesv8_gcm_8x_enc_256_org_4096(void) {}
+// aws-lc 4x AES-GCM enc kernel (aesv8-gcm-armv8.pl) -- reference only, see benchmarks/reference/
+void call_aes_gcm_enc_kernel_4x_16(void) {}
+void call_aes_gcm_enc_kernel_4x_32(void) {}
+void call_aes_gcm_enc_kernel_4x_48(void) {}
+void call_aes_gcm_enc_kernel_4x_64(void) {}
+void call_aes_gcm_enc_kernel_4x_80(void) {}
+void call_aes_gcm_enc_kernel_4x_96(void) {}
+void call_aes_gcm_enc_kernel_4x_112(void) {}
+void call_aes_gcm_enc_kernel_4x_128(void) {}
+void call_aes_gcm_enc_kernel_4x_192(void) {}
+void call_aes_gcm_enc_kernel_4x_256(void) {}
+void call_aes_gcm_enc_kernel_4x_512(void) {}
+void call_aes_gcm_enc_kernel_4x_1024(void) {}
+void call_aes_gcm_enc_kernel_4x_4096(void) {}
 void call_aesv8_gcm_8x_enc_256_32(void) {}
 void call_aesv8_gcm_8x_enc_256_48(void) {}
 void call_aesv8_gcm_8x_enc_256_64(void) {}
@@ -1308,6 +1337,68 @@ void call_aesv8_gcm_8x_enc_256_256(void)  { repeat(aesv8_gcm_8x_enc_256_helper(2
 void call_aesv8_gcm_8x_enc_256_512(void)  { repeat(aesv8_gcm_8x_enc_256_helper(512)); }
 void call_aesv8_gcm_8x_enc_256_1024(void) { repeatfewer(10,aesv8_gcm_8x_enc_256_helper(1024)); }
 void call_aesv8_gcm_8x_enc_256_4096(void) { repeatfewer(10,aesv8_gcm_8x_enc_256_helper(4096)); }
+
+// ---- reference kernels from aws-lc, for head-to-head comparison at identical
+// sizes. Same buffers, same key/Htable/Xi/ivec setup, same repeat harness as
+// aesv8_gcm_8x_enc_256 above, so only the kernel differs.
+extern size_t aesv8_gcm_8x_enc_256_org(const uint8_t *in, size_t bit_len, uint8_t *out,
+        uint8_t *Xi, uint8_t *ivec, const s2n_bignum_AES_KEY *key,
+        const uint64_t *Htable);
+extern void aes_gcm_enc_kernel_4x(const uint8_t *in, size_t bit_len, uint8_t *out,
+        uint8_t *Xi, uint8_t *ivec, const s2n_bignum_AES_KEY *key,
+        const uint64_t *Htable);
+
+static void aesv8_gcm_8x_enc_256_org_helper(size_t len)
+{
+  int j;
+  for (j = 0; j < 30; ++j) aes_key1.rd_key[j] = b1[j % BUFFERSIZE];
+  aes_key1.rounds = 14;  // AES-256
+  for (j = 0; j < 32; ++j) aes_gcm_htable[j] = b2[j % BUFFERSIZE];
+  for (j = 0; j < 16; ++j) { aes_gcm_xi[j] = (uint8_t)(b3[j] & 0xFF);
+                             aes_gcm_ivec[j] = (uint8_t)(b4[j] & 0xFF); }
+  aesv8_gcm_8x_enc_256_org((uint8_t*)b0, len * 8, (uint8_t*)b1, aes_gcm_xi,
+                          aes_gcm_ivec, &aes_key1, aes_gcm_htable);
+}
+
+void call_aesv8_gcm_8x_enc_256_org_16(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(16)); }
+void call_aesv8_gcm_8x_enc_256_org_32(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(32)); }
+void call_aesv8_gcm_8x_enc_256_org_48(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(48)); }
+void call_aesv8_gcm_8x_enc_256_org_64(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(64)); }
+void call_aesv8_gcm_8x_enc_256_org_80(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(80)); }
+void call_aesv8_gcm_8x_enc_256_org_96(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(96)); }
+void call_aesv8_gcm_8x_enc_256_org_112(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(112)); }
+void call_aesv8_gcm_8x_enc_256_org_128(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(128)); }
+void call_aesv8_gcm_8x_enc_256_org_192(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(192)); }
+void call_aesv8_gcm_8x_enc_256_org_256(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(256)); }
+void call_aesv8_gcm_8x_enc_256_org_512(void) { repeat(aesv8_gcm_8x_enc_256_org_helper(512)); }
+void call_aesv8_gcm_8x_enc_256_org_1024(void) { repeatfewer(10,aesv8_gcm_8x_enc_256_org_helper(1024)); }
+void call_aesv8_gcm_8x_enc_256_org_4096(void) { repeatfewer(10,aesv8_gcm_8x_enc_256_org_helper(4096)); }
+
+static void aes_gcm_enc_kernel_4x_helper(size_t len)
+{
+  int j;
+  for (j = 0; j < 30; ++j) aes_key1.rd_key[j] = b1[j % BUFFERSIZE];
+  aes_key1.rounds = 14;  // AES-256
+  for (j = 0; j < 32; ++j) aes_gcm_htable[j] = b2[j % BUFFERSIZE];
+  for (j = 0; j < 16; ++j) { aes_gcm_xi[j] = (uint8_t)(b3[j] & 0xFF);
+                             aes_gcm_ivec[j] = (uint8_t)(b4[j] & 0xFF); }
+  aes_gcm_enc_kernel_4x((uint8_t*)b0, len * 8, (uint8_t*)b1, aes_gcm_xi,
+                          aes_gcm_ivec, &aes_key1, aes_gcm_htable);
+}
+
+void call_aes_gcm_enc_kernel_4x_16(void) { repeat(aes_gcm_enc_kernel_4x_helper(16)); }
+void call_aes_gcm_enc_kernel_4x_32(void) { repeat(aes_gcm_enc_kernel_4x_helper(32)); }
+void call_aes_gcm_enc_kernel_4x_48(void) { repeat(aes_gcm_enc_kernel_4x_helper(48)); }
+void call_aes_gcm_enc_kernel_4x_64(void) { repeat(aes_gcm_enc_kernel_4x_helper(64)); }
+void call_aes_gcm_enc_kernel_4x_80(void) { repeat(aes_gcm_enc_kernel_4x_helper(80)); }
+void call_aes_gcm_enc_kernel_4x_96(void) { repeat(aes_gcm_enc_kernel_4x_helper(96)); }
+void call_aes_gcm_enc_kernel_4x_112(void) { repeat(aes_gcm_enc_kernel_4x_helper(112)); }
+void call_aes_gcm_enc_kernel_4x_128(void) { repeat(aes_gcm_enc_kernel_4x_helper(128)); }
+void call_aes_gcm_enc_kernel_4x_192(void) { repeat(aes_gcm_enc_kernel_4x_helper(192)); }
+void call_aes_gcm_enc_kernel_4x_256(void) { repeat(aes_gcm_enc_kernel_4x_helper(256)); }
+void call_aes_gcm_enc_kernel_4x_512(void) { repeat(aes_gcm_enc_kernel_4x_helper(512)); }
+void call_aes_gcm_enc_kernel_4x_1024(void) { repeatfewer(10,aes_gcm_enc_kernel_4x_helper(1024)); }
+void call_aes_gcm_enc_kernel_4x_4096(void) { repeatfewer(10,aes_gcm_enc_kernel_4x_helper(4096)); }
 
 #endif
 
@@ -1810,6 +1901,33 @@ int main(int argc, char *argv[])
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (512 bytes)",call_aesv8_gcm_8x_enc_256_512);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (1024 bytes)",call_aesv8_gcm_8x_enc_256_1024);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256 (4096 bytes)",call_aesv8_gcm_8x_enc_256_4096);
+
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (16 bytes)",call_aesv8_gcm_8x_enc_256_org_16);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (32 bytes)",call_aesv8_gcm_8x_enc_256_org_32);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (48 bytes)",call_aesv8_gcm_8x_enc_256_org_48);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (64 bytes)",call_aesv8_gcm_8x_enc_256_org_64);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (80 bytes)",call_aesv8_gcm_8x_enc_256_org_80);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (96 bytes)",call_aesv8_gcm_8x_enc_256_org_96);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (112 bytes)",call_aesv8_gcm_8x_enc_256_org_112);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (128 bytes)",call_aesv8_gcm_8x_enc_256_org_128);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (192 bytes)",call_aesv8_gcm_8x_enc_256_org_192);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (256 bytes)",call_aesv8_gcm_8x_enc_256_org_256);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (512 bytes)",call_aesv8_gcm_8x_enc_256_org_512);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (1024 bytes)",call_aesv8_gcm_8x_enc_256_org_1024);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_org (4096 bytes)",call_aesv8_gcm_8x_enc_256_org_4096);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (16 bytes)",call_aes_gcm_enc_kernel_4x_16);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (32 bytes)",call_aes_gcm_enc_kernel_4x_32);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (48 bytes)",call_aes_gcm_enc_kernel_4x_48);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (64 bytes)",call_aes_gcm_enc_kernel_4x_64);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (80 bytes)",call_aes_gcm_enc_kernel_4x_80);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (96 bytes)",call_aes_gcm_enc_kernel_4x_96);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (112 bytes)",call_aes_gcm_enc_kernel_4x_112);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (128 bytes)",call_aes_gcm_enc_kernel_4x_128);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (192 bytes)",call_aes_gcm_enc_kernel_4x_192);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (256 bytes)",call_aes_gcm_enc_kernel_4x_256);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (512 bytes)",call_aes_gcm_enc_kernel_4x_512);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (1024 bytes)",call_aes_gcm_enc_kernel_4x_1024);
+  timingtest(aes&&sha3,"aes_gcm_enc_kernel_4x (4096 bytes)",call_aes_gcm_enc_kernel_4x_4096);
 
   // Summarize performance in arithmetic and geometric means
 

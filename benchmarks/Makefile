@@ -28,8 +28,16 @@ endif
 
 # Benchmarking progfram
 
-benchmark: benchmark.c ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a; $(CC) -O3 -o benchmark benchmark.c -L../$(ARCH) -ls2nbignum -lm
+# Reference kernels extracted from aws-lc, for head-to-head comparison only.
+# They are NOT part of libs2nbignum.a and NOT covered by any proof; they are
+# linked into the benchmark binary alone. ARM only.
+REF_SRC = $(wildcard reference/*.S)
+REF_OBJ = $(REF_SRC:.S=.o)
+
+reference/%.o: reference/%.S ; $(CC) -c -o $@ $<
+
+benchmark: benchmark.c ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a $(REF_OBJ); $(CC) -O3 -o benchmark benchmark.c $(REF_OBJ) -L../$(ARCH) -ls2nbignum -lm
 
 go: benchmark ; ./benchmark
 
-clean: ; rm -f benchmark
+clean: ; rm -f benchmark $(REF_OBJ)
