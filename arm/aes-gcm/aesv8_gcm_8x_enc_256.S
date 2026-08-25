@@ -2179,6 +2179,16 @@ L256_enc_fast4_drain:  //[s121tbl] dedicated fast4 (64B) drain = rem4_drain w/ t
 	b	L256_enc_epilogue
 
 L256_enc_fast1:  //[s126] nb==1 (16B): 1-block AES (block 0 only) + single-block drain. Skips wasted blocks 1-7.
+	movz	x7, #0x0e0f
+	movk	x7, #0x0c0d, lsl #16
+	movk	x7, #0x0a0b, lsl #32
+	movk	x7, #0x0809, lsl #48
+	movz	x8, #0x0607
+	movk	x8, #0x0405, lsl #16
+	movk	x8, #0x0203, lsl #32
+	movk	x8, #0x0001, lsl #48
+	fmov	d25, x7
+	mov	v25.d[1], x8	//[s130 tbl] rev index in AES shadow
 	// v26=rk0, v27=rk1 loaded (before dispatch). v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0 (rk0)
@@ -2248,12 +2258,21 @@ L256_enc_fast1_drain:  //[s126] single-block GHASH + MODULO (g=0, no accumulator
 	pmull	v17.1q, v18.1d, v16.1d		//MODULO - mid 64b align with low
 	ext	v21.16b, v18.16b, v18.16b, #8	//MODULO - other mid alignment
 	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
-	ext	v19.16b, v19.16b, v19.16b, #8
-	rev64	v19.16b, v19.16b
+	tbl	v19.16b, {v19.16b}, v25.16b	//[s130 tbl] ext+rev64 -> tbl (16B reverse)
 	st1	{ v19.16b }, [x3]
 	b	L256_enc_epilogue
 
 L256_enc_fast3:  //[s126] nb==3 (48B): 3-block AES (blocks 0-2 only) + 3-block drain. Skips wasted blocks 3-7.
+	movz	x7, #0x0e0f
+	movk	x7, #0x0c0d, lsl #16
+	movk	x7, #0x0a0b, lsl #32
+	movk	x7, #0x0809, lsl #48
+	movz	x8, #0x0607
+	movk	x8, #0x0405, lsl #16
+	movk	x8, #0x0203, lsl #32
+	movk	x8, #0x0001, lsl #48
+	fmov	d25, x7
+	mov	v25.d[1], x8	//[s130 tbl] rev index in AES shadow
 	// v26=rk0, v27=rk1 loaded. v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
@@ -2405,8 +2424,7 @@ L256_enc_fast3_drain:  //[s126] 3-block GHASH: blk0(A,H^3) feed tag, blk1(B,H^2)
 	pmull	v17.1q, v18.1d, v16.1d		//MODULO - mid 64b align with low
 	ext	v21.16b, v18.16b, v18.16b, #8	//MODULO - other mid alignment
 	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
-	ext	v19.16b, v19.16b, v19.16b, #8
-	rev64	v19.16b, v19.16b
+	tbl	v19.16b, {v19.16b}, v25.16b	//[s130 tbl] ext+rev64 -> tbl (16B reverse)
 	st1	{ v19.16b }, [x3]
 	b	L256_enc_epilogue
 
