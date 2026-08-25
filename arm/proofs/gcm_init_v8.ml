@@ -35,30 +35,27 @@ needs "common/polyval_ghash.ml";;
 (* ------------------------------------------------------------------------- *)
 (* The machine code.                                                          *)
 (*                                                                            *)
-(* Byte list taken from `objdump -d arm/aes_gcm/gcm_init_v8.o`.  NOTE:        *)
-(* print_literal_from_elf / a full-object ARM_MK_EXEC_RULE cannot be used     *)
-(* yet: a full decode audit (this session) found FOUR distinct undecodable    *)
-(* opcodes that arm/proofs/decode.ml does not model, all deferred to Phase 3: *)
+(* Byte list taken from `objdump -d arm/aes_gcm/gcm_init_v8.o` (objdump       *)
+(* rather than print_literal_from_elf, which decodes and, pre-Phase-3, died   *)
+(* on the four opcodes below).  The session-001 decode audit found FOUR       *)
+(* distinct undecodable opcodes; Phase 3 has since modelled all of them       *)
+(* (arm/proofs/instruction.ml + decode.ml), so a full-object ARM_MK_EXEC_RULE *)
+(* now succeeds (see GCM_INIT_V8_EXEC below).  The four were:                  *)
 (*                                                                            *)
 (*   4e0c0631  dup v17.4s, v17.s[1]           @ 0x014  (step 6)   DUP element *)
 (*   4c9f6c17  st1 {v23.2d-v25.2d},[x0],#48   @ 0x130  (step 77)  3-reg st1   *)
 (*   4c9f6c1a  st1 {v26.2d-v28.2d},[x0],#48   @ 0x1c8  (step 115) 3-reg st1   *)
 (*   4c006c1d  st1 {v29.2d-v31.2d},[x0]       @ 0x258  (step 151) 3-reg st1   *)
 (*                                                                            *)
-(* The DUP-element gap is NEW (the pre-port audit conflated it with           *)
-(* DUP(general)=arm_DUP_GEN, dup v.4s,w0, which decode.ml:538 DOES model;     *)
-(* dup v.4s,v.s[1] has no decode clause and no arm_DUP element semantics).    *)
-(* The three 3-register stores are opcode field 0b0110 (contiguous LD1/ST1-  *)
-(* multiple); decode.ml models only the 1-register (0b0111) and 2-register    *)
-(* (0b1010) forms.  Contrast the modeled 1-register st1 at 0x040/0x094/0x098: *)
+(* The DUP-element gap was subtle: DUP(element) `dup v.4s,v.s[1]` (opcode     *)
+(* field 0b000001) is a DIFFERENT instruction from DUP(general) `dup v.4s,w0` *)
+(* (0b000011 = arm_DUP_GEN, decode.ml:538, already modelled); Phase 3 added   *)
+(* arm_DUP_ELEM.  The three 3-register stores are opcode field 0b0110         *)
+(* (contiguous LD1/ST1-multiple) -- distinct from the modelled 1-register     *)
+(* (0b0111) and 2-register (0b1010) forms, and from LD3/ST3 (0b0100, which    *)
+(* de-interleaves); Phase 3 added arm_LD1_3/arm_ST1_3.  Contrast the modelled *)
+(* 1-register st1 in the same object:                                         *)
 (*   4c9f7c14  st1 {v20.2d},[x0],#16          @ 0x040  (step 17)  1-reg st1   *)
-(*                                                                            *)
-(* Consequence for the phase graph: block A (twist, 0x000-0x040) contains the *)
-(* DUP at 0x014, so Phases 5/7 (and 8/9/10) are BLOCKED on Phase 3.  Block B  *)
-(* (H^2, 0x044-0x098, steps 18-39) is gap-free, so the Phase 4 reduction-     *)
-(* bridge pilot on block B can proceed before Phase 3 using the exec rule     *)
-(* below.  After Phase 3 lands DUP-element + 3-register st1, everything       *)
-(* switches to a full-object `ARM_MK_EXEC_RULE gcm_init_v8_mc`.               *)
 (* ------------------------------------------------------------------------- *)
 
 let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_init_v8.o"
@@ -223,8 +220,7 @@ let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_in
 ];;
 
 (* ------------------------------------------------------------------------- *)
-(* Length of the machine code, computed directly (ARM_MK_EXEC_RULE on the     *)
-(* full mc would decode the unmodeled 3-register stores and fail).            *)
+(* Length of the machine code (608 bytes = 152 instructions).                 *)
 (* ------------------------------------------------------------------------- *)
 
 let GCM_INIT_V8_MC_LENGTH =
@@ -232,24 +228,16 @@ let GCM_INIT_V8_MC_LENGTH =
   TRANS th1 ((REWRITE_CONV[LENGTH] THENC NUM_REDUCE_CONV) (rhs(concl th1)));;
 
 (* ------------------------------------------------------------------------- *)
-(* Decodable exec rule for block B (H^2), instructions 0x044-0x098 (steps     *)
-(* 18-39, 88 bytes = 22 instrs), extracted as a standalone sub-list so it     *)
-(* decodes despite the unmodeled DUP at 0x014 and the 3-register stores.      *)
-(* Block B is gap-free and is exactly the Phase 4 reduction-bridge pilot      *)
-(* target (its arithmetic core is 0x044-0x084; the two 1-register st1 stores  *)
-(* for slots 1,2 close it at 0x094/0x098).  A block-B lemma takes the twisted *)
-(* H (v20) and the 0xC2 constant (v19) as arbitrary preconditions, so it      *)
-(* needs no execution of block A.  Its "pc" corresponds to original 0x044.    *)
-(*                                                                            *)
-(* NB: this is NOT the "steps 1-76 prefix" the Phase 2 plan anticipated --    *)
-(* that premise was falsified by the DUP-element gap at step 6 (see audit     *)
-(* above); no useful contiguous prefix from function entry exists until       *)
-(* Phase 3 models DUP-element.                                                *)
+(* Execution rule for the full object.  Phase 3 extended the ARM ISA model    *)
+(* (arm/proofs/instruction.ml + decode.ml) with the two primitives the        *)
+(* session-001 decode audit found missing -- DUP(element) at 0x014 and the    *)
+(* contiguous 3-register LD1/ST1 (opcode 0b0110) at 0x130/0x1c8/0x258 -- so   *)
+(* all 152 instructions now decode and ARM_MK_EXEC_RULE succeeds on the whole *)
+(* mc.  (Before Phase 3 only a gap-free block-B sub-list, via                 *)
+(* mk_sublist_of_mc "gcm_init_v8_blockB_mc" ... (68,88), could be built.)      *)
 (* ------------------------------------------------------------------------- *)
 
-let gcm_init_v8_blockB_mc_def,gcm_init_v8_blockB_mc,GCM_INIT_V8_BLOCKB_EXEC =
-  mk_sublist_of_mc "gcm_init_v8_blockB_mc" gcm_init_v8_mc
-    (`68`,`88`) GCM_INIT_V8_MC_LENGTH;;
+let GCM_INIT_V8_EXEC = ARM_MK_EXEC_RULE gcm_init_v8_mc;;
 
 (* ------------------------------------------------------------------------- *)
 (* Correctness (core): from function entry to the ret PC, gcm_init_v8 fills   *)
