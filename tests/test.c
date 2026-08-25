@@ -17038,6 +17038,67 @@ int test_aes_xts_roundtrip(void)
 
 #include "tweetnacl_excerpt.c"
 
+// ****************************************************************************
+// Testing of gcm_init_v8 (GHASH key-table expansion) against the aws-lc
+// gcm_nohw reference. The reference and its test glue live in ref_gcm_nohw.c;
+// the known-answer vectors live in known_value_tests_gcm_init_v8.h.
+// ****************************************************************************
+
+#include "ref_gcm_nohw.c"
+
+int test_gcm_init_v8(void)
+{
+#ifdef __x86_64__
+  return 1;   // gcm_init_v8 is ARM-only
+#else
+  uint64_t t, i;
+  uint64_t H[2];
+  uint64_t Htable[32];
+  uint64_t powers_ref[16];
+  printf("Testing gcm_init_v8 with %d cases\n",tests);
+  for (t = 0; t < tests; ++t)
+   { random_bignum(2,H);                     // random 128-bit GHASH key H
+     memset(Htable,0,sizeof(Htable));
+     gcm_init_v8(Htable,H);                   // implementation under test
+     gcm_init_v8_powers_ref(powers_ref,H);    // aws-lc reference: powers H^1..H^8
+     for (i = 0; i < 8; ++i)
+      { if (Htable[gcm_v8_power_offsets[i]]   != powers_ref[2*i] ||
+            Htable[gcm_v8_power_offsets[i]+1] != powers_ref[2*i+1])
+         { printf("### Disparity: H=0x%016"PRIx64":%016"PRIx64" H^%"PRIu64" = "
+                  "0x%016"PRIx64":%016"PRIx64" not 0x%016"PRIx64":%016"PRIx64"\n",
+                  H[0],H[1],i+1,
+                  Htable[gcm_v8_power_offsets[i]],Htable[gcm_v8_power_offsets[i]+1],
+                  powers_ref[2*i],powers_ref[2*i+1]);
+           return 1;
+         }
+      }
+   }
+  printf("All OK\n");
+  return 0;
+#endif
+}
+
+int test_known_values_gcm_init_v8(void)
+{
+#ifdef __x86_64__
+  return 1;   // gcm_init_v8 is ARM-only
+#else
+  int failures = 0, successes = 0;
+  printf("Testing known value cases for gcm_init_v8\n");
+
+#include "known_value_tests_gcm_init_v8.h"
+
+  if (failures != 0)
+    { printf("Failed %d known value tests, passed %d\n",failures,successes);
+      return failures;
+    }
+  else
+    { printf("Successfully passed %d known value tests\n",successes);
+      return 0;
+    }
+#endif
+}
+
 void tweetnacl_curve25519x25519(uint64_t *z,uint64_t *n,uint64_t *x)
 { uint8_t *z_bytes = alloca(32), *n_bytes = alloca(32), *x_bytes = alloca(32);
   reference_tolebytes(32,x_bytes,4,x);
@@ -17965,6 +18026,8 @@ int main(int argc, char *argv[])
     functionaltest(aes,"aes_xts_roundtrip",test_aes_xts_roundtrip);
     functionaltest(aes,"known value tests for aes-xts encrypt",test_known_values_xts_encrypt);
     functionaltest(aes,"known value tests for aes-xts decrypt",test_known_values_xts_decrypt);
+    functionaltest(aes,"gcm_init_v8",test_gcm_init_v8);
+    functionaltest(aes,"known value tests for gcm_init_v8",test_known_values_gcm_init_v8);
   }
 
   if (extrastrigger) function_to_test = "_";
