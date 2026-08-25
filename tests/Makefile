@@ -45,7 +45,15 @@ go: test; ./test +100 | grep -v OK
 
 complete: test ctCheck; $(VALGRIND) ./test +500
 
-test: test.c known_value_tests_p384.h tweetnacl_excerpt.c ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a; $(CC) -Wall -std=gnu99 -o test test.c -L../$(ARCH) -ls2nbignum -lm
+# aws-lc reference kernels (benchmarks/reference/) are also-tested here, so the
+# same code we benchmark is the code we check for correctness. ARM only; they are
+# not part of libs2nbignum.a.
+REF_SRC = $(wildcard ../benchmarks/reference/*.S)
+REF_OBJ = $(REF_SRC:.S=.o)
+
+../benchmarks/reference/%.o: ../benchmarks/reference/%.S ; $(CC) -c -o $@ $<
+
+test: test.c known_value_tests_p384.h tweetnacl_excerpt.c ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a $(REF_OBJ); $(CC) -Wall -std=gnu99 -o test test.c $(REF_OBJ) -L../$(ARCH) -ls2nbignum -lm
 
 clean: ;
 	rm -f test

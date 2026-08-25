@@ -16761,6 +16761,136 @@ static size_t hw_gcm_encrypt_wb(const uint8_t *in, uint8_t *out, size_t len,
 }
 #endif
 
+
+// ---------------------------------------------------------------------------
+// Differential tests for every GCM encrypt kernel we benchmark.
+//
+// These call the assembly kernel DIRECTLY, with no length gate, so the
+// small-size specialized paths are exercised. That matters because aws-lc's
+// production dispatch (crypto/fipsmodule/modes/gcm.c) only routes to an 8x
+// kernel at len >= 256 -- so test_aesv8_gcm_8x_enc_256 below, which mirrors
+// that dispatch, can never reach any input under 256 bytes.
+//
+// Each kernel is checked against the same independent C reference
+// (CRYPTO_gcm128_encrypt + gcm_init_nohw) on ciphertext, GHASH accumulator and
+// counter, at every length the benchmark measures plus random block counts.
+// ---------------------------------------------------------------------------
+
+extern size_t aesv8_gcm_8x_enc_256_org(const uint8_t *in, size_t bit_len, uint8_t *out,
+        uint8_t *Xi, uint8_t *ivec, const AES_KEY *key, const uint64_t *Htable);
+extern void aes_gcm_enc_kernel_4x(const uint8_t *in, size_t bit_len, uint8_t *out,
+        uint8_t *Xi, uint8_t *ivec, const AES_KEY *key, const uint64_t *Htable);
+
+typedef void (*gcm_enc_kernel_fn)(const uint8_t *in, size_t bit_len, uint8_t *out,
+        uint8_t *Xi, uint8_t *ivec, const AES_KEY *key, const uint64_t *Htable);
+
+static void gcm_k_ours(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
+                       uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
+ { aesv8_gcm_8x_enc_256(in, bl, out, Xi, iv, k, Ht); }
+static void gcm_k_org(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
+                      uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
+ { aesv8_gcm_8x_enc_256_org(in, bl, out, Xi, iv, k, Ht); }
+static void gcm_k_4x(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
+                     uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
+ { aes_gcm_enc_kernel_4x(in, bl, out, Xi, iv, k, Ht); }
+
+// Every length benchmarks/benchmark.c measures.
+static const size_t gcm_bench_lens[] =
+ { 16, 32, 48, 64, 80, 96, 112, 128, 192, 256, 512, 1024, 4096 };
+#define GCM_BENCH_NLENS (sizeof gcm_bench_lens / sizeof gcm_bench_lens[0])
+
+static int gcm_kernel_difftest(const char *name, gcm_enc_kernel_fn kern)
+{
+  uint64_t t;
+  uint8_t key[32], ivec[16], xi_in[16];
+  s2n_bignum_AES_KEY ek;
+  size_t len;
+  // Fixed sweep over every benchmarked length, then random block counts 1..64
+  // (1..8 hit the dedicated small-size paths; >8 exercise the main loop).
+  uint64_t ncases = GCM_BENCH_NLENS + (uint64_t)tests;
+
+  for (t = 0; t < ncases; ++t)
+   { random_bytes(key, 32);
+     random_bytes(ivec, 16);
+     random_bytes(xi_in, 16);
+
+     if (t < GCM_BENCH_NLENS) len = gcm_bench_lens[t];
+     else { size_t blocks = 1 + (rand() % 64); len = blocks * 16; }
+
+     random_bytes(bb1, len);
+     memset(bb2, 0, len);
+     memset(bb3, 0, len);
+
+     ref_aes256_expand_key(key, &ek);
+     ek.rounds = 14;
+
+     uint8_t zero[16] = {0}, Hbytes[16];
+     ref_aes256_encrypt_block(zero, Hbytes, &ek);
+     uint64_t H[2] = { CRYPTO_load_u64_be(Hbytes), CRYPTO_load_u64_be(Hbytes + 8) };
+
+     GCM128_CONTEXT ctxA; memset(&ctxA, 0, sizeof ctxA);
+     gcm_init_nohw(ctxA.gcm_key.Htable, H);
+     ctxA.gcm_key.block = ref_gcm_aes256_block;
+     memcpy(ctxA.Yi, ivec, 16);
+     memcpy(ctxA.Xi, xi_in, 16);
+     CRYPTO_gcm128_encrypt(&ctxA, &ek, bb1, bb2, len);
+
+     uint64_t Htable_v8[2 * 16]; memset(Htable_v8, 0, sizeof Htable_v8);
+     gcm_init_v8_c(Htable_v8, H);
+     uint8_t xi_b[16], ivec_b[16];
+     memcpy(xi_b, xi_in, 16); memcpy(ivec_b, ivec, 16);
+     (*kern)(bb1, len * 8, bb3, xi_b, ivec_b, &ek, Htable_v8);
+
+     int bad = 0;
+     if (memcmp(bb2, bb3, len) != 0)
+      { printf("### Disparity: %s ciphertext len=%zu\n", name, len); bad = 1; }
+     if (memcmp(ctxA.Xi, xi_b, 16) != 0)
+      { printf("### Disparity: %s GHASH Xi len=%zu\n", name, len); bad = 1; }
+     if (memcmp(ctxA.Yi, ivec_b, 16) != 0)
+      { printf("### Disparity: %s counter len=%zu\n", name, len); bad = 1; }
+     if (bad)
+      { printf("    key=");
+        for (int i = 0; i < 32; ++i) printf("%02x", key[i]);
+        printf("\n    ivec=");
+        for (int i = 0; i < 16; ++i) printf("%02x", ivec[i]);
+        printf("\n");
+        return 1;
+      }
+     printf("OK: %s len=%zu\n", name, len);
+   }
+  return 0;
+}
+
+int test_gcm_kernel_ours_allsizes(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  printf("Testing aesv8_gcm_8x_enc_256 (all sizes, direct) against reference\n");
+  return gcm_kernel_difftest("aesv8_gcm_8x_enc_256", gcm_k_ours);
+#endif
+}
+
+int test_gcm_kernel_org(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  printf("Testing aesv8_gcm_8x_enc_256_org (aws-lc original 8x) against reference\n");
+  return gcm_kernel_difftest("aesv8_gcm_8x_enc_256_org", gcm_k_org);
+#endif
+}
+
+int test_gcm_kernel_4x(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  printf("Testing aes_gcm_enc_kernel_4x (aws-lc 4x) against reference\n");
+  return gcm_kernel_difftest("aes_gcm_enc_kernel_4x", gcm_k_4x);
+#endif
+}
+
 int test_aesv8_gcm_8x_enc_256(void)
 {
 #ifdef __x86_64__
@@ -17905,6 +18035,9 @@ int main(int argc, char *argv[])
     functionaltest(aes,"known value tests for aes-xts decrypt",test_known_values_xts_decrypt);
     functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256",test_aesv8_gcm_8x_enc_256);
     functionaltest(aes&&sha3,"known value tests for aesv8_gcm_8x_enc_256",test_known_values_gcm_256_encrypt_wb);
+    functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256_allsizes",test_gcm_kernel_ours_allsizes);
+    functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256_org",test_gcm_kernel_org);
+    functionaltest(aes&&sha3,"aes_gcm_enc_kernel_4x",test_gcm_kernel_4x);
   }
 
   if (extrastrigger) function_to_test = "_";
