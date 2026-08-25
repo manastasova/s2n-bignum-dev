@@ -74,6 +74,8 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 	mov	x15, #0x100000000			//set up counter increment
 	movi	v31.16b, #0x0
 	mov	v31.d[1], x15
+	cmp	x9, #64		//[o134 f4e] nb==4 (64B)? -> dedicated fast path BEFORE counter build (skip dead ctr ops for blks 4-7)
+	b.eq	L256_enc_fast4em
 	add	v28.4s, v31.4s, v31.4s		//[s100] +2 increment (hoisted, load shadow)
 	add	v10.4s, v28.4s, v31.4s		//[s100] +3 increment
 	add	v11.4s, v28.4s, v28.4s		//[s100] +4 increment
@@ -112,8 +114,6 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 
 	cmp	x9, #32				//[s112 fast2] nb==2 (32B)? -> dedicated 2-block fast path (skip wasted blocks 2-7)
 	b.eq	L256_enc_fast2
-	cmp	x9, #64				//[s121 fast4] nb==4 (64B)? -> dedicated 4-block fast path (skip wasted blocks 4-7)
-	b.eq	L256_enc_fast4
 	cmp	x9, #16				//[s126 fast1] nb==1 (16B)? -> dedicated 1-block fast path (skip wasted blocks 1-7)
 	b.eq	L256_enc_fast1
 	cmp	x9, #48				//[s126 fast3] nb==3 (48B)? -> dedicated 3-block fast path (skip wasted blocks 3-7)
@@ -2100,6 +2100,7 @@ L256_enc_fast4:  //[s121] nb==4 (64B): 4-block AES (blocks 0-3 only) + rem4 drai
 	aese	v2.16b, v27.16b
 	aese	v3.16b, v27.16b
 	// v28 = rk14; set up rem4_drain entry state (v5/v6/v7=blk1/2/3 ks, v9=blk0 ct, v16=tag, v17-19=0)
+L256_enc_fast4_tail_setup:  //[o134] fast4em rejoins here (0x196c); FAST4_TAIL leg reused verbatim
 	ldr	q8, [x0], #16			//block0 PT (x0 -> block1 PT)
 	ext	v16.16b, v19.16b, v19.16b, #8	//partial tag
 	mov	v29.16b, v28.16b		//v29 = rk14
@@ -3262,6 +3263,154 @@ L256_enc_fast7_drain:  //[s127] 7-block fused GHASH: blocks H^7..H^1, MODULO
 	rev64	v19.16b, v19.16b
 	st1	{ v19.16b }, [x3]
 	b	L256_enc_epilogue
+
+
+
+
+L256_enc_fast4em:  //[o133] nb==4 clean early
+	rev32	v29.16b, v0.16b
+	ldp	q26, q27, [x11, #0]
+	ld1	{ v19.16b}, [x3]
+	ext	v19.16b, v19.16b, v19.16b, #8
+	rev64	v19.16b, v19.16b
+	add	v28.4s, v31.4s, v31.4s	//+2
+	add	v10.4s, v28.4s, v31.4s	//+3
+	add	v11.4s, v28.4s, v28.4s	//+4
+	add	v30.4s, v29.4s, v11.4s
+	add	v30.4s, v30.4s, v11.4s	//base+8
+	add	v8.4s, v29.4s, v31.4s
+	rev32	v1.16b, v8.16b
+	add	v9.4s, v29.4s, v28.4s
+	rev32	v2.16b, v9.16b
+	add	v15.4s, v29.4s, v10.4s
+	rev32	v3.16b, v15.16b
+	// v26=rk0, v27=rk1 loaded (before dispatch). v30=base+8 (from counter build), v31=incr, v19=folded tag.
+	movz	x7, #0x0e0f
+	movk	x7, #0x0c0d, lsl #16
+	movk	x7, #0x0a0b, lsl #32
+	movk	x7, #0x0809, lsl #48
+	movz	x8, #0x0607
+	movk	x8, #0x0405, lsl #16
+	movk	x8, #0x0203, lsl #32
+	movk	x8, #0x0001, lsl #48
+	fmov	d12, x7
+	mov	v12.d[1], x8	//[s121tbl] rev index in fast4 shadow (v12=dead +5 incr)
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//blk0 r0
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//blk1 r0
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b			//blk2 r0
+	aese	v3.16b, v26.16b
+	aesmc	v3.16b, v3.16b			//blk3 r0
+	ldp	q28, q26, [x11, #32]		//rk2, rk3
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r1 (rk1)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v27.16b
+	aesmc	v3.16b, v3.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r2 (rk2)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v28.16b
+	aesmc	v3.16b, v3.16b
+	ldp	q27, q28, [x11, #64]		//rk4, rk5
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v26.16b
+	aesmc	v3.16b, v3.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r4 (rk4)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v27.16b
+	aesmc	v3.16b, v3.16b
+	ldp	q26, q27, [x11, #96]		//rk6, rk7
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r5 (rk5)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v28.16b
+	aesmc	v3.16b, v3.16b
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r6 (rk6)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v26.16b
+	aesmc	v3.16b, v3.16b
+	ldp	q28, q26, [x11, #128]		//rk8, rk9
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r7 (rk7)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v27.16b
+	aesmc	v3.16b, v3.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r8 (rk8)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v28.16b
+	aesmc	v3.16b, v3.16b
+	ldp	q27, q28, [x11, #160]		//rk10, rk11
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r9 (rk9)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v26.16b
+	aesmc	v3.16b, v3.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r10 (rk10)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v27.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v27.16b
+	aesmc	v3.16b, v3.16b
+	ldp	q26, q27, [x11, #192]		//rk12, rk13
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r11 (rk11)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v28.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v28.16b
+	aesmc	v3.16b, v3.16b
+	ldr	q28, [x11, #224]		//rk14
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r12 (rk12)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v2.16b, v26.16b
+	aesmc	v2.16b, v2.16b
+	aese	v3.16b, v26.16b
+	aesmc	v3.16b, v3.16b
+	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
+	aese	v1.16b, v27.16b
+	aese	v2.16b, v27.16b
+	aese	v3.16b, v27.16b
+	b	L256_enc_fast4_tail_setup	//[o134] rejoin original fast4 tail-setup (0x196c) -> fast4_drain
 
 
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)

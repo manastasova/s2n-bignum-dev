@@ -53,39 +53,39 @@ let aesv8_gcm_8x_enc_256_mc =
   0xd2c0002f;   (* 40 mov x15, #0x100000000 // #4294967296 *)
   0x4f00e41f;   (* 44 movi v31.16b, #0x0 *)
   0x4e181dff;   (* 48 mov v31.d[1], x15 *)
-  0x4ebf87fc;   (* 4c add v28.4s, v31.4s, v31.4s *)
-  0x4ebf878a;   (* 50 add v10.4s, v28.4s, v31.4s *)
-  0x4ebc878b;   (* 54 add v11.4s, v28.4s, v28.4s *)
-  0x4ebf856c;   (* 58 add v12.4s, v11.4s, v31.4s *)
-  0x4ebc856d;   (* 5c add v13.4s, v11.4s, v28.4s *)
-  0x4eaa856e;   (* 60 add v14.4s, v11.4s, v10.4s *)
-  0xd10004a5;   (* 64 sub x5, x5, #0x1 *)
-  0x9279e0a5;   (* 68 and x5, x5, #0xffffffffffffff80 *)
-  0x8b0000a5;   (* 6c add x5, x5, x0 *)
-  0x6e20081d;   (* 70 rev32 v29.16b, v0.16b *)
-  0x4ebf87a8;   (* 74 add v8.4s, v29.4s, v31.4s *)
-  0x4ebc87a9;   (* 78 add v9.4s, v29.4s, v28.4s *)
-  0x4eaa87af;   (* 7c add v15.4s, v29.4s, v10.4s *)
-  0x4eab87b0;   (* 80 add v16.4s, v29.4s, v11.4s *)
-  0x4eac87b1;   (* 84 add v17.4s, v29.4s, v12.4s *)
-  0x4ead87b2;   (* 88 add v18.4s, v29.4s, v13.4s *)
-  0x4eae87be;   (* 8c add v30.4s, v29.4s, v14.4s *)
-  0x6e200901;   (* 90 rev32 v1.16b, v8.16b *)
-  0x6e200922;   (* 94 rev32 v2.16b, v9.16b *)
-  0x6e2009e3;   (* 98 rev32 v3.16b, v15.16b *)
-  0x6e200a04;   (* 9c rev32 v4.16b, v16.16b *)
-  0x6e200a25;   (* a0 rev32 v5.16b, v17.16b *)
-  0x6e200a46;   (* a4 rev32 v6.16b, v18.16b *)
-  0x6e200bc7;   (* a8 rev32 v7.16b, v30.16b *)
-  0xad406d7a;   (* ac ldp q26, q27, [x11] *)
-  0x4c407073;   (* b0 ld1 {v19.16b}, [x3] *)
-  0x6e134273;   (* b4 ext v19.16b, v19.16b, v19.16b, #8 *)
-  0x4e200a73;   (* b8 rev64 v19.16b, v19.16b *)
-  0x4ebf87de;   (* bc add v30.4s, v30.4s, v31.4s *)
-  0xf100813f;   (* c0 cmp x9, #0x20 *)
-  0x5400ac20;   (* c4 b.eq 1648 <L256_enc_fast2> // b.none *)
-  0xf101013f;   (* c8 cmp x9, #0x40 *)
-  0x5400b560;   (* cc b.eq 1778 <L256_enc_fast4> // b.none *)
+  0xf101013f;   (* 4c cmp x9, #0x40 *)
+  0x540153a0;   (* 50 b.eq 2ac4 <L256_enc_fast4em> // b.none *)
+  0x4ebf87fc;   (* 54 add v28.4s, v31.4s, v31.4s *)
+  0x4ebf878a;   (* 58 add v10.4s, v28.4s, v31.4s *)
+  0x4ebc878b;   (* 5c add v11.4s, v28.4s, v28.4s *)
+  0x4ebf856c;   (* 60 add v12.4s, v11.4s, v31.4s *)
+  0x4ebc856d;   (* 64 add v13.4s, v11.4s, v28.4s *)
+  0x4eaa856e;   (* 68 add v14.4s, v11.4s, v10.4s *)
+  0xd10004a5;   (* 6c sub x5, x5, #0x1 *)
+  0x9279e0a5;   (* 70 and x5, x5, #0xffffffffffffff80 *)
+  0x8b0000a5;   (* 74 add x5, x5, x0 *)
+  0x6e20081d;   (* 78 rev32 v29.16b, v0.16b *)
+  0x4ebf87a8;   (* 7c add v8.4s, v29.4s, v31.4s *)
+  0x4ebc87a9;   (* 80 add v9.4s, v29.4s, v28.4s *)
+  0x4eaa87af;   (* 84 add v15.4s, v29.4s, v10.4s *)
+  0x4eab87b0;   (* 88 add v16.4s, v29.4s, v11.4s *)
+  0x4eac87b1;   (* 8c add v17.4s, v29.4s, v12.4s *)
+  0x4ead87b2;   (* 90 add v18.4s, v29.4s, v13.4s *)
+  0x4eae87be;   (* 94 add v30.4s, v29.4s, v14.4s *)
+  0x6e200901;   (* 98 rev32 v1.16b, v8.16b *)
+  0x6e200922;   (* 9c rev32 v2.16b, v9.16b *)
+  0x6e2009e3;   (* a0 rev32 v3.16b, v15.16b *)
+  0x6e200a04;   (* a4 rev32 v4.16b, v16.16b *)
+  0x6e200a25;   (* a8 rev32 v5.16b, v17.16b *)
+  0x6e200a46;   (* ac rev32 v6.16b, v18.16b *)
+  0x6e200bc7;   (* b0 rev32 v7.16b, v30.16b *)
+  0xad406d7a;   (* b4 ldp q26, q27, [x11] *)
+  0x4c407073;   (* b8 ld1 {v19.16b}, [x3] *)
+  0x6e134273;   (* bc ext v19.16b, v19.16b, v19.16b, #8 *)
+  0x4e200a73;   (* c0 rev64 v19.16b, v19.16b *)
+  0x4ebf87de;   (* c4 add v30.4s, v30.4s, v31.4s *)
+  0xf100813f;   (* c8 cmp x9, #0x20 *)
+  0x5400abe0;   (* cc b.eq 1648 <L256_enc_fast2> // b.none *)
   0xf100413f;   (* d0 cmp x9, #0x10 *)
   0x5400ce00;   (* d4 b.eq 1a94 <L256_enc_fast1> // b.none *)
   0xf100c13f;   (* d8 cmp x9, #0x30 *)
@@ -2771,6 +2771,148 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4e200a73;   (* 2ab8 rev64 v19.16b, v19.16b *)
   0x4c007073;   (* 2abc st1 {v19.16b}, [x3] *)
   0x17fff9cd;   (* 2ac0 b 11f4 <L256_enc_epilogue> *)
+  0x6e20081d;   (* 2ac4 rev32 v29.16b, v0.16b *)
+  0xad406d7a;   (* 2ac8 ldp q26, q27, [x11] *)
+  0x4c407073;   (* 2acc ld1 {v19.16b}, [x3] *)
+  0x6e134273;   (* 2ad0 ext v19.16b, v19.16b, v19.16b, #8 *)
+  0x4e200a73;   (* 2ad4 rev64 v19.16b, v19.16b *)
+  0x4ebf87fc;   (* 2ad8 add v28.4s, v31.4s, v31.4s *)
+  0x4ebf878a;   (* 2adc add v10.4s, v28.4s, v31.4s *)
+  0x4ebc878b;   (* 2ae0 add v11.4s, v28.4s, v28.4s *)
+  0x4eab87be;   (* 2ae4 add v30.4s, v29.4s, v11.4s *)
+  0x4eab87de;   (* 2ae8 add v30.4s, v30.4s, v11.4s *)
+  0x4ebf87a8;   (* 2aec add v8.4s, v29.4s, v31.4s *)
+  0x6e200901;   (* 2af0 rev32 v1.16b, v8.16b *)
+  0x4ebc87a9;   (* 2af4 add v9.4s, v29.4s, v28.4s *)
+  0x6e200922;   (* 2af8 rev32 v2.16b, v9.16b *)
+  0x4eaa87af;   (* 2afc add v15.4s, v29.4s, v10.4s *)
+  0x6e2009e3;   (* 2b00 rev32 v3.16b, v15.16b *)
+  0xd281c1e7;   (* 2b04 mov x7, #0xe0f // #3599 *)
+  0xf2a181a7;   (* 2b08 movk x7, #0xc0d, lsl #16 *)
+  0xf2c14167;   (* 2b0c movk x7, #0xa0b, lsl #32 *)
+  0xf2e10127;   (* 2b10 movk x7, #0x809, lsl #48 *)
+  0xd280c0e8;   (* 2b14 mov x8, #0x607 // #1543 *)
+  0xf2a080a8;   (* 2b18 movk x8, #0x405, lsl #16 *)
+  0xf2c04068;   (* 2b1c movk x8, #0x203, lsl #32 *)
+  0xf2e00028;   (* 2b20 movk x8, #0x1, lsl #48 *)
+  0x9e6700ec;   (* 2b24 fmov d12, x7 *)
+  0x4e181d0c;   (* 2b28 mov v12.d[1], x8 *)
+  0x4e284b40;   (* 2b2c aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2b30 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2b34 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2b38 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 2b3c aese v2.16b, v26.16b *)
+  0x4e286842;   (* 2b40 aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 2b44 aese v3.16b, v26.16b *)
+  0x4e286863;   (* 2b48 aesmc v3.16b, v3.16b *)
+  0xad41697c;   (* 2b4c ldp q28, q26, [x11, #32] *)
+  0x4e284b60;   (* 2b50 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2b54 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2b58 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2b5c aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 2b60 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 2b64 aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 2b68 aese v3.16b, v27.16b *)
+  0x4e286863;   (* 2b6c aesmc v3.16b, v3.16b *)
+  0x4e284b80;   (* 2b70 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2b74 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2b78 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2b7c aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 2b80 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 2b84 aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 2b88 aese v3.16b, v28.16b *)
+  0x4e286863;   (* 2b8c aesmc v3.16b, v3.16b *)
+  0xad42717b;   (* 2b90 ldp q27, q28, [x11, #64] *)
+  0x4e284b40;   (* 2b94 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2b98 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2b9c aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2ba0 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 2ba4 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 2ba8 aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 2bac aese v3.16b, v26.16b *)
+  0x4e286863;   (* 2bb0 aesmc v3.16b, v3.16b *)
+  0x4e284b60;   (* 2bb4 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2bb8 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2bbc aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2bc0 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 2bc4 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 2bc8 aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 2bcc aese v3.16b, v27.16b *)
+  0x4e286863;   (* 2bd0 aesmc v3.16b, v3.16b *)
+  0xad436d7a;   (* 2bd4 ldp q26, q27, [x11, #96] *)
+  0x4e284b80;   (* 2bd8 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2bdc aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2be0 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2be4 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 2be8 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 2bec aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 2bf0 aese v3.16b, v28.16b *)
+  0x4e286863;   (* 2bf4 aesmc v3.16b, v3.16b *)
+  0x4e284b40;   (* 2bf8 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2bfc aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2c00 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2c04 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 2c08 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 2c0c aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 2c10 aese v3.16b, v26.16b *)
+  0x4e286863;   (* 2c14 aesmc v3.16b, v3.16b *)
+  0xad44697c;   (* 2c18 ldp q28, q26, [x11, #128] *)
+  0x4e284b60;   (* 2c1c aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2c20 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2c24 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2c28 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 2c2c aese v2.16b, v27.16b *)
+  0x4e286842;   (* 2c30 aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 2c34 aese v3.16b, v27.16b *)
+  0x4e286863;   (* 2c38 aesmc v3.16b, v3.16b *)
+  0x4e284b80;   (* 2c3c aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2c40 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2c44 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2c48 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 2c4c aese v2.16b, v28.16b *)
+  0x4e286842;   (* 2c50 aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 2c54 aese v3.16b, v28.16b *)
+  0x4e286863;   (* 2c58 aesmc v3.16b, v3.16b *)
+  0xad45717b;   (* 2c5c ldp q27, q28, [x11, #160] *)
+  0x4e284b40;   (* 2c60 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2c64 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2c68 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2c6c aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 2c70 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 2c74 aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 2c78 aese v3.16b, v26.16b *)
+  0x4e286863;   (* 2c7c aesmc v3.16b, v3.16b *)
+  0x4e284b60;   (* 2c80 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2c84 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2c88 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2c8c aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 2c90 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 2c94 aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 2c98 aese v3.16b, v27.16b *)
+  0x4e286863;   (* 2c9c aesmc v3.16b, v3.16b *)
+  0xad466d7a;   (* 2ca0 ldp q26, q27, [x11, #192] *)
+  0x4e284b80;   (* 2ca4 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2ca8 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2cac aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2cb0 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 2cb4 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 2cb8 aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 2cbc aese v3.16b, v28.16b *)
+  0x4e286863;   (* 2cc0 aesmc v3.16b, v3.16b *)
+  0x3dc0397c;   (* 2cc4 ldr q28, [x11, #224] *)
+  0x4e284b40;   (* 2cc8 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2ccc aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2cd0 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2cd4 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 2cd8 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 2cdc aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 2ce0 aese v3.16b, v26.16b *)
+  0x4e286863;   (* 2ce4 aesmc v3.16b, v3.16b *)
+  0x4e284b60;   (* 2ce8 aese v0.16b, v27.16b *)
+  0x4e284b61;   (* 2cec aese v1.16b, v27.16b *)
+  0x4e284b62;   (* 2cf0 aese v2.16b, v27.16b *)
+  0x4e284b63;   (* 2cf4 aese v3.16b, v27.16b *)
+  0x17fffb1d;   (* 2cf8 b 196c <L256_enc_fast4_tail_setup> *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -3206,7 +3348,7 @@ let AESV8_GCM_8X_ENC_256_AES_SETUP = prove
      k0 k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12 k13 k14 key_p pc.
     ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
-           read PC s = word (pc + 0xb0) /\
+           read PC s = word (pc + 0xb8) /\
            read X11 s = key_p /\
            read X9 s = word 33 /\
            read Q0 s = b0 /\ read Q1 s = b1 /\ read Q2 s = b2 /\
@@ -3273,7 +3415,7 @@ let AESV8_GCM_8X_ENC_256_AES_SETUP = prove
        MAYCHANGE [events])`,
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC (1--241) THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC (1--239) THEN
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[AES256_CIPHER_RECONSTRUCT]);;
 
@@ -5819,12 +5961,12 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
   SUBGOAL_THEN `~(nb = 5)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 6)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 7)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-  MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-  NSTEP 37 THEN NSTEP 38 THEN
+  MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -6023,12 +6165,12 @@ let AESV8_GCM_8X_ENC_256_SETUP_GEN = prove
   SUBGOAL_THEN `~(nb = 5)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 6)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 7)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-  MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-  NSTEP 37 THEN NSTEP 38 THEN
+  MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -6222,12 +6364,12 @@ let AESV8_GCM_8X_ENC_256_SETUP_G1 = prove
   SUBGOAL_THEN `~(nb = 5)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 6)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 7)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-  MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-  NSTEP 37 THEN NSTEP 38 THEN
+  MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -12857,12 +12999,12 @@ let AESV8_GCM_8X_ENC_256_SETUP0 = prove
   SUBGOAL_THEN `~(nb = 5)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 6)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `~(nb = 7)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-  MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-  NSTEP 37 THEN NSTEP 38 THEN
+  MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+    (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -13333,13 +13475,17 @@ let AESV8_GCM_8X_ENC_256_FAST2 = prove
       ASSUME_TAC THENL [FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `read (memory :> bytes128 (word_add in_p (word (16 * 1)))) s0 = inblock 1`
       ASSUME_TAC THENL [FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
-    MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
+    SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
+      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_TAKEN (ASSUME `nb = 2`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (37--107) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s107) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (39--109) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s109) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q1 s107) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q1 s109) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 3)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
@@ -13489,22 +13635,19 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
       ASSUME_TAC THENL [FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `read (memory :> bytes128 (word_add in_p (word (16 * 1)))) s0 = inblock 1`
       ASSUME_TAC THENL [FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
-    MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 37 THEN NSTEP 38 THEN
+    MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_TAKEN (ASSUME `nb = 4`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (39--163) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s163) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (8--149) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s149) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q1 s163) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q1 s149) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 3)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q2 s163) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q2 s149) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 4)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q3 s163) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q3 s149) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 5)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
@@ -13647,12 +13790,12 @@ let AESV8_GCM_8X_ENC_256_FAST1 = prove
       ASSUME_TAC THENL [FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 2)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-    MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 37 THEN NSTEP 38 THEN
+    MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_TAKEN (ASSUME `nb = 1`); COND_CLAUSES]) THEN
     MAP_EVERY NSTEP (41--84) THEN
@@ -13808,12 +13951,12 @@ let AESV8_GCM_8X_ENC_256_FAST3 = prove
     SUBGOAL_THEN `~(nb = 2)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 1)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-    MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 37 THEN NSTEP 38 THEN
+    MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -13980,12 +14123,12 @@ let AESV8_GCM_8X_ENC_256_FAST5 = prove
     SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 1)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 3)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-    MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 37 THEN NSTEP 38 THEN
+    MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -14167,12 +14310,12 @@ let AESV8_GCM_8X_ENC_256_FAST6 = prove
     SUBGOAL_THEN `~(nb = 1)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 3)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 5)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-    MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 37 THEN NSTEP 38 THEN
+    MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -14365,12 +14508,12 @@ let AESV8_GCM_8X_ENC_256_FAST7 = prove
     SUBGOAL_THEN `~(nb = 3)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 5)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     SUBGOAL_THEN `~(nb = 6)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
-    MAP_EVERY NSTEP (1--34) THEN NSTEP 35 THEN NSTEP 36 THEN
-    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
-      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 37 THEN NSTEP 38 THEN
+    MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
+      (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
