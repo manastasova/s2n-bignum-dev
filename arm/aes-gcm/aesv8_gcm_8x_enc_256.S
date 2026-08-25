@@ -76,6 +76,8 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 	mov	v31.d[1], x15
 	cmp	x9, #64		//[o134 f4e] nb==4 (64B)? -> dedicated fast path BEFORE counter build (skip dead ctr ops for blks 4-7)
 	b.eq	L256_enc_fast4em
+	cmp	x9, #32		//[s135] nb==2 (32B)? -> dedicated fast path BEFORE counter build
+	b.eq	L256_enc_fast2em
 	add	v28.4s, v31.4s, v31.4s		//[s100] +2 increment (hoisted, load shadow)
 	add	v10.4s, v28.4s, v31.4s		//[s100] +3 increment
 	add	v11.4s, v28.4s, v28.4s		//[s100] +4 increment
@@ -112,8 +114,6 @@ S2N_BN_SYMBOL(aesv8_gcm_8x_enc_256):
 	rev64	v19.16b, v19.16b
 	add	v30.4s, v30.4s, v31.4s		//CTR block 8 (advance for tail)
 
-	cmp	x9, #32				//[s112 fast2] nb==2 (32B)? -> dedicated 2-block fast path (skip wasted blocks 2-7)
-	b.eq	L256_enc_fast2
 	cmp	x9, #16				//[s126 fast1] nb==1 (16B)? -> dedicated 1-block fast path (skip wasted blocks 1-7)
 	b.eq	L256_enc_fast1
 	cmp	x9, #48				//[s126 fast3] nb==3 (48B)? -> dedicated 3-block fast path (skip wasted blocks 3-7)
@@ -1966,6 +1966,7 @@ L256_enc_fast2:  //[s112] nb==2 (32B): 2-block AES (blocks 0,1 only) + rem2 drai
 	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
 	aese	v1.16b, v27.16b
 	// v28 = rk14; set up tail-entry state for rem2_drain
+L256_enc_fast2_tail_setup:  //[s135] fastNem rejoins here; FASTN_TAIL reused verbatim
 	ldr	q8, [x0], #16			//block1 PT (x0 -> block2 PT)
 	ext	v16.16b, v19.16b, v19.16b, #8	//tag prep
 	mov	v29.16b, v28.16b		//v29 = rk14
@@ -3413,8 +3414,96 @@ L256_enc_fast4em:  //[o133] nb==4 clean early
 	b	L256_enc_fast4_tail_setup	//[o134] rejoin original fast4 tail-setup (0x196c) -> fast4_drain
 
 
+
+L256_enc_fast2em:  //[s135] nb==2 clean early-dispatch (Option B -> shared tail-setup)
+	rev32	v29.16b, v0.16b
+	ldp	q26, q27, [x11, #0]
+	ld1	{ v19.16b}, [x3]
+	ext	v19.16b, v19.16b, v19.16b, #8
+	rev64	v19.16b, v19.16b
+	add	v28.4s, v31.4s, v31.4s	//+2
+	add	v11.4s, v28.4s, v28.4s	//+4
+	add	v30.4s, v29.4s, v11.4s
+	add	v30.4s, v30.4s, v11.4s	//base+8
+	add	v8.4s, v29.4s, v31.4s	//base+1
+	rev32	v1.16b, v8.16b	//block1 ctr
+	movz	x7, #0x0e0f
+	movk	x7, #0x0c0d, lsl #16
+	movk	x7, #0x0a0b, lsl #32
+	movk	x7, #0x0809, lsl #48
+	movz	x8, #0x0607
+	movk	x8, #0x0405, lsl #16
+	movk	x8, #0x0203, lsl #32
+	movk	x8, #0x0001, lsl #48
+	fmov	d25, x7
+	mov	v25.d[1], x8	//[s116] rev index in fast2 shadow
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//blk0 r0
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b			//blk1 r0
+	ldp	q28, q26, [x11, #32]		//rk2, rk3
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r1
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r2 (rk2)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q27, q28, [x11, #64]		//rk4, rk5
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r4 (rk4)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q26, q27, [x11, #96]		//rk6, rk7
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r5 (rk5)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r6 (rk6)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q28, q26, [x11, #128]		//rk8, rk9
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r7 (rk7)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r8 (rk8)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q27, q28, [x11, #160]		//rk10, rk11
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r9 (rk9)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b
+	aesmc	v0.16b, v0.16b			//r10 (rk10)
+	aese	v1.16b, v27.16b
+	aesmc	v1.16b, v1.16b
+	ldp	q26, q27, [x11, #192]		//rk12, rk13
+	aese	v0.16b, v28.16b
+	aesmc	v0.16b, v0.16b			//r11 (rk11)
+	aese	v1.16b, v28.16b
+	aesmc	v1.16b, v1.16b
+	ldr	q28, [x11, #224]		//rk14
+	aese	v0.16b, v26.16b
+	aesmc	v0.16b, v0.16b			//r12 (rk12)
+	aese	v1.16b, v26.16b
+	aesmc	v1.16b, v1.16b
+	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
+	aese	v1.16b, v27.16b
+	b	L256_enc_fast2_tail_setup	//[s135] rejoin fastN tail-setup, reuse FASTN_TAIL leg
+
+
 S2N_BN_SIZE_DIRECTIVE(aesv8_gcm_8x_enc_256)
 
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack, "", %progbits
 #endif
+

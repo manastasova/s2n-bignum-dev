@@ -55,37 +55,37 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4e181dff;   (* 48 mov v31.d[1], x15 *)
   0xf101013f;   (* 4c cmp x9, #0x40 *)
   0x540153a0;   (* 50 b.eq 2ac4 <L256_enc_fast4em> // b.none *)
-  0x4ebf87fc;   (* 54 add v28.4s, v31.4s, v31.4s *)
-  0x4ebf878a;   (* 58 add v10.4s, v28.4s, v31.4s *)
-  0x4ebc878b;   (* 5c add v11.4s, v28.4s, v28.4s *)
-  0x4ebf856c;   (* 60 add v12.4s, v11.4s, v31.4s *)
-  0x4ebc856d;   (* 64 add v13.4s, v11.4s, v28.4s *)
-  0x4eaa856e;   (* 68 add v14.4s, v11.4s, v10.4s *)
-  0xd10004a5;   (* 6c sub x5, x5, #0x1 *)
-  0x9279e0a5;   (* 70 and x5, x5, #0xffffffffffffff80 *)
-  0x8b0000a5;   (* 74 add x5, x5, x0 *)
-  0x6e20081d;   (* 78 rev32 v29.16b, v0.16b *)
-  0x4ebf87a8;   (* 7c add v8.4s, v29.4s, v31.4s *)
-  0x4ebc87a9;   (* 80 add v9.4s, v29.4s, v28.4s *)
-  0x4eaa87af;   (* 84 add v15.4s, v29.4s, v10.4s *)
-  0x4eab87b0;   (* 88 add v16.4s, v29.4s, v11.4s *)
-  0x4eac87b1;   (* 8c add v17.4s, v29.4s, v12.4s *)
-  0x4ead87b2;   (* 90 add v18.4s, v29.4s, v13.4s *)
-  0x4eae87be;   (* 94 add v30.4s, v29.4s, v14.4s *)
-  0x6e200901;   (* 98 rev32 v1.16b, v8.16b *)
-  0x6e200922;   (* 9c rev32 v2.16b, v9.16b *)
-  0x6e2009e3;   (* a0 rev32 v3.16b, v15.16b *)
-  0x6e200a04;   (* a4 rev32 v4.16b, v16.16b *)
-  0x6e200a25;   (* a8 rev32 v5.16b, v17.16b *)
-  0x6e200a46;   (* ac rev32 v6.16b, v18.16b *)
-  0x6e200bc7;   (* b0 rev32 v7.16b, v30.16b *)
-  0xad406d7a;   (* b4 ldp q26, q27, [x11] *)
-  0x4c407073;   (* b8 ld1 {v19.16b}, [x3] *)
-  0x6e134273;   (* bc ext v19.16b, v19.16b, v19.16b, #8 *)
-  0x4e200a73;   (* c0 rev64 v19.16b, v19.16b *)
-  0x4ebf87de;   (* c4 add v30.4s, v30.4s, v31.4s *)
-  0xf100813f;   (* c8 cmp x9, #0x20 *)
-  0x5400abe0;   (* cc b.eq 1648 <L256_enc_fast2> // b.none *)
+  0xf100813f;   (* 54 cmp x9, #0x20 *)
+  0x54016520;   (* 58 b.eq 2cfc <L256_enc_fast2em> // b.none *)
+  0x4ebf87fc;   (* 5c add v28.4s, v31.4s, v31.4s *)
+  0x4ebf878a;   (* 60 add v10.4s, v28.4s, v31.4s *)
+  0x4ebc878b;   (* 64 add v11.4s, v28.4s, v28.4s *)
+  0x4ebf856c;   (* 68 add v12.4s, v11.4s, v31.4s *)
+  0x4ebc856d;   (* 6c add v13.4s, v11.4s, v28.4s *)
+  0x4eaa856e;   (* 70 add v14.4s, v11.4s, v10.4s *)
+  0xd10004a5;   (* 74 sub x5, x5, #0x1 *)
+  0x9279e0a5;   (* 78 and x5, x5, #0xffffffffffffff80 *)
+  0x8b0000a5;   (* 7c add x5, x5, x0 *)
+  0x6e20081d;   (* 80 rev32 v29.16b, v0.16b *)
+  0x4ebf87a8;   (* 84 add v8.4s, v29.4s, v31.4s *)
+  0x4ebc87a9;   (* 88 add v9.4s, v29.4s, v28.4s *)
+  0x4eaa87af;   (* 8c add v15.4s, v29.4s, v10.4s *)
+  0x4eab87b0;   (* 90 add v16.4s, v29.4s, v11.4s *)
+  0x4eac87b1;   (* 94 add v17.4s, v29.4s, v12.4s *)
+  0x4ead87b2;   (* 98 add v18.4s, v29.4s, v13.4s *)
+  0x4eae87be;   (* 9c add v30.4s, v29.4s, v14.4s *)
+  0x6e200901;   (* a0 rev32 v1.16b, v8.16b *)
+  0x6e200922;   (* a4 rev32 v2.16b, v9.16b *)
+  0x6e2009e3;   (* a8 rev32 v3.16b, v15.16b *)
+  0x6e200a04;   (* ac rev32 v4.16b, v16.16b *)
+  0x6e200a25;   (* b0 rev32 v5.16b, v17.16b *)
+  0x6e200a46;   (* b4 rev32 v6.16b, v18.16b *)
+  0x6e200bc7;   (* b8 rev32 v7.16b, v30.16b *)
+  0xad406d7a;   (* bc ldp q26, q27, [x11] *)
+  0x4c407073;   (* c0 ld1 {v19.16b}, [x3] *)
+  0x6e134273;   (* c4 ext v19.16b, v19.16b, v19.16b, #8 *)
+  0x4e200a73;   (* c8 rev64 v19.16b, v19.16b *)
+  0x4ebf87de;   (* cc add v30.4s, v30.4s, v31.4s *)
   0xf100413f;   (* d0 cmp x9, #0x10 *)
   0x5400ce00;   (* d4 b.eq 1a94 <L256_enc_fast1> // b.none *)
   0xf100c13f;   (* d8 cmp x9, #0x30 *)
@@ -2913,6 +2913,89 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4e284b62;   (* 2cf0 aese v2.16b, v27.16b *)
   0x4e284b63;   (* 2cf4 aese v3.16b, v27.16b *)
   0x17fffb1d;   (* 2cf8 b 196c <L256_enc_fast4_tail_setup> *)
+  0x6e20081d;   (* 2cfc rev32 v29.16b, v0.16b *)
+  0xad406d7a;   (* 2d00 ldp q26, q27, [x11] *)
+  0x4c407073;   (* 2d04 ld1 {v19.16b}, [x3] *)
+  0x6e134273;   (* 2d08 ext v19.16b, v19.16b, v19.16b, #8 *)
+  0x4e200a73;   (* 2d0c rev64 v19.16b, v19.16b *)
+  0x4ebf87fc;   (* 2d10 add v28.4s, v31.4s, v31.4s *)
+  0x4ebc878b;   (* 2d14 add v11.4s, v28.4s, v28.4s *)
+  0x4eab87be;   (* 2d18 add v30.4s, v29.4s, v11.4s *)
+  0x4eab87de;   (* 2d1c add v30.4s, v30.4s, v11.4s *)
+  0x4ebf87a8;   (* 2d20 add v8.4s, v29.4s, v31.4s *)
+  0x6e200901;   (* 2d24 rev32 v1.16b, v8.16b *)
+  0xd281c1e7;   (* 2d28 mov x7, #0xe0f // #3599 *)
+  0xf2a181a7;   (* 2d2c movk x7, #0xc0d, lsl #16 *)
+  0xf2c14167;   (* 2d30 movk x7, #0xa0b, lsl #32 *)
+  0xf2e10127;   (* 2d34 movk x7, #0x809, lsl #48 *)
+  0xd280c0e8;   (* 2d38 mov x8, #0x607 // #1543 *)
+  0xf2a080a8;   (* 2d3c movk x8, #0x405, lsl #16 *)
+  0xf2c04068;   (* 2d40 movk x8, #0x203, lsl #32 *)
+  0xf2e00028;   (* 2d44 movk x8, #0x1, lsl #48 *)
+  0x9e6700f9;   (* 2d48 fmov d25, x7 *)
+  0x4e181d19;   (* 2d4c mov v25.d[1], x8 *)
+  0x4e284b40;   (* 2d50 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2d54 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2d58 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2d5c aesmc v1.16b, v1.16b *)
+  0xad41697c;   (* 2d60 ldp q28, q26, [x11, #32] *)
+  0x4e284b60;   (* 2d64 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2d68 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2d6c aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2d70 aesmc v1.16b, v1.16b *)
+  0x4e284b80;   (* 2d74 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2d78 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2d7c aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2d80 aesmc v1.16b, v1.16b *)
+  0xad42717b;   (* 2d84 ldp q27, q28, [x11, #64] *)
+  0x4e284b40;   (* 2d88 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2d8c aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2d90 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2d94 aesmc v1.16b, v1.16b *)
+  0x4e284b60;   (* 2d98 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2d9c aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2da0 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2da4 aesmc v1.16b, v1.16b *)
+  0xad436d7a;   (* 2da8 ldp q26, q27, [x11, #96] *)
+  0x4e284b80;   (* 2dac aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2db0 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2db4 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2db8 aesmc v1.16b, v1.16b *)
+  0x4e284b40;   (* 2dbc aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2dc0 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2dc4 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2dc8 aesmc v1.16b, v1.16b *)
+  0xad44697c;   (* 2dcc ldp q28, q26, [x11, #128] *)
+  0x4e284b60;   (* 2dd0 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2dd4 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2dd8 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2ddc aesmc v1.16b, v1.16b *)
+  0x4e284b80;   (* 2de0 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2de4 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2de8 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2dec aesmc v1.16b, v1.16b *)
+  0xad45717b;   (* 2df0 ldp q27, q28, [x11, #160] *)
+  0x4e284b40;   (* 2df4 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2df8 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2dfc aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2e00 aesmc v1.16b, v1.16b *)
+  0x4e284b60;   (* 2e04 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 2e08 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 2e0c aese v1.16b, v27.16b *)
+  0x4e286821;   (* 2e10 aesmc v1.16b, v1.16b *)
+  0xad466d7a;   (* 2e14 ldp q26, q27, [x11, #192] *)
+  0x4e284b80;   (* 2e18 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 2e1c aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 2e20 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 2e24 aesmc v1.16b, v1.16b *)
+  0x3dc0397c;   (* 2e28 ldr q28, [x11, #224] *)
+  0x4e284b40;   (* 2e2c aese v0.16b, v26.16b *)
+  0x4e286800;   (* 2e30 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 2e34 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 2e38 aesmc v1.16b, v1.16b *)
+  0x4e284b60;   (* 2e3c aese v0.16b, v27.16b *)
+  0x4e284b61;   (* 2e40 aese v1.16b, v27.16b *)
+  0x17fffa48;   (* 2e44 b 1764 <L256_enc_fast2_tail_setup> *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -3348,7 +3431,7 @@ let AESV8_GCM_8X_ENC_256_AES_SETUP = prove
      k0 k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12 k13 k14 key_p pc.
     ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
-           read PC s = word (pc + 0xb8) /\
+           read PC s = word (pc + 0xc0) /\
            read X11 s = key_p /\
            read X9 s = word 33 /\
            read Q0 s = b0 /\ read Q1 s = b1 /\ read Q2 s = b2 /\
@@ -3415,7 +3498,7 @@ let AESV8_GCM_8X_ENC_256_AES_SETUP = prove
        MAYCHANGE [events])`,
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC (1--239) THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_EXEC (1--237) THEN
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[AES256_CIPHER_RECONSTRUCT]);;
 
@@ -5964,9 +6047,10 @@ let AESV8_GCM_8X_ENC_256_SETUP = prove
   MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  NSTEP 8 THEN NSTEP 9 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (10--38) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -6168,9 +6252,10 @@ let AESV8_GCM_8X_ENC_256_SETUP_GEN = prove
   MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  NSTEP 8 THEN NSTEP 9 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (10--38) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -6367,9 +6452,10 @@ let AESV8_GCM_8X_ENC_256_SETUP_G1 = prove
   MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  NSTEP 8 THEN NSTEP 9 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (10--38) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -13002,9 +13088,10 @@ let AESV8_GCM_8X_ENC_256_SETUP0 = prove
   MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-  MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+  NSTEP 8 THEN NSTEP 9 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (10--38) THEN
   NSTEP 39 THEN NSTEP 40 THEN
   RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
     (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -13479,13 +13566,13 @@ let AESV8_GCM_8X_ENC_256_FAST2 = prove
     MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    NSTEP 8 THEN NSTEP 9 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_TAKEN (ASSUME `nb = 2`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (39--109) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s109) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (10--92) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s92) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q1 s109) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q1 s92) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 3)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
@@ -13793,9 +13880,10 @@ let AESV8_GCM_8X_ENC_256_FAST1 = prove
     MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    NSTEP 8 THEN NSTEP 9 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (10--38) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_TAKEN (ASSUME `nb = 1`); COND_CLAUSES]) THEN
     MAP_EVERY NSTEP (41--84) THEN
@@ -13954,9 +14042,10 @@ let AESV8_GCM_8X_ENC_256_FAST3 = prove
     MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    NSTEP 8 THEN NSTEP 9 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (10--38) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -14126,9 +14215,10 @@ let AESV8_GCM_8X_ENC_256_FAST5 = prove
     MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    NSTEP 8 THEN NSTEP 9 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (10--38) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -14313,9 +14403,10 @@ let AESV8_GCM_8X_ENC_256_FAST6 = prove
     MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    NSTEP 8 THEN NSTEP 9 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (10--38) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
@@ -14511,9 +14602,10 @@ let AESV8_GCM_8X_ENC_256_FAST7 = prove
     MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--36) THEN NSTEP 37 THEN NSTEP 38 THEN
+    NSTEP 8 THEN NSTEP 9 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
+    MAP_EVERY NSTEP (10--38) THEN
     NSTEP 39 THEN NSTEP 40 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN
       (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
