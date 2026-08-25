@@ -1441,6 +1441,8 @@ void call_aes_xts_decrypt_128(void) {}
 void call_aes_xts_decrypt_256(void) {}
 void call_aes_xts_decrypt_512(void) {}
 
+void call_gcm_init_v8(void) {}
+
 #else
 
 void call_mldsa_caddq(void) {}
@@ -1527,6 +1529,9 @@ void call_aes_xts_decrypt_64(void) { repeat(aes_xts_decrypt_helper(64)); }
 void call_aes_xts_decrypt_128(void) { repeat(aes_xts_decrypt_helper(128)); }
 void call_aes_xts_decrypt_256(void) { repeat(aes_xts_decrypt_helper(256)); }
 void call_aes_xts_decrypt_512(void) { repeatfewer(10,aes_xts_decrypt_helper(512)); }
+
+// GHASH key-table expansion (GCM init): output Htable in b0, input H in b1
+void call_gcm_init_v8(void) repeat(gcm_init_v8(b0,b1))
 
 #endif
 
@@ -2015,6 +2020,7 @@ int main(int argc, char *argv[])
   timingtest(aes,"aes_xts_decrypt (128 bytes)",call_aes_xts_decrypt_128);
   timingtest(aes,"aes_xts_decrypt (256 bytes)",call_aes_xts_decrypt_256);
   timingtest(aes,"aes_xts_decrypt (512 bytes)",call_aes_xts_decrypt_512);
+  timingtest(aes,"gcm_init_v8",call_gcm_init_v8);
 
   // Summarize performance in arithmetic and geometric means
 
