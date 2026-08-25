@@ -31,6 +31,7 @@
 
 needs "arm/proofs/base.ml";;
 needs "common/polyval_ghash.ml";;
+needs "common/karatsuba_pmul.ml";;    (* PMUL_KARATSUBA (128x128 pmul split) *)
 
 (* ------------------------------------------------------------------------- *)
 (* The machine code.                                                          *)
@@ -238,6 +239,100 @@ let GCM_INIT_V8_MC_LENGTH =
 (* ------------------------------------------------------------------------- *)
 
 let GCM_INIT_V8_EXEC = ARM_MK_EXEC_RULE gcm_init_v8_mc;;
+
+(* ------------------------------------------------------------------------- *)
+(* Phase 4 -- the reduction bridge (the single riskiest lemma in the proof).  *)
+(*                                                                            *)
+(* Block B's arithmetic core (0x044-0x084, 17 straight-line instructions, no  *)
+(* memory / no store) squares the 128-bit value in Q20 in GF(2^128) using the *)
+(* register-split Karatsuba scheme (pmull2/pmull for the three half-products, *)
+(* ext/mov/eor lane shuffles) followed by the two-phase Gueron 0xC2 reduction *)
+(* (two `pmull ...,v19`).  This lemma states that the destination register    *)
+(* Q17 (at 0x084, the clean H^2 before the 0x088 byteswap-and-store) holds     *)
+(* exactly the spec's field square-and-reduce of the OPERAND-BYTESWAPPED input:*)
+(*                                                                            *)
+(*   read Q17 = polyval_reduce_prop3 (word_pmul (byteswap128 a) (byteswap128 a))*)
+(*            = polyval_dot (byteswap128 a) (byteswap128 a)                    *)
+(*                                                                            *)
+(* The `byteswap128` on the operands is INTRINSIC to the register split (the   *)
+(* pmull2/pmull lane selection + the 0x044 `ext` swap effectively feed the     *)
+(* halves swapped relative to polyval_reduce_prop3's a=low/b=high lane         *)
+(* convention); it is not a free choice.  This was pinned down empirically     *)
+(* (concrete a: asm Q17 = prop3(pmul(swap64 a)(swap64 a)), a 128-bit match)    *)
+(* and byteswap128 x = word_join(subword x(0,64))(subword x(64,64)) IS swap64. *)
+(* This dovetails with the Phase-6 byteswap representation identity.           *)
+(*                                                                            *)
+(* Q19 carries the 0xC2 reduction constant in both 64-bit lanes (= shl #57 of  *)
+(* movi 0xe1, built by block A at 0x004/0x008); only its low lane is consumed. *)
+(*                                                                            *)
+(* Proof: symbolically execute the 17 instructions, then discharge the         *)
+(* resulting pure-word identity.  word_pmul is not bit-blastable directly (its *)
+(* bit is a CARD/ODD set expression), so the three data-dependent half-product *)
+(* squarings are abstracted to free 128-bit variables via PMUL_KARATSUBA       *)
+(* (rewritten let-free as KARA_EQ so it fires only on the 128x128 product) and *)
+(* the two constant-fold pmuls are expanded to shifts by PMUL_W_64_128.  After *)
+(* a WORD_BLAST reconciliation of the lane-shuffle forms the goal is a linear  *)
+(* GF(2) word identity over the three free products, closed by BITBLAST_TAC    *)
+(* per 64-bit lane (LANE128).                                                  *)
+(* ------------------------------------------------------------------------- *)
+
+(* Let-free form of PMUL_KARATSUBA: matches only the 128x128 word_pmul, so it  *)
+(* rewrites the reduced product without touching the 64x64 half-products.       *)
+let KARA_EQ = GEN_ALL(CONV_RULE(TOP_DEPTH_CONV let_CONV)(SPEC_ALL PMUL_KARATSUBA));;
+
+(* Split a 128-bit word equality into its two 64-bit lanes (keeps each         *)
+(* BITBLAST call to 64 output bits; the full-width blast is impractical here). *)
+let LANE128 = BITBLAST_RULE
+ `!(x:128 word) y. x = y <=>
+    (word_subword x (0,64):64 word = word_subword y (0,64)) /\
+    (word_subword x (64,64):64 word = word_subword y (64,64))`;;
+
+let GCM_INIT_V8_REDBRIDGE = prove
+ (`!(a:int128) pc.
+     ensures arm
+      (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+           read PC s = word (pc + 0x44) /\
+           read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
+           read Q20 s = a)
+      (\s. read PC s = word (pc + 0x88) /\
+           read Q17 s =
+           polyval_reduce_prop3 (word_pmul (byteswap128 a) (byteswap128 a)))
+      (MAYCHANGE [PC] ,,
+       MAYCHANGE [Q0; Q1; Q2; Q16; Q17; Q18] ,,
+       MAYCHANGE [events])`,
+  MAP_EVERY X_GEN_TAC [`a:int128`; `pc:num`] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--17) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[byteswap128] THEN
+  REWRITE_TAC[KARA_EQ] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REWRITE_TAC[PMUL_W_64_128] THEN
+  REWRITE_TAC[WORD_BLAST
+   `(word_subword (word_join (word_subword (a:int128) (0,64):64 word)
+       (word_subword a (64,64):64 word) :128 word) (0,64):64 word =
+     word_subword a (64,64)) /\
+    (word_subword (word_join (word_subword (a:int128) (0,64):64 word)
+       (word_subword a (64,64):64 word) :128 word) (64,64):64 word =
+     word_subword a (0,64)) /\
+    (word_subword (word_xor (a:int128)
+       (word_subword (word_join a a:256 word) (64,128))) (0,64):64 word =
+     word_xor (word_subword a (0,64):64 word) (word_subword a (64,64))) /\
+    (word_xor (word_subword (a:int128) (64,64):64 word) (word_subword a (0,64)) =
+     word_xor (word_subword a (0,64):64 word) (word_subword a (64,64)))`] THEN
+  ABBREV_TAC `(qhi:(128)word) =
+     word_pmul (word_subword (a:int128) (64,64) :(64)word)
+               (word_subword (a:int128) (64,64) :(64)word)` THEN
+  ABBREV_TAC `(qlo:(128)word) =
+     word_pmul (word_subword (a:int128) (0,64) :(64)word)
+               (word_subword (a:int128) (0,64) :(64)word)` THEN
+  ABBREV_TAC `(qmid:(128)word) =
+     word_pmul (word_xor (word_subword (a:int128) (0,64) :(64)word)
+                         (word_subword (a:int128) (64,64) :(64)word))
+               (word_xor (word_subword (a:int128) (0,64) :(64)word)
+                         (word_subword (a:int128) (64,64) :(64)word))` THEN
+  GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC);;
 
 (* ------------------------------------------------------------------------- *)
 (* Correctness (core): from function entry to the ret PC, gcm_init_v8 fills   *)
