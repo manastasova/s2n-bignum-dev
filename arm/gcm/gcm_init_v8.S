@@ -4,11 +4,13 @@
 // ----------------------------------------------------------------------------
 // GCM_INIT_V8: expand the GHASH hash key H into the PMULL/v8 power table.
 //
-//    extern void gcm_init_v8(u128 Htable[16], const uint64_t H[2]);
+//    extern void gcm_init_v8(uint64_t htable[static 32], const uint64_t h[static 2]);
 //
-// where AWS-LC's "u128" is "struct { uint64_t hi, lo; }" (16 bytes). The
-// output buffer is declared as 16 entries (256 bytes), but this routine only
-// writes the first 12 entries (192 bytes = Htable[0..11]): the twisted hash
+// AWS-LC's native prototype is "u128 Htable[16]", where "u128" is
+// "struct { uint64_t hi, lo; }" (16 bytes); that is the same 256-byte buffer as
+// uint64_t htable[32]. The output buffer is 16 u128 entries (256 bytes), but
+// this routine only writes the first 12 entries (192 bytes = Htable[0..11]):
+// the twisted hash
 // key H, then packed Karatsuba pre-processed forms of H^1..H^8 laid out as
 // four groups of three 128-bit words. The remaining Htable[12..15] are left
 // untouched (they serve other GHASH variants, not this one).
