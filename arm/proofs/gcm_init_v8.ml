@@ -492,3 +492,179 @@ let GCM_INIT_V8_H2 = prove
   REPEAT CONJ_TAC THEN
   MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
   CONV_TAC NORM1 THEN CONV_TAC WORD_BITWISE_RULE);;
+
+(* ========================================================================= *)
+(* Phase 5: the H^3 & H^4 power block, PC 0x9c -> 0x134.                      *)
+(*                                                                            *)
+(* Precondition (the H^2 block's postcondition, GCM_INIT_V8_H2): Q20 holds    *)
+(* byteswap128 h1, Q22 holds byteswap128(H^2), Q19 = Gueron's w, and the two  *)
+(* Karatsuba folds Q16 = h1 (+) byteswap128 h1, Q17 = H^2 (+) byteswap128 H^2 *)
+(* are live; X0 points at Htable+48.  Writing H2i := polyval_dot h1 h1, the    *)
+(* block computes two powers by TWO interleaved carryless products:           *)
+(*                                                                            *)
+(*   H^3i = polyval_dot h1 H2i   (Q20 . Q22 : operands DIFFER, genuine mid)    *)
+(*   H^4i = polyval_dot H2i H2i  (Q22 . Q22 : a SQUARE, mid = p_lo (+) p_hi)   *)
+(*                                                                            *)
+(* each followed by the same two-phase Gueron reduction, then stores          *)
+(* byteswap128 H^3i, the packed pair word_join(kmid H^4i)(kmid H^3i), and      *)
+(* byteswap128 H^4i via a single 3-register st1 (arm_STP3 at 0x130 -- the      *)
+(* first proof use of the newly-modelled instruction).                        *)
+(*                                                                            *)
+(* The postcondition exposes every register the H^5/H^6 block (Phase 6)        *)
+(* consumes at 0x134, so that block composes without re-deriving them (the     *)
+(* composition-gap lesson from Phase 5's own setup): Q22 = byteswap128 H^2i,   *)
+(* Q23 = byteswap128 H^3i, Q25 = byteswap128 H^4i, the H^2 fold Q18 =          *)
+(* H^2i (+) byteswap128 H^2i, and the refolded Q16 = H^3i-fold, Q17 =          *)
+(* H^4i-fold.  (H^5 = H^2i.H^3i uses Q22,Q23 and the folds Q18,Q16.)           *)
+(*                                                                            *)
+(* OPERAND-AGNOSTIC REDUCTION BRIDGE (the STATE generality mandate).  Because  *)
+(* H^3 has a non-vanishing Karatsuba middle, the H^2-specific FROB64 close     *)
+(* does not apply; a squaring-specialised close would have to be redone for    *)
+(* every later power.  Instead the reduction is closed over the THREE opaque   *)
+(* products of each power: abbreviate {PL3,PH3,PM3} for H^3 and {PL4,PH4}      *)
+(* for H^4 (its middle PM4 = PL4 (+) PH4 collapses under FROB64, so the        *)
+(* reconstruction middle vanishes exactly as in H^2 -- H^4 is the H^2 special  *)
+(* case).  With the products opaque, the SPEC side (polyval_dot = prop3 of the *)
+(* Karatsuba reconstruction, via KARA_H1H2/KARA_H2H2) and the HARDWARE side    *)
+(* are XOR/lane rearrangements of the same atoms.  Only the two second-phase   *)
+(* pmul-by-w arguments differ in shape; VEQ3/VEQ4 (pure WORD_BITWISE_RULE      *)
+(* XOR identities) unify them so each abbreviates to a single QV3/QV4.  The    *)
+(* goal is then PMUL-FREE and the SAME structure-agnostic finisher as H^2      *)
+(* (WORD_EQ_128_LANES + NORM1 + WORD_BITWISE_RULE per 64-bit lane) closes all  *)
+(* five conjuncts -- genuine-mid (H^3) and square (H^4) handled identically.   *)
+(* This close is what Phase 6 reuses for H^5..H^8 unchanged.                   *)
+(*                                                                            *)
+(* The postcondition is kept in OPERAND form (H^3i = polyval_dot h1 H2i, etc.) *)
+(* rather than h_power form: reconciling to htable_mem's h_power h 2/h 3 needs  *)
+(* polyval_dot commutativity/associativity, deferred to Phase 7 where one      *)
+(* lemma set is applied to all eight powers at once.  The internal key is the  *)
+(* half-swapped byteswap128 H_mem (Phase 3 convention), carried throughout.    *)
+(* ========================================================================= *)
+
+(* Karatsuba decompositions for the two interleaved products (h2 := H^2i).     *)
+let KARA_H1H2 = CONV_RULE(TOP_DEPTH_CONV let_CONV)
+                  (ISPECL [`h1:int128`;`h2:int128`] PMUL_KARATSUBA);;
+let KARA_H2H2 = CONV_RULE(TOP_DEPTH_CONV let_CONV)
+                  (ISPECL [`h2:int128`;`h2:int128`] PMUL_KARATSUBA);;
+
+(* VEQ3/VEQ4: the hardware vs. spec 2nd-phase pmul-by-w argument agree (XOR    *)
+(* rearrangement).  VEQ3 is the genuine-mid (H^3) case; VEQ4 the square (H^4). *)
+let VEQ3 = WORD_BITWISE_RULE
+  `word_xor (word_xor (word_subword (PL3:128 word) (64,64):64 word)
+                      (word_xor (word_xor (word_subword (PM3:128 word) (0,64))
+                                          (word_subword PL3 (0,64)))
+                                (word_subword (PH3:128 word) (0,64))))
+            (word_subword (QA3:128 word) (0,64)) =
+   word_xor (word_subword QA3 (0,64))
+            (word_xor (word_xor (word_subword PH3 (0,64)) (word_subword PL3 (0,64)))
+                      (word_xor (word_subword PL3 (64,64)) (word_subword PM3 (0,64))))`;;
+
+let VEQ4 = WORD_BITWISE_RULE
+  `word_xor (word_xor (word_subword (PL4:128 word) (64,64):64 word)
+                      (word_xor (word_xor (word_xor (word_subword PL4 (0,64))
+                                                    (word_subword (PH4:128 word) (0,64)))
+                                          (word_subword PL4 (0,64)))
+                                (word_subword PH4 (0,64))))
+            (word_subword (QA4:128 word) (0,64)) =
+   word_xor (word_subword QA4 (0,64))
+            (word_xor (word_xor (word_subword PH4 (0,64)) (word_subword PL4 (0,64)))
+                      (word_xor (word_subword PL4 (64,64))
+                                (word_xor (word_subword PL4 (0,64)) (word_subword PH4 (0,64)))))`;;
+
+let GCM_INIT_V8_H34 = prove
+ (`!Htable h1 pc.
+    nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
+    ==> ensures arm
+         (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+              read PC s = word (pc + 0x9c) /\
+              read X0 s = word_add Htable (word 48) /\
+              read Q19 s = word 0xC200000000000000 /\
+              read Q20 s = byteswap128 h1 /\
+              read Q22 s = byteswap128 (polyval_dot h1 h1) /\
+              read Q16 s = word_xor h1 (byteswap128 h1) /\
+              read Q17 s = word_xor (polyval_dot h1 h1)
+                                    (byteswap128 (polyval_dot h1 h1)))
+         (\s. read PC s = word (pc + 0x134) /\
+              read X0 s = word_add Htable (word 96) /\
+              read Q19 s = word 0xC200000000000000 /\
+              read Q20 s = byteswap128 h1 /\
+              read Q22 s = byteswap128 (polyval_dot h1 h1) /\
+              read Q18 s = word_xor (polyval_dot h1 h1)
+                                    (byteswap128 (polyval_dot h1 h1)) /\
+              read Q23 s = byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
+              read Q25 s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)) /\
+              read Q16 s = word_xor (polyval_dot h1 (polyval_dot h1 h1))
+                             (byteswap128 (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read Q17 s = word_xor (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1))
+                             (byteswap128
+                               (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 48))) s =
+                byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 64))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)))
+                          (karatsuba_mid (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 80))) s =
+                byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)))
+         (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+          MAYCHANGE [memory :> bytes(Htable, 192)])`,
+  MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; C_ARGUMENTS;
+              NONOVERLAPPING_CLAUSES; ALL; fst GCM_INIT_V8_EXEC] THEN
+  DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
+  REWRITE_TAC[SOME_FLAGS; MODIFIABLE_SIMD_REGS] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--38) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  (* --- keep H^2 opaque (h2), unfold the two outer products' spec --- *)
+  ABBREV_TAC `h2 = polyval_dot h1 h1` THEN
+  REWRITE_TAC[SUBWORD_BS_LEMMAS] THEN
+  REWRITE_TAC[polyval_dot; karatsuba_mid; byteswap128; KARA_H1H2; KARA_H2H2] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  (* --- normalize lanes to fixpoint, then collapse the H^4 square middle --- *)
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC[XOR0] THEN
+  REWRITE_TAC[FROB64] THEN
+  (* --- abbreviate the five base products (H^3: PL3,PH3,PM3; H^4: PL4,PH4) --- *)
+  ABBREV_TAC `PL3 = word_pmul (word_subword (h1:int128) (0,64):64 word)
+                             (word_subword (h2:int128) (0,64):64 word):128 word` THEN
+  ABBREV_TAC `PH3 = word_pmul (word_subword (h1:int128) (64,64):64 word)
+                             (word_subword (h2:int128) (64,64):64 word):128 word` THEN
+  ABBREV_TAC `PM3 = word_pmul (word_xor (word_subword (h1:int128) (0,64):64 word)
+                                        (word_subword h1 (64,64)))
+                             (word_xor (word_subword (h2:int128) (0,64):64 word)
+                                       (word_subword h2 (64,64))):128 word` THEN
+  ABBREV_TAC `PL4 = word_pmul (word_subword (h2:int128) (0,64):64 word)
+                             (word_subword (h2:int128) (0,64):64 word):128 word` THEN
+  ABBREV_TAC `PH4 = word_pmul (word_subword (h2:int128) (64,64):64 word)
+                             (word_subword (h2:int128) (64,64):64 word):128 word` THEN
+  (* --- abbreviate the first-phase pmul-by-w results --- *)
+  ABBREV_TAC `QA3 = word_pmul (word_subword (PL3:128 word) (0,64):64 word)
+                             ((word 13979173243358019584):64 word):128 word` THEN
+  ABBREV_TAC `QA4 = word_pmul (word_subword (PL4:128 word) (0,64):64 word)
+                             ((word 13979173243358019584):64 word):128 word` THEN
+  (* --- distribute subwords, unify the 2nd-phase pmul-by-w args, abbreviate --- *)
+  CONV_TAC NORM1 THEN
+  REWRITE_TAC[VEQ3; VEQ4] THEN
+  ABBREV_TAC `QV3 = word_pmul
+                     (word_xor (word_subword (QA3:128 word) (0,64):64 word)
+                       (word_xor (word_xor (word_subword (PH3:128 word) (0,64))
+                                           (word_subword (PL3:128 word) (0,64)))
+                                 (word_xor (word_subword PL3 (64,64))
+                                           (word_subword (PM3:128 word) (0,64)))))
+                     ((word 13979173243358019584):64 word):128 word` THEN
+  ABBREV_TAC `QV4 = word_pmul
+                     (word_xor (word_subword (QA4:128 word) (0,64):64 word)
+                       (word_xor (word_xor (word_subword (PH4:128 word) (0,64))
+                                           (word_subword (PL4:128 word) (0,64)))
+                                 (word_xor (word_subword PL4 (64,64))
+                                           (word_xor (word_subword PL4 (0,64))
+                                                     (word_subword PH4 (0,64))))))
+                     ((word 13979173243358019584):64 word):128 word` THEN
+  (* --- PMUL-FREE over opaque atoms; close per 64-bit lane (structure-agnostic) --- *)
+  REPEAT CONJ_TAC THEN
+  MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
+  CONV_TAC NORM1 THEN CONV_TAC WORD_BITWISE_RULE);;
