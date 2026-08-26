@@ -11,6 +11,7 @@
 
 needs "arm/proofs/base.ml";;
 needs "common/polyval_ghash.ml";;
+needs "common/karatsuba_pmul.ml";;      (* PMUL_KARATSUBA; ~0.5s on top of the above *)
 
 (**** print_literal_from_elf "arm/gcm/gcm_init_v8.o";;
  ****)
@@ -232,3 +233,176 @@ let GCM_INIT_V8_TWIST = prove
   ASM_REWRITE_TAC[] THEN
   REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN
   BITBLAST_TAC);;
+
+(* ========================================================================= *)
+(* Phase 4: the squaring / multiply-reduce block (H^2), PC 0x44 -> 0x9c.      *)
+(*                                                                            *)
+(* Precondition (recovered by Phase 7 after stepping the twist): v20 holds    *)
+(* the stored, byteswapped key  byteswap128 h1  (h1 the internal algebraic    *)
+(* key = ghash_twist(byteswap128 H_mem)); v19 holds Gueron's reduction        *)
+(* constant  w = 0xC200000000000000; X0 points at Htable+16.                  *)
+(*                                                                            *)
+(* The block computes H^2 = polyval_dot h1 h1 (one carryless square + a       *)
+(* two-phase Gueron reduction), stores the Karatsuba-mid pack at Htable[1]     *)
+(* and byteswap128(H^2) at Htable[2], and leaves byteswap128(H^2) in Q22 for   *)
+(* the next power block.                                                      *)
+(*                                                                            *)
+(* PROOF STRATEGY (algebraic, NOT a brute bit-blast — a symbolic word_pmul is *)
+(* opaque to WORD_BLAST):                                                     *)
+(*   1. symbolic-step the 22 instructions and read off the raw store values;  *)
+(*   2. unfold the spec (polyval_dot / prop3 / karatsuba_mid / byteswap128),   *)
+(*      rewrite the wide square with PMUL_KARATSUBA, collapse the Karatsuba    *)
+(*      middle for a square with FROB64, abbreviate the two half-products     *)
+(*      PAA,PBB and (after lane normalization) their four lanes + the two      *)
+(*      reduction pmul-by-w results QA,QV, so the goal becomes PMUL-FREE over  *)
+(*      opaque atoms;                                                         *)
+(*   3. close each 128-bit store equality per 64-bit lane: WORD_EQ_128_LANES   *)
+(*      splits it into its two lanes, NORM1 pushes word_subword through        *)
+(*      word_join/word_xor down to the opaque atoms, and WORD_BITWISE_RULE     *)
+(*      discharges the resulting pure-XOR lane identity.  This is bit-count-   *)
+(*      INDEPENDENT: WORD_BLAST on the ~640-bit combined identity times out    *)
+(*      (BDD blow-up superlinear in bit count), whereas the per-lane word-     *)
+(*      level close does not care about the bit width.                        *)
+(*                                                                            *)
+(* NOTE ON Htable[1] ORDER (a spec discrepancy found while proving this):      *)
+(*   The routine stores the H^1/H^2 Karatsuba-mid pack as                     *)
+(*     word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1),       *)
+(*   i.e. karatsuba_mid h1 in the LOW 64 bits (bytes 0..7) and                 *)
+(*   karatsuba_mid(H^2) in the HIGH 64 bits (bytes 8..15).  This is what the   *)
+(*   hardware actually writes (confirmed here by symbolic execution of the ISA *)
+(*   model, and independently by the byte-exact import layout).  It is the     *)
+(*   SWAP of `htable_mem`'s packed-mid slot                                    *)
+(*   `word_join (karatsuba_mid(h_power h 0)) (karatsuba_mid(h_power h 1))`      *)
+(*   (common/polyval_ghash.ml): since HOL `word_join a b` places `a` in the    *)
+(*   HIGH half, that definition puts karatsuba_mid h1 in the HIGH half — the   *)
+(*   opposite of the hardware.  The byteswap128 slots (Htable[0],[2],...) are  *)
+(*   unaffected.  The lemma below therefore states the ACTUAL stored value;    *)
+(*   htable_mem's four packed-mid slots need their two karatsuba_mid arguments *)
+(*   swapped for Phase 7 to compose (flagged to the human).                   *)
+(* ========================================================================= *)
+
+(* --- lane-normalization conversion: subword-of-{join,zx} and subword-of-xor *)
+let NORM1 = TOP_DEPTH_CONV (WORD_SIMPLE_SUBWORD_CONV ORELSEC REWR_CONV WORD_SUBWORD_XOR);;
+
+(* subword lanes of a byteswapped operand, and the mid of a byteswapped key   *)
+let SUBWORD_BS_LEMMAS = prove
+ (`(!h:int128. word_subword (byteswap128 h) (0,64):64 word = word_subword h (64,64)) /\
+   (!h:int128. word_subword (byteswap128 h) (64,64):64 word = word_subword h (0,64)) /\
+   (!h:int128. word_subword (word_join (byteswap128 h) (byteswap128 h):256 word) (64,128):128 word = h) /\
+   (!h:int128. word_subword (word_xor (byteswap128 h) h) (0,64):64 word =
+               word_xor (word_subword h (0,64)) (word_subword h (64,64)))`,
+  REWRITE_TAC[byteswap128] THEN CONV_TAC WORD_BLAST);;
+
+(* Frobenius: for a SQUARE the Karatsuba middle collapses to p_lo XOR p_hi.    *)
+let FROB64 = prove
+ (`!a b:64 word. word_pmul (word_xor a b) (word_xor a b) : 128 word =
+                 word_xor (word_pmul a a : 128 word) (word_pmul b b : 128 word)`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[WORD_PMUL_XOR] THEN
+  GEN_REWRITE_TAC (LAND_CONV o RAND_CONV o LAND_CONV) [WORD_PMUL_SYM] THEN
+  CONV_TAC WORD_BITWISE_RULE);;
+
+(* Karatsuba decomposition of the wide square word_pmul h1 h1.                 *)
+let KARA_H1 = CONV_RULE(TOP_DEPTH_CONV let_CONV)
+                (ISPECL [`h1:int128`;`h1:int128`] PMUL_KARATSUBA);;
+
+(* subword lanes of  shl(zx x) k  (aligned to the two shift amounts used).     *)
+let SHL_LANES =
+ [ WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 64) (0,64):64 word) = (word 0:64 word)`;
+   WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 64) (64,64):64 word) = word_subword x (0,64)`;
+   WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 64) (128,64):64 word) = word_subword x (64,64)`;
+   WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 128) (0,64):64 word) = (word 0:64 word)`;
+   WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 128) (64,64):64 word) = (word 0:64 word)`;
+   WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 128) (128,64):64 word) = word_subword x (0,64)`;
+   WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 128) (192,64):64 word) = word_subword x (64,64)` ];;
+
+(* word_insert (a Gueron INS) expressed as a word_join of lanes.               *)
+let INS_LANES =
+ [ WORD_BLAST `(word_insert (x:128 word) (0,64) (v:128 word) :128 word) =
+               (word_join (word_subword x (64,64):64 word) (word_subword v (0,64):64 word) :128 word)`;
+   WORD_BLAST `(word_insert (x:128 word) (64,64) (v:128 word) :128 word) =
+               (word_join (word_subword v (0,64):64 word) (word_subword x (0,64):64 word) :128 word)`;
+   WORD_BLAST `(word_subword (word_shl (word_zx (x:128 word):256 word) 64) (192,64):64 word) = (word 0:64 word)` ];;
+
+let XOR0 = WORD_BLAST `(!x:64 word. word_xor x (word 0) = x) /\
+                       (!x:64 word. word_xor (word 0) x = x)`;;
+
+(* VEQ2: the assembly's 2nd Gueron pmul-by-w argument equals the spec's        *)
+(* (both reduce to  word_subword QA (0,64)  XOR  HAA); unifying them lets the  *)
+(* two pmul-by-w results be abbreviated to a single opaque QV.                 *)
+let VEQ2 = WORD_BITWISE_RULE
+  `word_xor (word_subword (QA:128 word) (0,64):64 word)
+            (word_xor (word_xor (LBB:64 word) (LAA:64 word))
+                      (word_xor (HAA:64 word) (word_xor LAA LBB))) =
+   word_xor (word_xor HAA (word_xor (word_xor (word_xor LAA LBB) LAA) LBB))
+            (word_subword QA (0,64))`;;
+
+(* two 128-bit words are equal iff their two 64-bit lanes agree.               *)
+let WORD_EQ_128_LANES = prove
+ (`!x y:128 word.
+     (word_subword x (0,64):64 word = word_subword y (0,64)) /\
+     (word_subword x (64,64):64 word = word_subword y (64,64))
+     ==> x = y`,
+  CONV_TAC WORD_BLAST);;
+
+let GCM_INIT_V8_H2 = prove
+ (`!Htable h1 pc.
+    nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
+    ==> ensures arm
+         (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+              read PC s = word (pc + 0x44) /\
+              read X0 s = word_add Htable (word 16) /\
+              read Q19 s = word 0xC200000000000000 /\
+              read Q20 s = byteswap128 h1)
+         (\s. read PC s = word (pc + 0x9c) /\
+              read Q19 s = word 0xC200000000000000 /\
+              read Q20 s = byteswap128 h1 /\
+              read Q22 s = byteswap128 (polyval_dot h1 h1) /\
+              read X0 s = word_add Htable (word 48) /\
+              read (memory :> bytes128 (word_add Htable (word 16))) s =
+                word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
+              read (memory :> bytes128 (word_add Htable (word 32))) s =
+                byteswap128 (polyval_dot h1 h1))
+         (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+          MAYCHANGE [memory :> bytes(Htable, 192)])`,
+  MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; C_ARGUMENTS;
+              NONOVERLAPPING_CLAUSES; ALL; fst GCM_INIT_V8_EXEC] THEN
+  DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
+  REWRITE_TAC[SOME_FLAGS; MODIFIABLE_SIMD_REGS] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--22) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  (* --- unfold spec, Karatsuba-decompose the square, collapse the mid --- *)
+  REWRITE_TAC[SUBWORD_BS_LEMMAS] THEN
+  REWRITE_TAC[polyval_dot; karatsuba_mid; byteswap128; KARA_H1] THEN
+  REWRITE_TAC[FROB64] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  (* --- abbreviate the two half-products, normalize lanes to fixpoint --- *)
+  ABBREV_TAC `PAA = word_pmul (word_subword (h1:int128) (0,64):64 word)
+                              (word_subword h1 (0,64):64 word):128 word` THEN
+  ABBREV_TAC `PBB = word_pmul (word_subword (h1:int128) (64,64):64 word)
+                              (word_subword h1 (64,64):64 word):128 word` THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC[XOR0] THEN
+  (* --- abbreviate the four product lanes + the first pmul-by-w (QA) --- *)
+  ABBREV_TAC `LAA = word_subword (PAA:128 word) (0,64):64 word` THEN
+  ABBREV_TAC `HAA = word_subword (PAA:128 word) (64,64):64 word` THEN
+  ABBREV_TAC `LBB = word_subword (PBB:128 word) (0,64):64 word` THEN
+  ABBREV_TAC `HBB = word_subword (PBB:128 word) (64,64):64 word` THEN
+  ABBREV_TAC `QA = word_pmul (LAA:64 word)
+                             ((word 13979173243358019584):64 word):128 word` THEN
+  (* --- unify the assembly / spec 2nd pmul-by-w argument, abbreviate QV --- *)
+  REWRITE_TAC[VEQ2] THEN
+  ABBREV_TAC `QV = word_pmul
+                    (word_xor (word_xor (HAA:64 word)
+                       (word_xor (word_xor (word_xor (LAA:64 word) (LBB:64 word)) LAA) LBB))
+                     (word_subword (QA:128 word) (0,64):64 word))
+                    ((word 13979173243358019584):64 word):128 word` THEN
+  (* --- the goal is now PMUL-FREE over opaque atoms; close per 64-bit lane --- *)
+  REPEAT CONJ_TAC THEN
+  MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
+  CONV_TAC NORM1 THEN CONV_TAC WORD_BITWISE_RULE);;
