@@ -894,6 +894,113 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
   REPEAT CONJ_TAC THEN GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN
   BITBLAST_TAC);;
 
+(* ========================================================================= *)
+(* Phase 8 -- block C (H^3/H^4) register core + 3-register store               *)
+(* (0x09c-0x134, steps 40-77 + the st1), stated with SYMBOLIC inputs           *)
+(* a = Q20, b = Q22 (block B leaves a = byteswap128 h, b = byteswap128 H^2).   *)
+(*                                                                            *)
+(* This is the block-C analogue of GCM_INIT_V8_H2: it wraps the register       *)
+(* bridge with the contiguous 3-register store `st1 {v23.2d-v25.2d},[x0],#48`  *)
+(* at 0x130 -- the FIRST real exercise of the Phase-3 arm_ST1_3 primitive --   *)
+(* landing the three H^3/H^4 sub-table slots (X0 = htable+48 on entry, +96 on  *)
+(* exit):                                                                      *)
+(*                                                                            *)
+(*   slot 3 @ X0+0  (Htable[3]) = byteswap128 (H^3)                            *)
+(*   slot 4 @ X0+16 (Htable[4], packed middle) =                               *)
+(*     word_join (karatsuba_mid (H^4)) (karatsuba_mid (H^3))                   *)
+(*     -- HIGH lane mid of the HIGHER power, LOW lane mid of the LOWER power.   *)
+(*   slot 5 @ X0+32 (Htable[5]) = byteswap128 (H^4)                            *)
+(*                                                                            *)
+(* where H^3 = polyval_dot (byteswap128 a) (byteswap128 b) and                 *)
+(* H^4 = polyval_dot (byteswap128 b) (byteswap128 b) (block-C register bridge, *)
+(* MEASURED above).  Slot 4 is exercised by NEITHER the KAT nor the            *)
+(* differential test, so this proof is its only check; its measured lane order *)
+(* (HIGH = higher power) matches the corrected htable_mem.                     *)
+(*                                                                            *)
+(* Three ghost slot values g0/g1/g2 (the H^2 sub-table slots 0/1/2 that block  *)
+(* A+B already stored) are threaded pre->post: block C writes only             *)
+(* [htable+48, htable+96), disjoint from [htable, htable+48), so they survive  *)
+(* the frame and close by ASM_REWRITE -- this is what lets Phase 8's           *)
+(* composition carry slots 0-2 through block C.                                *)
+(*                                                                            *)
+(* Proof: step all 38 instructions (the store needs the code/table nonoverlap  *)
+(* + exec-length rewrite BEFORE ENSURES_INIT_TAC), then discharge the three    *)
+(* stored-slot identities with the same Karatsuba recipe as the register       *)
+(* bridge (SBW_XOR/SBW_BS/SBW_JOIN reconciliation, six ABBREV'd products,      *)
+(* LANE128 + BITBLAST per lane); X0 by WORD_RULE, g0/g1/g2 by ASM_REWRITE.      *)
+(* ------------------------------------------------------------------------- *)
+
+let GCM_INIT_V8_H34 = prove
+ (`!(a:int128) (b:int128) g0 g1 g2 htable pc.
+     nonoverlapping (word pc,0x260) (htable,192)
+     ==> ensures arm
+          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+               read PC s = word (pc + 0x9c) /\
+               read X0 s = word_add htable (word 48) /\
+               read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
+               read Q20 s = a /\
+               read Q22 s = b /\
+               read Q16 s = word_xor (byteswap128 a) a /\
+               read Q17 s = word_xor (byteswap128 b) b /\
+               read (memory :> bytes128 htable) s = g0 /\
+               read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
+               read (memory :> bytes128 (word_add htable (word 32))) s = g2)
+          (\s. read PC s = word (pc + 0x134) /\
+               read X0 s = word_add htable (word 96) /\
+               read (memory :> bytes128 htable) s = g0 /\
+               read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
+               read (memory :> bytes128 (word_add htable (word 32))) s = g2 /\
+               read (memory :> bytes128 (word_add htable (word 48))) s =
+                 byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b)) /\
+               read (memory :> bytes128 (word_add htable (word 64))) s =
+                 word_join
+                   (karatsuba_mid (polyval_dot (byteswap128 b) (byteswap128 b)))
+                   (karatsuba_mid (polyval_dot (byteswap128 a) (byteswap128 b))) /\
+               read (memory :> bytes128 (word_add htable (word 80))) s =
+                 byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b)))
+          (MAYCHANGE [PC] ,,
+           MAYCHANGE [X0] ,,
+           MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q23;Q24;Q25] ,,
+           MAYCHANGE [memory :> bytes(word_add htable (word 48),48)] ,,
+           MAYCHANGE [events])`,
+  REWRITE_TAC[NONOVERLAPPING_CLAUSES; fst GCM_INIT_V8_EXEC] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--38) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[polyval_dot; karatsuba_mid] THEN
+  REWRITE_TAC[KARA_EQ] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REWRITE_TAC[PMUL_W_64_128] THEN
+  REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
+  ABBREV_TAC `(pab_hi:128 word) =
+     word_pmul (word_subword (a:int128) (64,64):64 word)
+               (word_subword (b:int128) (64,64):64 word)` THEN
+  ABBREV_TAC `(pab_lo:128 word) =
+     word_pmul (word_subword (a:int128) (0,64):64 word)
+               (word_subword (b:int128) (0,64):64 word)` THEN
+  ABBREV_TAC `(pab_mid:128 word) =
+     word_pmul (word_xor (word_subword (a:int128) (64,64):64 word)
+                         (word_subword (a:int128) (0,64):64 word))
+               (word_xor (word_subword (b:int128) (64,64):64 word)
+                         (word_subword (b:int128) (0,64):64 word))` THEN
+  ABBREV_TAC `(pbb_hi:128 word) =
+     word_pmul (word_subword (b:int128) (64,64):64 word)
+               (word_subword (b:int128) (64,64):64 word)` THEN
+  ABBREV_TAC `(pbb_lo:128 word) =
+     word_pmul (word_subword (b:int128) (0,64):64 word)
+               (word_subword (b:int128) (0,64):64 word)` THEN
+  ABBREV_TAC `(pbb_mid:128 word) =
+     word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
+                         (word_subword (b:int128) (0,64):64 word))
+               (word_xor (word_subword (b:int128) (64,64):64 word)
+                         (word_subword (b:int128) (0,64):64 word))` THEN
+  REWRITE_TAC[byteswap128] THEN
+  REPEAT CONJ_TAC THEN
+  TRY(CONV_TAC WORD_RULE) THEN
+  GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC);;
+
 (* ------------------------------------------------------------------------- *)
 (* Correctness (core): from function entry to the ret PC, gcm_init_v8 fills   *)
 (* the 12-slot Htable with the byteswapped H-powers and packed Karatsuba      *)
