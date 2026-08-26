@@ -323,7 +323,12 @@ let GCM_INIT_V8_TWIST = prove
 (* The block computes H^2 = polyval_dot h1 h1 (one carryless square + a       *)
 (* two-phase Gueron reduction), stores the Karatsuba-mid pack at Htable[1]     *)
 (* and byteswap128(H^2) at Htable[2], and leaves byteswap128(H^2) in Q22 for   *)
-(* the next power block.                                                      *)
+(* the next power block.  The postcondition also pins the two Karatsuba        *)
+(* "folds" the block leaves live for the H^3/H^4 block (Phase 5): Q16 =        *)
+(* word_xor h1 (byteswap128 h1) (both lanes = karatsuba_mid h1) and Q17 =      *)
+(* word_xor (H^2) (byteswap128 (H^2)) (both lanes = karatsuba_mid(H^2)).       *)
+(* These are the true hardware values at 0x9c (machine-checked here by the     *)
+(* same 22-step run), so Phase 5 need not re-derive them.                      *)
 (*                                                                            *)
 (* PROOF STRATEGY (algebraic, NOT a brute bit-blast — a symbolic word_pmul is *)
 (* opaque to WORD_BLAST):                                                     *)
@@ -435,6 +440,9 @@ let GCM_INIT_V8_H2 = prove
               read Q19 s = word 0xC200000000000000 /\
               read Q20 s = byteswap128 h1 /\
               read Q22 s = byteswap128 (polyval_dot h1 h1) /\
+              read Q16 s = word_xor h1 (byteswap128 h1) /\
+              read Q17 s = word_xor (polyval_dot h1 h1)
+                                    (byteswap128 (polyval_dot h1 h1)) /\
               read X0 s = word_add Htable (word 48) /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
