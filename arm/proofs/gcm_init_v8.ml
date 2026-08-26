@@ -296,6 +296,9 @@ let GCM_INIT_V8_TWIST = prove
               C_ARGUMENTS [Htable; H_ptr] s /\
               read (memory :> bytes128 H_ptr) s = H)
          (\s. read PC s = word (pc + 0x44) /\
+              read X0 s = word_add Htable (word 16) /\
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
+              read Q20 s = byteswap128(ghash_twist(byteswap128 H)) /\
               read (memory :> bytes128 Htable) s =
                 byteswap128(ghash_twist(byteswap128 H)))
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
@@ -434,16 +437,18 @@ let GCM_INIT_V8_H2 = prove
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
               read PC s = word (pc + 0x44) /\
               read X0 s = word_add Htable (word 16) /\
-              read Q19 s = word 0xC200000000000000 /\
-              read Q20 s = byteswap128 h1)
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
+              read Q20 s = byteswap128 h1 /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1)
          (\s. read PC s = word (pc + 0x9c) /\
-              read Q19 s = word 0xC200000000000000 /\
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q20 s = byteswap128 h1 /\
               read Q22 s = byteswap128 (polyval_dot h1 h1) /\
               read Q16 s = word_xor h1 (byteswap128 h1) /\
               read Q17 s = word_xor (polyval_dot h1 h1)
                                     (byteswap128 (polyval_dot h1 h1)) /\
               read X0 s = word_add Htable (word 48) /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
               read (memory :> bytes128 (word_add Htable (word 32))) s =
@@ -578,15 +583,20 @@ let GCM_INIT_V8_H34 = prove
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
               read PC s = word (pc + 0x9c) /\
               read X0 s = word_add Htable (word 48) /\
-              read Q19 s = word 0xC200000000000000 /\
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q20 s = byteswap128 h1 /\
               read Q22 s = byteswap128 (polyval_dot h1 h1) /\
               read Q16 s = word_xor h1 (byteswap128 h1) /\
               read Q17 s = word_xor (polyval_dot h1 h1)
-                                    (byteswap128 (polyval_dot h1 h1)))
+                                    (byteswap128 (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1 /\
+              read (memory :> bytes128 (word_add Htable (word 16))) s =
+                word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
+              read (memory :> bytes128 (word_add Htable (word 32))) s =
+                byteswap128 (polyval_dot h1 h1))
          (\s. read PC s = word (pc + 0x134) /\
               read X0 s = word_add Htable (word 96) /\
-              read Q19 s = word 0xC200000000000000 /\
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q20 s = byteswap128 h1 /\
               read Q22 s = byteswap128 (polyval_dot h1 h1) /\
               read Q18 s = word_xor (polyval_dot h1 h1)
@@ -598,6 +608,11 @@ let GCM_INIT_V8_H34 = prove
               read Q17 s = word_xor (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1))
                              (byteswap128
                                (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1 /\
+              read (memory :> bytes128 (word_add Htable (word 16))) s =
+                word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
+              read (memory :> bytes128 (word_add Htable (word 32))) s =
+                byteswap128 (polyval_dot h1 h1) /\
               read (memory :> bytes128 (word_add Htable (word 48))) s =
                 byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
               read (memory :> bytes128 (word_add Htable (word 64))) s =
@@ -741,7 +756,7 @@ let GCM_INIT_V8_H56 = prove
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
               read PC s = word (pc + 0x134) /\
               read X0 s = word_add Htable (word 96) /\
-              read Q19 s = word 0xC200000000000000 /\
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q22 s = byteswap128 (polyval_dot h1 h1) /\
               read Q23 s = byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
               read Q16 s = word_xor (polyval_dot h1 (polyval_dot h1 h1))
@@ -762,7 +777,7 @@ let GCM_INIT_V8_H56 = prove
                 byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)))
          (\s. read PC s = word (pc + 0x1cc) /\
               read X0 s = word_add Htable (word 144) /\
-              read Q19 s = word 0xC200000000000000 /\
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q22 s = byteswap128 (polyval_dot h1 h1) /\
               read Q26 s = byteswap128
                 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) /\
@@ -934,7 +949,7 @@ let GCM_INIT_V8_H78 = prove
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
               read PC s = word (pc + 0x1cc) /\
               read X0 s = word_add Htable (word 144) /\
-              read Q19 s = word 0xC200000000000000 /\
+              read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q22 s = byteswap128 (polyval_dot h1 h1) /\
               read Q26 s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) /\
               read Q28 s = byteswap128 (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))) /\
