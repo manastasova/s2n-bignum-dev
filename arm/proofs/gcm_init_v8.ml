@@ -1034,3 +1034,81 @@ let GCM_INIT_V8_H78 = prove
   REPEAT CONJ_TAC THEN
   MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
   CONV_TAC NORM1 THEN CONV_TAC WORD_BITWISE_RULE);;
+
+(* ========================================================================= *)
+(* Phase 7 reconciliation: operand form  <->  htable_mem's `h_power` form.    *)
+(*                                                                            *)
+(* The power blocks (H2/H34/H56/H78) leave every stored power in nested       *)
+(* `polyval_dot` OPERAND form (e.g. H^3i = polyval_dot h1 (polyval_dot h1 h1))*)
+(* whereas `htable_mem` (common/polyval_ghash.ml) states each slot with       *)
+(* `h_power h k`.  These lemmas bridge the two.                               *)
+(*                                                                            *)
+(*   POLYVAL_DOT_SYM   : dot is commutative (word equality, via WORD_PMUL_SYM)*)
+(*   DOT_TO_PROD_L     : poly(dot(dot a b) c) * x^256 == (poly a * poly b)*    *)
+(*                       poly c  (mod Q)  -- the double-reduction congruence   *)
+(*   POLYVAL_DOT_ASSOC : dot is associative (word equality; both sides cancel  *)
+(*                       x^256 to the same poly a*b*c mod the irreducible Q)   *)
+(*   HPOWER_OPERANDS   : h_power h 0..7 written as the exact operand nests the *)
+(*                       H78 postcondition stores.  Since every factor is the  *)
+(*                       same h, any parenthesization right-normalizes to the  *)
+(*                       identical right-comb under POLYVAL_DOT_ASSOC, so no    *)
+(*                       commutativity is needed for these eight identities.   *)
+(* ========================================================================= *)
+
+let POLYVAL_DOT_SYM = prove
+ (`!a b:128 word. polyval_dot a b = polyval_dot b a`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[polyval_dot] THEN AP_TERM_TAC THEN
+  MATCH_ACCEPT_TAC WORD_PMUL_SYM);;
+
+(* poly(dot(dot a b) c) * x^256 == (poly a * poly b) * poly c   (mod Q) *)
+let DOT_TO_PROD_L = prove
+ (`!a b c:128 word.
+    (ring_mul bool_poly (poly_of_word (polyval_dot (polyval_dot a b) c))
+       (ring_pow bool_poly (poly_var bool_ring one) 256) ==
+     ring_mul bool_poly (ring_mul bool_poly (poly_of_word a) (poly_of_word b))
+       (poly_of_word c)) mod_polyval`,
+  REPEAT GEN_TAC THEN SUBST1_TAC(ARITH_RULE `256 = 128 + 128`) THEN
+  SIMP_TAC[RING_POW_ADD; POLY_VAR_BOOL_POLY] THEN
+  SIMP_TAC[RING_MUL_ASSOC; BOOL_POLY_OF_WORD; POLY_VARPOW_BOOL_POLY] THEN
+  MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
+  EXISTS_TAC `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (polyval_dot a b)) (poly_of_word (c:128 word))) (ring_pow bool_poly (poly_var bool_ring one) 128)` THEN
+  CONJ_TAC THENL
+   [MATCH_MP_TAC MOD_POLYVAL_MUL THEN CONJ_TAC THENL
+     [REWRITE_TAC[POLYVAL_DOT_CORRECT]; SIMP_TAC[MOD_POLYVAL_REFL; POLY_VARPOW_BOOL_POLY]];
+    MP_TAC(ISPECL[`poly_of_word (polyval_dot a b)`; `poly_of_word (c:128 word)`; `ring_pow bool_poly (poly_var bool_ring one) 128`] BOOL_POLY_MUL_COMM23) THEN
+    ANTS_TAC THENL [SIMP_TAC[BOOL_POLY_OF_WORD; POLY_VARPOW_BOOL_POLY]; DISCH_THEN SUBST1_TAC] THEN
+    MATCH_MP_TAC MOD_POLYVAL_MUL THEN CONJ_TAC THENL
+     [REWRITE_TAC[POLYVAL_DOT_CORRECT]; SIMP_TAC[MOD_POLYVAL_REFL; BOOL_POLY_OF_WORD]]]);;
+
+let POLYVAL_DOT_ASSOC = prove
+ (`!a b c:128 word. polyval_dot (polyval_dot a b) c = polyval_dot a (polyval_dot b c)`,
+  REPEAT GEN_TAC THEN
+  SUBST1_TAC(ISPECL[`a:128 word`;`polyval_dot b c:128 word`] POLYVAL_DOT_SYM) THEN
+  MATCH_MP_TAC(ISPEC `256` MOD_POLYVAL_CANCEL_VARPOW) THEN
+  MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
+  EXISTS_TAC `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (a:128 word)) (poly_of_word (b:128 word))) (poly_of_word (c:128 word))` THEN
+  CONJ_TAC THENL
+   [REWRITE_TAC[DOT_TO_PROD_L];
+    ONCE_REWRITE_TAC[MOD_POLYVAL_SYM] THEN
+    MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
+    EXISTS_TAC `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (b:128 word)) (poly_of_word (c:128 word))) (poly_of_word (a:128 word))` THEN
+    CONJ_TAC THENL
+     [REWRITE_TAC[DOT_TO_PROD_L];
+      MATCH_MP_TAC MOD_POLYVAL_REFL_GEN THEN CONJ_TAC THENL
+       [SIMP_TAC[RING_MUL; BOOL_POLY_OF_WORD];
+        MESON_TAC[RING_MUL_SYM; RING_MUL_ASSOC; RING_MUL; BOOL_POLY_OF_WORD]]]]);;
+
+let HPOWER_OPERANDS = prove
+ (`!h:128 word.
+    h_power h 0 = h /\
+    h_power h 1 = polyval_dot h h /\
+    h_power h 2 = polyval_dot h (polyval_dot h h) /\
+    h_power h 3 = polyval_dot (polyval_dot h h) (polyval_dot h h) /\
+    h_power h 4 = polyval_dot (polyval_dot h h) (polyval_dot h (polyval_dot h h)) /\
+    h_power h 5 = polyval_dot (polyval_dot h (polyval_dot h h)) (polyval_dot h (polyval_dot h h)) /\
+    h_power h 6 = polyval_dot (polyval_dot h h) (polyval_dot (polyval_dot h h) (polyval_dot h (polyval_dot h h))) /\
+    h_power h 7 = polyval_dot (polyval_dot h h) (polyval_dot (polyval_dot h (polyval_dot h h)) (polyval_dot h (polyval_dot h h)))`,
+  GEN_TAC THEN
+  REWRITE_TAC[num_CONV `7`; num_CONV `6`; num_CONV `5`; num_CONV `4`;
+              num_CONV `3`; num_CONV `2`; num_CONV `1`; h_power] THEN
+  REWRITE_TAC[POLYVAL_DOT_ASSOC]);;
