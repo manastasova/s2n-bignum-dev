@@ -335,6 +335,52 @@ let GCM_INIT_V8_REDBRIDGE = prove
   GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC);;
 
 (* ------------------------------------------------------------------------- *)
+(* Phase 5 -- the twist bridge (block A register core, 0x000-0x040).          *)
+(*                                                                            *)
+(* Block A loads H (v17 <- ld1 [x1]), builds the 0xC2 reduction constant      *)
+(* (v19 = 0xC2..00 per 64-bit lane, movi 0xe1 + shl #57), byteswaps H into    *)
+(* v3 (ext #8 = swap of the two 64-bit halves = byteswap128), and computes    *)
+(* the GF(2^128) doubling x*H mod Q(x) as a per-lane `shl #1` plus an         *)
+(* explicit cross-lane carry re-injection (the ushr/ext/and/or dance) and a   *)
+(* conditional XOR of POLYVAL_TWIST_CONST (0xC2..01) selected by a mask that  *)
+(* the `dup v17.s[1]` (arm_DUP_ELEM) + `sshr #31` broadcast produces from     *)
+(* bit 127 of byteswap128 H.  The net register-level effect at 0x038 (v20)    *)
+(* is the spec twist ghash_twist(byteswap128 H); the trailing `ext #8` at     *)
+(* 0x03c byteswaps it, so at 0x040 (just before the slot-0 st1) v20 holds     *)
+(*                                                                            *)
+(*   read Q20 = byteswap128 (ghash_twist (byteswap128 H_in))                  *)
+(*            = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0)       *)
+(*                                                                            *)
+(* which is exactly the slot-0 value htable_mem demands (h_power h 0 = h).    *)
+(*                                                                            *)
+(* Unlike the block-B reduction bridge, block A contains NO pmul -- it is     *)
+(* purely linear bit-plumbing (shifts / and / or / xor / ext / dup) -- so the *)
+(* residual word identity after symbolic execution is bit-blastable directly. *)
+(* The RHS orientation (which byteswap on which side) was pinned by a         *)
+(* 128-bit-exact in-place BITBLAST rather than assumed (a pretty-printed-term  *)
+(* round-trip invents type variables and fails spuriously; prove in place).   *)
+(* ------------------------------------------------------------------------- *)
+
+let GCM_INIT_V8_TWISTBRIDGE = prove
+ (`!hp H_in pc.
+     ensures arm
+      (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+           read PC s = word pc /\
+           read X1 s = hp /\
+           read (memory :> bytes128 hp) s = H_in)
+      (\s. read PC s = word (pc + 0x40) /\
+           read Q20 s = byteswap128 (ghash_twist (byteswap128 H_in)))
+      (MAYCHANGE [PC] ,,
+       MAYCHANGE [Q3; Q16; Q17; Q18; Q19; Q20] ,,
+       MAYCHANGE [events])`,
+  MAP_EVERY X_GEN_TAC [`hp:int64`; `H_in:int128`; `pc:num`] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--16) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN
+  BITBLAST_TAC);;
+
+(* ------------------------------------------------------------------------- *)
 (* Correctness (core): from function entry to the ret PC, gcm_init_v8 fills   *)
 (* the 12-slot Htable with the byteswapped H-powers and packed Karatsuba      *)
 (* middle terms of the twisted secret ghash_twist(byteswap128 H_in).          *)
