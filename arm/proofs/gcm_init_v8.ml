@@ -427,6 +427,130 @@ let GCM_INIT_V8_SLOT0 = prove
   REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN
   BITBLAST_TAC);;
 
+(* ========================================================================= *)
+(* Phase 6 -- algebraic power lemmas (pure word algebra, no assembly).        *)
+(*                                                                            *)
+(* These reconcile the assembly's balanced factorizations of the H-powers     *)
+(* (verified from the disasm: H^3=H.H^2, H^4=H^2.H^2, H^5=H^2.H^3, H^6=H^3.H^3,*)
+(* H^7=H^2.H^5, H^8=H^2.H^6) and its byteswapped register representation with  *)
+(* the h_power recursion of common/polyval_ghash.ml.  All are stated as WORD  *)
+(* equalities so blocks B-E (Phases 7-9) can apply them directly.  polyval_dot *)
+(* a b = polyval_reduce_prop3 (word_pmul a b) = a*b*x^{-128} mod Q(x), so the  *)
+(* dot operation is the field multiply-and-reduce the assembly computes.       *)
+(*                                                                            *)
+(* NOTE ON THE BYTESWAP IDENTITY (planned "hardest lemma #2").  The plan       *)
+(* proposed proving  polyval_dot (byteswap128 a) (byteswap128 b) =            *)
+(* polyval_dot a b  as a general identity.  IT IS FALSE: byteswap128 is a swap *)
+(* of the two 64-bit HALVES (an involution), NOT a ring operation, and it does *)
+(* not commute through the reduction.  Concretely (WORD_PMUL_CONV/WORD_RED_CONV*)
+(* evaluation):                                                               *)
+(*   polyval_dot (word 1) (word 1)                                            *)
+(*      = word 194088056572031856754469952786247188481  (= x^{-128} mod Q)    *)
+(*   polyval_dot (byteswap128(word 1)) (byteswap128(word 1)) = word 1          *)
+(* which differ.  What blocks C/D/E actually require is NOT this identity but  *)
+(* the per-operand involution below: the operand registers already hold the    *)
+(* byteswapped stored powers (v20 = byteswap128 h, v22 = byteswap128(h_power   *)
+(* h 1), ...), and the reduction-bridge form polyval_dot (byteswap128 u)       *)
+(* (byteswap128 v) then cancels each byteswap by involution -- exactly as the  *)
+(* block-B squaring did (GCM_INIT_V8_REDBRIDGE instantiated at a:=byteswap128  *)
+(* h).  So no representation identity is needed; BYTESWAP128_INVOL + HPOWER_DOT *)
+(* close the algebra.                                                          *)
+(* ------------------------------------------------------------------------- *)
+
+(* Reassociation helper: swap the last two factors of a triple product.       *)
+let SWAP_LAST2 = prove
+ (`!a b c. a IN ring_carrier bool_poly /\ b IN ring_carrier bool_poly /\
+           c IN ring_carrier bool_poly
+     ==> ring_mul bool_poly (ring_mul bool_poly a b) c =
+         ring_mul bool_poly (ring_mul bool_poly a c) b`,
+  MESON_TAC[RING_MUL_ASSOC; RING_MUL_SYM; RING_MUL]);;
+
+(* (a) polyval_dot is commutative (word_pmul is symmetric).                    *)
+let POLYVAL_DOT_SYM = prove
+ (`!a b:128 word. polyval_dot a b = polyval_dot b a`,
+  REPEAT GEN_TAC THEN REWRITE_TAC[polyval_dot] THEN
+  AP_TERM_TAC THEN MATCH_ACCEPT_TAC WORD_PMUL_SYM);;
+
+(* polyval_dot is associative mod Q(x).  dot a b = a*b*x^{-128}, so            *)
+(* dot a (dot b c) = a*b*c*x^{-256} = dot (dot a b) c: the x^{-128} scalars    *)
+(* combine identically either way.  Proved by peeling two dots (two x^128      *)
+(* cancellations via MOD_POLYVAL_CANCEL_VARPOW{,_GEN}), reducing to the ring   *)
+(* associativity of poly(a)*poly(b)*poly(c).                                   *)
+let POLYVAL_DOT_ASSOC = prove
+ (`!a b c:128 word.
+     polyval_dot a (polyval_dot b c) = polyval_dot (polyval_dot a b) c`,
+  REPEAT GEN_TAC THEN
+  MATCH_MP_TAC(ISPEC `128` MOD_POLYVAL_CANCEL_VARPOW) THEN
+  MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
+  EXISTS_TAC `ring_mul bool_poly (poly_of_word (a:int128))
+                (poly_of_word (polyval_dot b c))` THEN
+  CONJ_TAC THENL [REWRITE_TAC[POLYVAL_DOT_CORRECT]; ALL_TAC] THEN
+  ONCE_REWRITE_TAC[MOD_POLYVAL_SYM] THEN
+  MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
+  EXISTS_TAC `ring_mul bool_poly (poly_of_word (polyval_dot a b))
+                (poly_of_word (c:int128))` THEN
+  CONJ_TAC THENL [REWRITE_TAC[POLYVAL_DOT_CORRECT]; ALL_TAC] THEN
+  MATCH_MP_TAC(ISPEC `128` MOD_POLYVAL_CANCEL_VARPOW_GEN) THEN
+  REPEAT CONJ_TAC THENL
+   [SIMP_TAC[RING_MUL; BOOL_POLY_OF_WORD];
+    SIMP_TAC[RING_MUL; BOOL_POLY_OF_WORD];
+    ALL_TAC] THEN
+  MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
+  EXISTS_TAC `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (a:int128))
+                (poly_of_word (b:int128))) (poly_of_word (c:int128))` THEN
+  CONJ_TAC THENL
+   [MP_TAC(ISPECL [`poly_of_word (polyval_dot a b)`; `poly_of_word (c:int128)`;
+       `ring_pow bool_poly (poly_var bool_ring one) 128`] SWAP_LAST2) THEN
+    ANTS_TAC THENL [SIMP_TAC[BOOL_POLY_OF_WORD; POLY_VARPOW_BOOL_POLY];
+                    DISCH_THEN SUBST1_TAC] THEN
+    MATCH_MP_TAC MOD_POLYVAL_MUL THEN
+    CONJ_TAC THENL [REWRITE_TAC[POLYVAL_DOT_CORRECT];
+                    REWRITE_TAC[MOD_POLYVAL_REFL; BOOL_POLY_OF_WORD]];
+    SUBGOAL_THEN
+     `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (a:int128))
+        (poly_of_word (b:int128))) (poly_of_word (c:int128)) =
+      ring_mul bool_poly (poly_of_word (a:int128))
+        (ring_mul bool_poly (poly_of_word (b:int128)) (poly_of_word (c:int128)))`
+     SUBST1_TAC THENL
+     [MATCH_MP_TAC(GSYM RING_MUL_ASSOC) THEN SIMP_TAC[BOOL_POLY_OF_WORD]; ALL_TAC] THEN
+    ONCE_REWRITE_TAC[MOD_POLYVAL_SYM] THEN
+    SUBGOAL_THEN
+     `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (a:int128))
+        (poly_of_word (polyval_dot b c)))
+        (ring_pow bool_poly (poly_var bool_ring one) 128) =
+      ring_mul bool_poly (poly_of_word (a:int128))
+        (ring_mul bool_poly (poly_of_word (polyval_dot b c))
+          (ring_pow bool_poly (poly_var bool_ring one) 128))`
+     SUBST1_TAC THENL
+     [MATCH_MP_TAC(GSYM RING_MUL_ASSOC) THEN
+      SIMP_TAC[BOOL_POLY_OF_WORD; POLY_VARPOW_BOOL_POLY]; ALL_TAC] THEN
+    MATCH_MP_TAC MOD_POLYVAL_MUL THEN
+    CONJ_TAC THENL [REWRITE_TAC[MOD_POLYVAL_REFL; BOOL_POLY_OF_WORD];
+                    REWRITE_TAC[POLYVAL_DOT_CORRECT]]]);;
+
+(* (c) exponent addition: dotting two H-powers adds their exponents.           *)
+(* h_power h k = h^{k+1} * x^{-128k} mod Q, so                                 *)
+(* dot(h_power h a)(h_power h b) = h^{a+b+2} x^{-128(a+b+1)} = h_power h (a+b+1).*)
+(* Proved by induction on b: base is h_power's SUC clause; the step is         *)
+(* POLYVAL_DOT_ASSOC + the inductive hypothesis.                              *)
+let HPOWER_DOT = prove
+ (`!(h:int128) a b:num.
+     polyval_dot (h_power h a) (h_power h b) = h_power h (a + b + 1)`,
+  GEN_TAC THEN GEN_TAC THEN INDUCT_TAC THENL
+   [REWRITE_TAC[ARITH_RULE `a + 0 + 1 = SUC a`; h_power];
+    REWRITE_TAC[ARITH_RULE `a + SUC b + 1 = SUC(a + b + 1)`] THEN
+    REWRITE_TAC[h_power] THEN
+    ONCE_REWRITE_TAC[POLYVAL_DOT_ASSOC] THEN
+    ASM_REWRITE_TAC[]]);;
+
+(* byteswap128 is an involution (it swaps the two 64-bit halves).  This is the *)
+(* fact the blocks C/D/E composition needs (see the NOTE above): the stored    *)
+(* operands are byteswap128 of the powers, and the reduction bridge feeds them  *)
+(* through another byteswap128, so the two cancel per operand.                 *)
+let BYTESWAP128_INVOL = prove
+ (`!x:int128. byteswap128 (byteswap128 x) = x`,
+  GEN_TAC THEN REWRITE_TAC[byteswap128] THEN BITBLAST_TAC);;
+
 (* ------------------------------------------------------------------------- *)
 (* Correctness (core): from function entry to the ret PC, gcm_init_v8 fills   *)
 (* the 12-slot Htable with the byteswapped H-powers and packed Karatsuba      *)
