@@ -1127,3 +1127,164 @@ let HPOWER_OPERANDS = prove
   REWRITE_TAC[num_CONV `7`; num_CONV `6`; num_CONV `5`; num_CONV `4`;
               num_CONV `3`; num_CONV `2`; num_CONV `1`; h_power] THEN
   REWRITE_TAC[POLYVAL_DOT_ASSOC]);;
+
+(* ========================================================================= *)
+(* Phase 7: the core correctness theorem, GCM_INIT_V8_CORRECT.                *)
+(*                                                                            *)
+(* Compose the five straight-line blocks (twist -> H^2 -> H^3/H^4 ->          *)
+(* H^5/H^6 -> H^7/H^8) into one `ensures` from function entry (PC 0x0) to the *)
+(* `ret` (PC 0x25c), establishing the full 12-slot htable_mem postcondition   *)
+(* for the half-swapped algebraic key  h1 = ghash_twist(byteswap128 H).       *)
+(*                                                                            *)
+(* Each block is applied as a single atomic transition with ARM_BIGSTEP_TAC   *)
+(* (the raw pmull expansions never re-appear -- they were discharged inside   *)
+(* the per-block proofs).  The blocks tile the routine: post_i => pre_{i+1}   *)
+(* (all H-blocks instantiate  h1 := ghash_twist(byteswap128 H)), and each     *)
+(* block's precondition carries  aligned_bytes_loaded s (word pc) ..._mc,     *)
+(* which ARM_BIGSTEP_TAC's nonselfmodifying check preserves across the step.  *)
+(*                                                                            *)
+(* NONSELFMODIFYING NOTE (the one subtlety): ARM_BIGSTEP_TAC must show the     *)
+(* frame write  memory :> bytes(Htable,192)  is disjoint from the code region *)
+(* memory :> bytelist(word pc,608).  Its ORTHOGONAL_COMPONENTS_TAC scans the  *)
+(* assumptions for a RAW `nonoverlapping (word pc,608) (Htable,192)` driver    *)
+(* and needs the length CONCRETE (608).  Hence: reduce LENGTH gcm_init_v8_mc   *)
+(* to 608 via `fst GCM_INIT_V8_EXEC` in the setup rewrite, and do NOT rewrite  *)
+(* NONOVERLAPPING_CLAUSES on the initial assumptions (keep the driver form).   *)
+(* Each block's own nonoverlapping hyp is then discharged by ASM_REWRITE_TAC[] *)
+(* against that raw driver.  The final htable_mem postcondition closes by      *)
+(* unfolding htable_mem and rewriting h_power -> operand forms (HPOWER_OPERANDS)*)
+(* so each of the 12 stored slots matches an assumption from the bigstep chain.*)
+(* ========================================================================= *)
+
+let GCM_INIT_V8_CORRECT = prove
+ (`!Htable H_ptr H pc.
+    nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192) /\
+    nonoverlapping (Htable, 192) (H_ptr, 16)
+    ==> ensures arm
+         (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+              read PC s = word pc /\
+              C_ARGUMENTS [Htable; H_ptr] s /\
+              read (memory :> bytes128 H_ptr) s = H)
+         (\s. read PC s = word (pc + 0x25c) /\
+              htable_mem (ghash_twist(byteswap128 H)) Htable s)
+         (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+          MAYCHANGE [memory :> bytes(Htable, 192)])`,
+  MAP_EVERY X_GEN_TAC [`Htable:int64`; `H_ptr:int64`; `H:int128`; `pc:num`] THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS; SOME_FLAGS;
+              fst GCM_INIT_V8_EXEC] THEN
+  STRIP_TAC THEN
+  MP_TAC(SPECL[`Htable:int64`;`H_ptr:int64`;`H:int128`;`pc:num`]
+              GCM_INIT_V8_TWIST) THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS; SOME_FLAGS;
+              fst GCM_INIT_V8_EXEC] THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCH_THEN(fun th -> REWRITE_TAC(!simulation_precanon_thms) THEN
+                       ENSURES_INIT_TAC "s0" THEN MP_TAC th) THEN
+  ARM_BIGSTEP_TAC GCM_INIT_V8_EXEC "s1" THEN
+  MP_TAC(SPECL[`Htable:int64`;`ghash_twist(byteswap128 H):int128`;`pc:num`]
+              GCM_INIT_V8_H2) THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS; SOME_FLAGS;
+              fst GCM_INIT_V8_EXEC] THEN
+  ASM_REWRITE_TAC[] THEN
+  ARM_BIGSTEP_TAC GCM_INIT_V8_EXEC "s2" THEN
+  MP_TAC(SPECL[`Htable:int64`;`ghash_twist(byteswap128 H):int128`;`pc:num`]
+              GCM_INIT_V8_H34) THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS; SOME_FLAGS;
+              fst GCM_INIT_V8_EXEC] THEN
+  ASM_REWRITE_TAC[] THEN
+  ARM_BIGSTEP_TAC GCM_INIT_V8_EXEC "s3" THEN
+  MP_TAC(SPECL[`Htable:int64`;`ghash_twist(byteswap128 H):int128`;`pc:num`]
+              GCM_INIT_V8_H56) THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS; SOME_FLAGS;
+              fst GCM_INIT_V8_EXEC] THEN
+  ASM_REWRITE_TAC[] THEN
+  ARM_BIGSTEP_TAC GCM_INIT_V8_EXEC "s4" THEN
+  MP_TAC(SPECL[`Htable:int64`;`ghash_twist(byteswap128 H):int128`;`pc:num`]
+              GCM_INIT_V8_H78) THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS; SOME_FLAGS;
+              fst GCM_INIT_V8_EXEC] THEN
+  ASM_REWRITE_TAC[] THEN
+  ARM_BIGSTEP_TAC GCM_INIT_V8_EXEC "s5" THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[htable_mem; HPOWER_OPERANDS]);;
+
+(* ========================================================================= *)
+(* Phase 8: the standard-ABI subroutine wrapper (leaf, no stack frame).       *)
+(*                                                                            *)
+(* Wrap the core with the return via X30.  Two mechanical points:             *)
+(*  - Reduce LENGTH gcm_init_v8_mc to 608 (`fst GCM_INIT_V8_EXEC`) in the goal *)
+(*    and in the core theorem so ARM_ADD_RETURN_NOSTACK_TAC's internal         *)
+(*    nonselfmodifying / NONOVERLAPPING checks see a concrete-length driver.   *)
+(*  - htable_mem is an opaque folded predicate that does NOT propagate through *)
+(*    the trailing `ret` (only `read (memory :> ...) s = v` facts do), so feed *)
+(*    the wrapper a core with htable_mem UNFOLDED (via htable_mem +            *)
+(*    HPOWER_OPERANDS) — its 12 memory reads then propagate to the return      *)
+(*    state — and re-fold htable_mem in the leftover goal to close.            *)
+(* ========================================================================= *)
+
+let GCM_INIT_V8_SUBROUTINE_CORRECT = prove
+ (`!Htable H_ptr H pc returnaddress.
+    nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192) /\
+    nonoverlapping (Htable, 192) (H_ptr, 16)
+    ==> ensures arm
+         (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+              read PC s = word pc /\
+              read X30 s = returnaddress /\
+              C_ARGUMENTS [Htable; H_ptr] s /\
+              read (memory :> bytes128 H_ptr) s = H)
+         (\s. read PC s = returnaddress /\
+              htable_mem (ghash_twist(byteswap128 H)) Htable s)
+         (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+          MAYCHANGE [memory :> bytes(Htable, 192)])`,
+  REWRITE_TAC[fst GCM_INIT_V8_EXEC] THEN
+  ARM_ADD_RETURN_NOSTACK_TAC GCM_INIT_V8_EXEC
+    (REWRITE_RULE[htable_mem; HPOWER_OPERANDS; fst GCM_INIT_V8_EXEC]
+                 GCM_INIT_V8_CORRECT) THEN
+  REWRITE_TAC[htable_mem; HPOWER_OPERANDS] THEN ASM_REWRITE_TAC[]);;
+
+(* ------------------------------------------------------------------------- *)
+(* Phase 9: constant-time and memory-safety.                                  *)
+(*                                                                            *)
+(* The routine is branch-free with fully data-independent addressing, so it   *)
+(* is constant-time: the event trace f_events depends only on the PUBLIC args *)
+(* (H_ptr, Htable, pc, returnaddress) and NOT on the secret key value H.  All *)
+(* memory accesses stay in bounds: reads confined to [H_ptr,16], writes to    *)
+(* [Htable,192].  The full spec is generated mechanically from the registered *)
+(* signature and the correctness theorem, then discharged by the generic      *)
+(* safety tactic.                                                             *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
+
+let full_spec,public_vars = mk_safety_spec
+    ~keep_maychanges:false
+    (assoc "gcm_init_v8" subroutine_signatures)
+    GCM_INIT_V8_SUBROUTINE_CORRECT
+    GCM_INIT_V8_EXEC;;
+
+let GCM_INIT_V8_SUBROUTINE_SAFE = prove
+ (`exists f_events.
+    forall e Htable H_ptr pc returnaddress.
+        nonoverlapping (word pc,LENGTH gcm_init_v8_mc) (Htable,192) /\
+        nonoverlapping (Htable,192) (H_ptr,16)
+        ==> ensures arm
+            (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+                 read PC s = word pc /\
+                 read X30 s = returnaddress /\
+                 C_ARGUMENTS [Htable; H_ptr] s /\
+                 read events s = e)
+            (\s. read PC s = returnaddress /\
+                 (exists e2.
+                      read events s = APPEND e2 e /\
+                      e2 = f_events H_ptr Htable pc returnaddress /\
+                      memaccess_inbounds e2 [H_ptr,16; Htable,192] [Htable,192]))
+            (\s s'. true)`,
+  ASSERT_CONCL_TAC full_spec THEN
+  PROVE_SAFETY_SPEC_TAC ~public_vars:public_vars GCM_INIT_V8_EXEC);;
