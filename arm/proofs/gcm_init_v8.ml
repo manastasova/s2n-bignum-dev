@@ -381,6 +381,53 @@ let GCM_INIT_V8_TWISTBRIDGE = prove
   BITBLAST_TAC);;
 
 (* ------------------------------------------------------------------------- *)
+(* Phase 5 (cont.) -- block A including the slot-0 store (0x000-0x044).       *)
+(*                                                                            *)
+(* Extends the twist bridge by the single-register `st1 {v20.2d},[x0],#16` at *)
+(* 0x040 (X0 = htable = Htable[0..], post-incremented by 16), landing the     *)
+(* first htable_mem conjunct directly in memory:                             *)
+(*                                                                            *)
+(*   read (memory :> bytes128 htable) = byteswap128 (ghash_twist             *)
+(*                                                     (byteswap128 H_in))    *)
+(*                                    = byteswap128 (h_power h 0)              *)
+(*                                                                            *)
+(* (h_power h 0 = h = ghash_twist(byteswap128 H_in)).  This pins the first    *)
+(* memory write + the post-increment convention every later store inherits    *)
+(* (X0 advances +16 per single-register store), ready for Phase 7 to compose  *)
+(* with block B.  The stored value equals the register value proved above, so *)
+(* the residual identity after ENSURES_FINAL_STATE_TAC is the same word       *)
+(* equality, closed by BITBLAST_TAC.  Stepping the store needs the code/table *)
+(* nonoverlap and C_ARGUMENTS/exec-length rewrites BEFORE ENSURES_INIT_TAC    *)
+(* (else the "updates will not modify the program code" side condition sticks).*)
+(* ------------------------------------------------------------------------- *)
+
+let GCM_INIT_V8_SLOT0 = prove
+ (`!htable hp H_in pc.
+     nonoverlapping (word pc,0x260) (htable,192)
+     ==> ensures arm
+          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+               read PC s = word pc /\
+               C_ARGUMENTS [htable; hp] s /\
+               read (memory :> bytes128 hp) s = H_in)
+          (\s. read PC s = word (pc + 0x44) /\
+               read X0 s = word_add htable (word 16) /\
+               read (memory :> bytes128 htable) s =
+                 byteswap128 (ghash_twist (byteswap128 H_in)))
+          (MAYCHANGE [PC] ,,
+           MAYCHANGE [X0] ,,
+           MAYCHANGE [Q3; Q16; Q17; Q18; Q19; Q20] ,,
+           MAYCHANGE [memory :> bytes(htable,16)] ,,
+           MAYCHANGE [events])`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[NONOVERLAPPING_CLAUSES; C_ARGUMENTS; fst GCM_INIT_V8_EXEC] THEN
+  STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--17) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN
+  BITBLAST_TAC);;
+
+(* ------------------------------------------------------------------------- *)
 (* Correctness (core): from function entry to the ret PC, gcm_init_v8 fills   *)
 (* the 12-slot Htable with the byteswapped H-powers and packed Karatsuba      *)
 (* middle terms of the twisted secret ghash_twist(byteswap128 H_in).          *)
