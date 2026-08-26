@@ -176,6 +176,84 @@ let gcm_init_v8_mc = define_assert_from_elf
 let GCM_INIT_V8_EXEC = ARM_MK_EXEC_RULE gcm_init_v8_mc;;
 
 (* ========================================================================= *)
+(* MACHINE CHECK for the human-approved htable_mem mid-slot orientation fix.  *)
+(*                                                                            *)
+(* The four packed-mid slots of `htable_mem` (common/polyval_ghash.ml) were   *)
+(* corrected 2026-08-26 to store the LOWER power's karatsuba_mid in the LOW    *)
+(* 64 bits and the HIGHER power's in the HIGH 64 bits, matching REF_MID        *)
+(* (tests/ref_gcm_init.c:177-178, verified byte-for-byte vs. real assembly     *)
+(* over 2000 inputs).  This lemma makes that orientation an explicit,          *)
+(* machine-checked claim about each slot's LOW/HIGH lanes rather than an       *)
+(* implicit reading of HOL's `word_join` argument order.                       *)
+(* ========================================================================= *)
+
+let HTABLE_MEM_MID_LANES = prove
+ (`!h:int128. !ptr:int64. !s:armstate.
+    htable_mem h ptr s
+    ==> word_subword
+          (read (memory :> bytes128 (word_add ptr (word 16))) s) (0,64):64 word =
+          karatsuba_mid(h_power h 0) /\
+        word_subword
+          (read (memory :> bytes128 (word_add ptr (word 16))) s) (64,64):64 word =
+          karatsuba_mid(h_power h 1) /\
+        word_subword
+          (read (memory :> bytes128 (word_add ptr (word 64))) s) (0,64):64 word =
+          karatsuba_mid(h_power h 2) /\
+        word_subword
+          (read (memory :> bytes128 (word_add ptr (word 64))) s) (64,64):64 word =
+          karatsuba_mid(h_power h 3) /\
+        word_subword
+          (read (memory :> bytes128 (word_add ptr (word 112))) s) (0,64):64 word =
+          karatsuba_mid(h_power h 4) /\
+        word_subword
+          (read (memory :> bytes128 (word_add ptr (word 112))) s) (64,64):64 word =
+          karatsuba_mid(h_power h 5) /\
+        word_subword
+          (read (memory :> bytes128 (word_add ptr (word 160))) s) (0,64):64 word =
+          karatsuba_mid(h_power h 6) /\
+        word_subword
+          (read (memory :> bytes128 (word_add ptr (word 160))) s) (64,64):64 word =
+          karatsuba_mid(h_power h 7)`,
+  REWRITE_TAC[htable_mem] THEN REPEAT STRIP_TAC THEN
+  ASM_REWRITE_TAC[] THEN CONV_TAC WORD_BLAST);;
+
+(* Concrete-byte KAT (the check that would have caught the original error):   *)
+(* at the fixed "ByteSwap" hash key H_mem = 0x0807..0102..08 (from            *)
+(* tests/ref_gcm_init.c gcm_init_v8_kats[5], whose expected Htable bytes were  *)
+(* produced by the verbatim AWS-LC C reference and verified vs. real assembly  *)
+(* over 2000 inputs), the spec's first three slot expressions evaluate to      *)
+(* exactly the C reference numerals.  The internal key is                      *)
+(* ghash_twist(byteswap128 H_mem) (the half-swap convention).  This covers     *)
+(* BOTH layout patterns: byteswap128 (slots 0,2) and the fixed packed-mid      *)
+(* orientation word_join(kmid higher)(kmid lower) (slot 1), so a lower/higher  *)
+(* swap in either would fail this proof.  Numerals below decompose as          *)
+(* out[2i+1]*2^64 + out[2i], out[] = ref_gcm_init_v8(H_mem):                    *)
+(*   slot0 = byteswap128(H^1),  slot1 = pack(kmid H^2, kmid H^1),  slot2 = bsw(H^2). *)
+let HTABLE_MEM_KAT_FIRST3 = prove
+ (`byteswap128
+     (h_power
+       (ghash_twist(byteswap128 (word 0x08070605040302010102030405060708:int128))) 0) =
+     word 21340584272258163075941918885976739344 /\
+   word_join
+     (karatsuba_mid
+       (h_power
+         (ghash_twist(byteswap128 (word 0x08070605040302010102030405060708:int128))) 1)
+       :64 word)
+     (karatsuba_mid
+       (h_power
+         (ghash_twist(byteswap128 (word 0x08070605040302010102030405060708:int128))) 0)
+       :64 word):128 word =
+     word 180621838512046301753057854212163635730 /\
+   byteswap128
+     (h_power
+       (ghash_twist(byteswap128 (word 0x08070605040302010102030405060708:int128))) 1) =
+     word 181047608966400424755469230121728647223`,
+  CONV_TAC(REWRITE_CONV[num_CONV `1`; h_power] THENC
+    REWRITE_CONV[polyval_dot; polyval_reduce_prop3; byteswap128; karatsuba_mid;
+                 ghash_twist; POLYVAL_TWIST_CONST] THENC
+    TOP_DEPTH_CONV let_CONV THENC DEPTH_CONV WORD_RED_CONV THENC WORD_REDUCE_CONV));;
+
+(* ========================================================================= *)
 (* Phase 3: the twist (PC 0x0 -> 0x44).                                       *)
 (*                                                                            *)
 (* The first 17 instructions load the raw 128-bit hash key H from [X1],       *)
