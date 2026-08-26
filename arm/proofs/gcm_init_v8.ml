@@ -602,6 +602,14 @@ let KARATSUBA_MID_BYTESWAP = prove
 (* [htable, htable+16), so slot 0 is preserved by the frame and its post       *)
 (* conjunct closes by ASM_REWRITE.  This is what lets Phase 7's composition     *)
 (* (GCM_INIT_V8_H2_MEM) carry block A's slot-0 store through block B.           *)
+(*                                                                            *)
+(* The post ALSO exposes the block-B output registers Q19/Q20/Q22/Q16/Q17      *)
+(* (a-form) -- these are exactly the inputs block C (GCM_INIT_V8_H34) reads, so *)
+(* GCM_INIT_V8_H2_MEM can pass them straight through.  They close by the same   *)
+(* Karatsuba+BITBLAST recipe (preserved Q19/Q20 by ASM_REWRITE, computed        *)
+(* Q22/Q16/Q17 as extra per-lane blasts).  aligned_bytes_loaded is re-asserted  *)
+(* (first post conjunct, ASM_REWRITE) so the lemma composes as a non-final      *)
+(* block (see GCM_INIT_V8_H34_MEM).                                            *)
 (* ------------------------------------------------------------------------- *)
 
 let GCM_INIT_V8_H2 = prove
@@ -614,8 +622,17 @@ let GCM_INIT_V8_H2 = prove
                read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
                read Q20 s = a /\
                read (memory :> bytes128 htable) s = v0)
-          (\s. read PC s = word (pc + 0x9c) /\
+          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+               read PC s = word (pc + 0x9c) /\
                read X0 s = word_add htable (word 48) /\
+               read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
+               read Q20 s = a /\
+               read Q22 s =
+                 byteswap128 (polyval_dot (byteswap128 a) (byteswap128 a)) /\
+               read Q16 s = word_xor (byteswap128 a) a /\
+               read Q17 s = word_xor (polyval_dot (byteswap128 a) (byteswap128 a))
+                              (byteswap128 (polyval_dot (byteswap128 a)
+                                                        (byteswap128 a))) /\
                read (memory :> bytes128 htable) s = v0 /\
                read (memory :> bytes128 (word_add htable (word 16))) s =
                  word_join
@@ -673,7 +690,8 @@ let HDOT1 = prove
   GEN_TAC THEN REWRITE_TAC[num_CONV `1`; h_power]);;
 
 (* ========================================================================= *)
-(* Phase 7 -- H^2 sub-table with memory (entry -> pc+0x9c, slots 0,1,2).       *)
+(* Phase 7 -- H^2 sub-table with memory (entry -> pc+0x9c, slots 0,1,2 +       *)
+(* block-C input registers).                                                   *)
 (*                                                                            *)
 (* Composes block A (GCM_INIT_V8_H2 threads slot 0 via v0) with block B into   *)
 (* the first three htable_mem conjuncts on the real machine code, stated in    *)
@@ -696,13 +714,18 @@ let HDOT1 = prove
 (*     GCM_INIT_V8_SLOT0/TWISTBRIDGE (single BITBLAST after unfolding the       *)
 (*     twist defs; X0 by WORD_RULE).                                           *)
 (*   SG2 (0x44->0x9c): apply the strengthened GCM_INIT_V8_H2 at a := v0 :=      *)
-(*     byteswap128 h.  H2's postcondition is in polyval_dot/karatsuba_mid a     *)
-(*     form; ENSURES_POSTCONDITION_TAC bridges it to the h_power form via the   *)
-(*     Phase-6 algebra -- BYTESWAP128_INVOL (byteswap128(byteswap128 h)=h),     *)
-(*     KARATSUBA_MID_BYTESWAP, HDOT1 (polyval_dot h h = h_power h 1) and        *)
-(*     h_power h 0 = h.  ENSURES_FRAME_SUBSUMED widens H2's tight frame to the  *)
-(*     block-A+B frame.  No representation identity is used (there is none;     *)
-(*     see the Phase-6 NOTE) -- only the per-operand involution.               *)
+(*     byteswap128 h.  The ENSURES_POSTCONDITION intermediate is H2's OWN post  *)
+(*     (a-form: polyval_dot/karatsuba_mid of byteswap128 (byteswap128 h) etc.); *)
+(*     the bridge rewrites it to the target form -- slots to h_power, and the   *)
+(*     exposed registers to block C's INPUT form (Q20 = byteswap128 (h_power    *)
+(*     h 0), Q22 = byteswap128 (h_power h 1), Q16/Q17 = word_xor (byteswap128 .)*)
+(*     .) -- via BYTESWAP128_INVOL, KARATSUBA_MID_BYTESWAP, FORWARD HDOT1        *)
+(*     (dot h h = h_power h 1, moving the a-form UP to h_power) and CONJUNCT1    *)
+(*     h_power (h_power h 0 = h, moving the target DOWN); the two meet.          *)
+(*     ENSURES_FRAME_SUBSUMED widens H2's tight frame.  No representation        *)
+(*     identity is used (there is none; see the Phase-6 NOTE) -- only the        *)
+(*     per-operand involution.  Stating the exposed registers in block C's      *)
+(*     input form is what makes GCM_INIT_V8_H34_MEM's two MATCH_MP_TACs clean.   *)
 (* ------------------------------------------------------------------------- *)
 
 let GCM_INIT_V8_H2_MEM = prove
@@ -714,8 +737,22 @@ let GCM_INIT_V8_H2_MEM = prove
                read PC s = word pc /\
                C_ARGUMENTS [htable; hp] s /\
                read (memory :> bytes128 hp) s = H_in)
-          (\s. read PC s = word (pc + 0x9c) /\
+          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+               read PC s = word (pc + 0x9c) /\
                read X0 s = word_add htable (word 48) /\
+               read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
+               read Q20 s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
+               read Q22 s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
+               read Q16 s = word_xor
+                  (byteswap128 (byteswap128
+                     (h_power (ghash_twist (byteswap128 H_in)) 0)))
+                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0)) /\
+               read Q17 s = word_xor
+                  (byteswap128 (byteswap128
+                     (h_power (ghash_twist (byteswap128 H_in)) 1)))
+                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
                read (memory :> bytes128 htable) s =
                  byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
                read (memory :> bytes128 (word_add htable (word 16))) s =
@@ -747,9 +784,28 @@ let GCM_INIT_V8_H2_MEM = prove
     REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN
     BITBLAST_TAC;
     (* --- SG2: pc+0x44 -> pc+0x9c (block B via strengthened GCM_INIT_V8_H2) --- *)
+    (* Intermediate = strengthened GCM_INIT_V8_H2's OWN post at a := v0 :=       *)
+    (* byteswap128 h (a-form registers + a-form slots); the bridge maps it to    *)
+    (* the H34-input/h_power form above so H34_MEM's SG1 and SG2 are both clean   *)
+    (* MATCH_MP_TAC.  Forward HDOT1 moves block B's a-form output UP to h_power.  *)
     ENSURES_POSTCONDITION_TAC
-     `\s. read PC s = word (pc + 0x9c) /\
+     `\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+          read PC s = word (pc + 0x9c) /\
           read X0 s = word_add htable (word 48) /\
+          read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
+          read Q20 s = byteswap128 (ghash_twist (byteswap128 H_in)) /\
+          read Q22 s = byteswap128 (polyval_dot
+             (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in))))
+             (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in))))) /\
+          read Q16 s = word_xor
+             (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in))))
+             (byteswap128 (ghash_twist (byteswap128 H_in))) /\
+          read Q17 s = word_xor (polyval_dot
+             (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in))))
+             (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in)))))
+             (byteswap128 (polyval_dot
+             (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in))))
+             (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in)))))) /\
           read (memory :> bytes128 htable) s =
             byteswap128 (ghash_twist (byteswap128 H_in)) /\
           read (memory :> bytes128 (word_add htable (word 16))) s =
@@ -763,10 +819,10 @@ let GCM_INIT_V8_H2_MEM = prove
               (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in))))
               (byteswap128 (byteswap128 (ghash_twist (byteswap128 H_in)))))` THEN
     CONJ_TAC THENL
-     [(* algebra bridge: H2's polyval_dot/karatsuba_mid a form ==> h_power form *)
+     [(* algebra bridge: block B a-form ==> H34-input/h_power form *)
       GEN_TAC THEN
       REWRITE_TAC[BYTESWAP128_INVOL; KARATSUBA_MID_BYTESWAP;
-                  GSYM HDOT1; CONJUNCT1 h_power] THEN
+                  HDOT1; CONJUNCT1 h_power] THEN
       STRIP_TAC THEN ASM_REWRITE_TAC[];
       (* widen H2's tight frame, then apply it at a := v0 := byteswap128 h *)
       MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN
@@ -945,7 +1001,8 @@ let GCM_INIT_V8_H34 = prove
                read (memory :> bytes128 htable) s = g0 /\
                read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
                read (memory :> bytes128 (word_add htable (word 32))) s = g2)
-          (\s. read PC s = word (pc + 0x134) /\
+          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+               read PC s = word (pc + 0x134) /\
                read X0 s = word_add htable (word 96) /\
                read (memory :> bytes128 htable) s = g0 /\
                read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
@@ -1000,6 +1057,167 @@ let GCM_INIT_V8_H34 = prove
   REPEAT CONJ_TAC THEN
   TRY(CONV_TAC WORD_RULE) THEN
   GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC);;
+
+(* ========================================================================= *)
+(* Phase 8 -- H^3/H^4 sub-table with memory (entry -> pc+0x134, slots 0-5).    *)
+(*                                                                            *)
+(* Composes GCM_INIT_V8_H2_MEM (entry->0x9c: slots 0-2 + block-C input regs)  *)
+(* with block C (GCM_INIT_V8_H34, 0x9c->0x134) into the first SIX htable_mem  *)
+(* conjuncts in h_power form (h = ghash_twist (byteswap128 H_in)):            *)
+(*                                                                            *)
+(*   slot 3 @ htable+48 = byteswap128 (h_power h 2)                           *)
+(*   slot 4 @ htable+64 = word_join (km (h_power h 3)) (km (h_power h 2))      *)
+(*   slot 5 @ htable+80 = byteswap128 (h_power h 3)                           *)
+(*                                                                            *)
+(* All composable block/memory lemmas here carry aligned_bytes_loaded in      *)
+(* their post (FIRST conjunct) so any can serve as a NON-final block:         *)
+(* ENSURES_SEQUENCE_TAC's intermediate always includes program_decodes        *)
+(* (relational.ml:1401), so a first-block sub-lemma must reproduce it.  The   *)
+(* conjunct closes for free (ASM_REWRITE after ENSURES_FINAL_STATE_TAC, or by  *)
+(* the composition).  GCM_INIT_V8_H2 / H2_MEM / H34 were all strengthened      *)
+(* in place to carry it (+ the block-C input registers on H2/H2_MEM).         *)
+(*                                                                            *)
+(* Structure: ENSURES_SEQUENCE_TAC at pc+0x9c.                                *)
+(*   SG1 (entry->0x9c): GCM_INIT_V8_H2_MEM, whose post is stated in block C's  *)
+(*     INPUT form (a = byteswap128 (h_power h 0), b = byteswap128 (h_power     *)
+(*     h 1)), so the mid-assertion matches BOTH H2_MEM's post (SG1) and H34's  *)
+(*     precondition (SG2) verbatim -- both are clean MATCH_MP_TAC, the block-B *)
+(*     output -> h_power reconciliation living inside H2_MEM's own proof.      *)
+(*     NB: do NOT unfold C_ARGUMENTS in the setup -- H2_MEM's pre keeps it      *)
+(*     folded, so the entry precondition must too or MATCH_MP_TAC won't match. *)
+(*   SG2 (0x9c->0x134): GCM_INIT_V8_H34 (block C); the ENSURES_POSTCONDITION   *)
+(*     bridge maps its polyval_dot post to h_power via BYTESWAP128_INVOL       *)
+(*     (byteswap128(byteswap128 (h_power h k)) = h_power h k) + HPOWER_DOT      *)
+(*     (dot (h_power h i)(h_power h j) = h_power h (i+j+1)) + numeral reduction *)
+(*     (0+1+1=2, 1+1+1=3).  Slots 3,5 = H^3,H^4; slot 4 the packed middle      *)
+(*     (untested slot -- this proof is its only check).                       *)
+(* ------------------------------------------------------------------------- *)
+
+let GCM_INIT_V8_H34_MEM = prove
+ (`!htable hp H_in pc.
+     nonoverlapping (word pc,0x260) (htable,192) /\
+     nonoverlapping (htable,192) (hp,16)
+     ==> ensures arm
+          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+               read PC s = word pc /\
+               C_ARGUMENTS [htable; hp] s /\
+               read (memory :> bytes128 hp) s = H_in)
+          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+               read PC s = word (pc + 0x134) /\
+               read X0 s = word_add htable (word 96) /\
+               read (memory :> bytes128 htable) s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
+               read (memory :> bytes128 (word_add htable (word 16))) s =
+                 word_join
+                   (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 1))
+                   (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 0)) /\
+               read (memory :> bytes128 (word_add htable (word 32))) s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
+               read (memory :> bytes128 (word_add htable (word 48))) s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2) /\
+               read (memory :> bytes128 (word_add htable (word 64))) s =
+                 word_join
+                   (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 3))
+                   (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 2)) /\
+               read (memory :> bytes128 (word_add htable (word 80))) s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3))
+          (MAYCHANGE [PC] ,,
+           MAYCHANGE [X0] ,,
+           MAYCHANGE [Q0;Q1;Q2;Q3;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q19;Q20;Q21;Q22;
+                      Q23;Q24;Q25] ,,
+           MAYCHANGE [memory :> bytes(htable,96)] ,,
+           MAYCHANGE [events])`,
+  REWRITE_TAC[NONOVERLAPPING_CLAUSES; fst GCM_INIT_V8_EXEC] THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_SEQUENCE_TAC `pc + 0x9c`
+   `\s. read X0 s = word_add htable (word 48) /\
+        read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
+        read Q20 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
+        read Q22 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
+        read Q16 s = word_xor
+           (byteswap128 (byteswap128
+              (h_power (ghash_twist (byteswap128 H_in)) 0)))
+           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0)) /\
+        read Q17 s = word_xor
+           (byteswap128 (byteswap128
+              (h_power (ghash_twist (byteswap128 H_in)) 1)))
+           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
+        read (memory :> bytes128 htable) s =
+          byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
+        read (memory :> bytes128 (word_add htable (word 16))) s =
+          word_join
+            (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 1))
+            (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 0)) /\
+        read (memory :> bytes128 (word_add htable (word 32))) s =
+          byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)` THEN
+  CONJ_TAC THENL
+   [(* --- SG1: entry -> pc+0x9c via GCM_INIT_V8_H2_MEM --- *)
+    MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN
+    EXISTS_TAC
+     `MAYCHANGE [PC] ,,
+      MAYCHANGE [X0] ,,
+      MAYCHANGE [Q0;Q1;Q2;Q3;Q16;Q17;Q18;Q19;Q20;Q21;Q22] ,,
+      MAYCHANGE [memory :> bytes(htable,48)] ,,
+      MAYCHANGE [events]` THEN
+    CONJ_TAC THENL
+     [SUBSUMED_MAYCHANGE_TAC;
+      MATCH_MP_TAC GCM_INIT_V8_H2_MEM THEN
+      ASM_REWRITE_TAC[NONOVERLAPPING_CLAUSES]];
+    (* --- SG2: pc+0x9c -> pc+0x134 via block C (GCM_INIT_V8_H34) --- *)
+    ENSURES_POSTCONDITION_TAC
+     `\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+          read PC s = word (pc + 0x134) /\
+          read X0 s = word_add htable (word 96) /\
+          read (memory :> bytes128 htable) s =
+            byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
+          read (memory :> bytes128 (word_add htable (word 16))) s =
+            word_join
+              (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 1))
+              (karatsuba_mid (h_power (ghash_twist (byteswap128 H_in)) 0)) /\
+          read (memory :> bytes128 (word_add htable (word 32))) s =
+            byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
+          read (memory :> bytes128 (word_add htable (word 48))) s =
+            byteswap128 (polyval_dot
+              (byteswap128 (byteswap128
+                 (h_power (ghash_twist (byteswap128 H_in)) 0)))
+              (byteswap128 (byteswap128
+                 (h_power (ghash_twist (byteswap128 H_in)) 1)))) /\
+          read (memory :> bytes128 (word_add htable (word 64))) s =
+            word_join
+              (karatsuba_mid (polyval_dot
+                (byteswap128 (byteswap128
+                   (h_power (ghash_twist (byteswap128 H_in)) 1)))
+                (byteswap128 (byteswap128
+                   (h_power (ghash_twist (byteswap128 H_in)) 1)))))
+              (karatsuba_mid (polyval_dot
+                (byteswap128 (byteswap128
+                   (h_power (ghash_twist (byteswap128 H_in)) 0)))
+                (byteswap128 (byteswap128
+                   (h_power (ghash_twist (byteswap128 H_in)) 1))))) /\
+          read (memory :> bytes128 (word_add htable (word 80))) s =
+            byteswap128 (polyval_dot
+              (byteswap128 (byteswap128
+                 (h_power (ghash_twist (byteswap128 H_in)) 1)))
+              (byteswap128 (byteswap128
+                 (h_power (ghash_twist (byteswap128 H_in)) 1))))` THEN
+    CONJ_TAC THENL
+     [(* bridge: block C dot form ==> h_power form (slots 3,4,5) *)
+      GEN_TAC THEN
+      REWRITE_TAC[BYTESWAP128_INVOL; HPOWER_DOT] THEN
+      CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+      STRIP_TAC THEN ASM_REWRITE_TAC[];
+      (* apply block C (GCM_INIT_V8_H34) *)
+      MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN
+      EXISTS_TAC
+       `MAYCHANGE [PC] ,,
+        MAYCHANGE [X0] ,,
+        MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q23;Q24;Q25] ,,
+        MAYCHANGE [memory :> bytes(word_add htable (word 48),48)] ,,
+        MAYCHANGE [events]` THEN
+      CONJ_TAC THENL
+       [SUBSUMED_MAYCHANGE_TAC;
+        MATCH_MP_TAC GCM_INIT_V8_H34 THEN
+        ASM_REWRITE_TAC[NONOVERLAPPING_CLAUSES]]]]);;
 
 (* ------------------------------------------------------------------------- *)
 (* Correctness (core): from function entry to the ret PC, gcm_init_v8 fills   *)
