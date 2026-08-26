@@ -411,6 +411,22 @@ let GHASH_BATCHED_FROM_HTABLE = prove(
 (* Memory-level Htable predicate matching H table initialization output layout*)
 (* 12 x 128-bit entries (192 bytes) for H^1..H^8 with Karatsuba middle terms  *)
 (* Layout: groups of 3 entries [H^{2k+1}, pack(mid,mid), H^{2k+2}]            *)
+(*                                                                            *)
+(* PACKED-MIDDLE LANE ORDER (corrected 2026-08-26, gcm_init_v8 session 006).  *)
+(* The middle entry of each group packs the two Karatsuba middle terms as     *)
+(*   word_join (karatsuba_mid H^{2k+2}) (karatsuba_mid H^{2k+1})              *)
+(*   = HIGH lane: mid of the HIGHER power, LOW lane: mid of the LOWER power.   *)
+(* This matches the aws-lc reference: the producer packs it with              *)
+(*   `vext.8 $Hhl,$t0,$t1,#8`  (t0=mid(H^{2k+1}) -> low, t1=mid(H^{2k+2}) ->   *)
+(*   high), and the consumer gcm_gmult_v8 reads it back with                  *)
+(*   `vpmull.p64 $Xm,$Hhl,$t1` -- i.e. it uses ONLY $Hhl's LOW lane, against   *)
+(*   the lower power H^{2k+1}, so the low lane must hold mid(H^{2k+1}).        *)
+(* Verified on the machine model for slot 1 (session-006 MEASURE_SLOT1):      *)
+(*   read Q21 = word_join (karatsuba_mid Q17) (word_subword Q16 (64,64))      *)
+(*   where Q17=H^2=h_power h 1, Q16's high half = mid(h_power h 0).            *)
+(* The earlier definition had the two word_join arguments SWAPPED in all four *)
+(* middle conjuncts, which made gcm_init_v8's correctness statement false.     *)
+(* No other proof consumes htable_mem/karatsuba_mid, so the fix is isolated.  *)
 (* ========================================================================== *)
 
 let byteswap128 = new_definition
@@ -422,23 +438,23 @@ let htable_mem = new_definition
   `htable_mem (h:int128) (ptr:int64) (s:armstate) <=>
    read (memory :> bytes128 ptr) s = byteswap128(h_power h 0) /\
    read (memory :> bytes128 (word_add ptr (word 16))) s =
-     word_join (karatsuba_mid(h_power h 0) : 64 word)
-               (karatsuba_mid(h_power h 1) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 1) : 64 word)
+               (karatsuba_mid(h_power h 0) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 32))) s = byteswap128(h_power h 1) /\
    read (memory :> bytes128 (word_add ptr (word 48))) s = byteswap128(h_power h 2) /\
    read (memory :> bytes128 (word_add ptr (word 64))) s =
-     word_join (karatsuba_mid(h_power h 2) : 64 word)
-               (karatsuba_mid(h_power h 3) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 3) : 64 word)
+               (karatsuba_mid(h_power h 2) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 80))) s = byteswap128(h_power h 3) /\
    read (memory :> bytes128 (word_add ptr (word 96))) s = byteswap128(h_power h 4) /\
    read (memory :> bytes128 (word_add ptr (word 112))) s =
-     word_join (karatsuba_mid(h_power h 4) : 64 word)
-               (karatsuba_mid(h_power h 5) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 5) : 64 word)
+               (karatsuba_mid(h_power h 4) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 128))) s = byteswap128(h_power h 5) /\
    read (memory :> bytes128 (word_add ptr (word 144))) s = byteswap128(h_power h 6) /\
    read (memory :> bytes128 (word_add ptr (word 160))) s =
-     word_join (karatsuba_mid(h_power h 6) : 64 word)
-               (karatsuba_mid(h_power h 7) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 7) : 64 word)
+               (karatsuba_mid(h_power h 6) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 176))) s = byteswap128(h_power h 7)`;;
 
 (* ========================================================================= *)
