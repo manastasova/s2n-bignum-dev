@@ -98,6 +98,12 @@ let arm_ldst3 = new_definition `arm_ldst3 ld Rt1 =
   let Rt2:(5 word) = word ((val Rt1 + 1) MOD 32) in
   let Rt3:(5 word) = word ((val Rt1 + 2) MOD 32) in
   (if ld then arm_LD3 else arm_ST3) [QREG' Rt1; QREG' Rt2; QREG' Rt3]`;;
+(* Contiguous 3-register LD1/ST1 (opcode 0b0110), three back-to-back Q accesses.
+   Distinct from arm_ldst3 (LD3/ST3, opcode 0b0100) which de-interleaves. *)
+let arm_ldst1_3q = new_definition `arm_ldst1_3q ld Rt1 =
+  let Rt2:(5 word) = word ((val Rt1 + 1) MOD 32) in
+  let Rt3:(5 word) = word ((val Rt1 + 2) MOD 32) in
+  (if ld then arm_LD1_3 else arm_ST1_3) (QREG' Rt1) (QREG' Rt2) (QREG' Rt3)`;;
 
 (* The 'AdvSimdExpandImm' shared function in the A64 ISA specification.
    This definition takes one 8-bit word and expands it to 64 bit according to
@@ -419,6 +425,16 @@ let decode = new_definition `!w:int32. decode w =
   | [0:1; 1:1; 0b0011000:7; is_ld; 0b000000:6; 0b1010:4; size:2; Rn:5; Rt:5] ->
     SOME (arm_ldstp_2q is_ld Rt (XREG_SP Rn) No_Offset)
 
+  // LD1/ST1 (multiple structures), 3 registers (contiguous, opcode 0b0110),
+  //   datasize = 128. Not to be confused with LD3/ST3 (0b0100), which
+  //   de-interleaves; here the three registers are simply contiguous.
+  //   Post-index with immediate offset (#48)
+  | [0:1; 1:1; 0b0011001:7; is_ld; 0:1; 0b11111:5; 0b0110:4; size:2; Rn:5; Rt:5] ->
+    SOME (arm_ldst1_3q is_ld Rt (XREG_SP Rn) (Postimmediate_Offset (word 48)))
+  //   No offset
+  | [0:1; 1:1; 0b0011000:7; is_ld; 0b000000:6; 0b0110:4; size:2; Rn:5; Rt:5] ->
+    SOME (arm_ldst1_3q is_ld Rt (XREG_SP Rn) No_Offset)
+
   // LD2/ST2 (multiple structures), 2 registers, immediate offset, Post-immediate offset
   // datasize = 64
   | [0:1; 0:1; 0b0011001:7; is_ld; 0:1; 0b11111:5; 0b1000:4; size:2; Rn:5; Rt:5] ->
@@ -542,6 +558,16 @@ let decode = new_definition `!w:int32. decode w =
     let esize = 8 * 2 EXP size in
     let datasize = if q then 128 else 64 in
     SOME (arm_DUP_GEN (QREG' Rd) (XREG' Rn) esize datasize)
+
+  | [0:1; q; 0b001110000:9; imm5:5; 0b000001:6; Rn:5; Rd:5] ->
+    // DUP (element): broadcast lane imm5<4:size+1> of Vn to all lanes of Vd
+    let size = word_ctz imm5 in
+    if size > 3 then NONE else
+    if size = 3 /\ ~q then NONE else
+    let esize = 8 * 2 EXP size in
+    let datasize = if q then 128 else 64 in
+    let idx = val imm5 DIV (2 EXP (size + 1)) in
+    SOME (arm_DUP_ELEM (QREG' Rd) (QREG' Rn) idx esize datasize)
 
   | [0:1; q; 0b101110000:9; Rm:5; 0:1; imm4:4; 0:1; Rn:5; Rd:5] ->
     // EXT
@@ -1467,7 +1493,7 @@ let PURE_DECODE_CONV =
     add_thms [arm_adcop; arm_addop; arm_adv_simd_expand_imm;
               arm_bfmop; arm_ccop; arm_csop;
               arm_ldst; arm_ldst_q; arm_ldst_d; arm_ldstb; arm_ldstp; arm_ldstp_q; arm_ldstp_d;
-              arm_ldst2; arm_ldstp_2q; arm_ldst3] rw;
+              arm_ldst2; arm_ldstp_2q; arm_ldst3; arm_ldst1_3q] rw;
     (* .. that have bitmatch exprs inside *)
     List.iter (fun def_th ->
         let Some (conceal_th, opaque_const, opaque_arity, opaque_def, opaque_conv) =

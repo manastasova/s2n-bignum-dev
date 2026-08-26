@@ -1216,6 +1216,30 @@ let arm_DUP_GEN = define
             else word_duplicate (word_zx n:8 word) in
           (Rd := word_zx d:(128)word) s`;;
 
+(* DUP (element): broadcast lane `index` of the vector source Rn to every lane
+   of Rd. Contrast arm_DUP_GEN, which broadcasts a general (X/W) register. *)
+let arm_DUP_ELEM = define
+ `arm_DUP_ELEM Rd Rn idx esize datasize =
+    \s. let n:int128 = read Rn (s:armstate) in
+        if datasize = 128 then
+          let d:(128)word =
+            if esize = 64 then
+              word_duplicate (word_subword n (idx * 64,64):64 word)
+            else if esize = 32 then
+              word_duplicate (word_subword n (idx * 32,32):32 word)
+            else if esize = 16 then
+              word_duplicate (word_subword n (idx * 16,16):16 word)
+            else word_duplicate (word_subword n (idx * 8,8):8 word) in
+          (Rd := d) s
+        else
+          let d:64 word =
+            if esize = 32 then
+              word_duplicate (word_subword n (idx * 32,32):32 word)
+            else if esize = 16 then
+              word_duplicate (word_subword n (idx * 16,16):16 word)
+            else word_duplicate (word_subword n (idx * 8,8):8 word) in
+          (Rd := word_zx d:(128)word) s`;;
+
 let arm_EON = define
  `arm_EON Rd Rm Rn =
     \s. let m = read Rm s
@@ -2620,6 +2644,57 @@ let arm_STP = define
             else (=))
          else ASSIGNS entirety) s`;;
 
+(* LD1/ST1 (multiple structures), 3 registers, contiguous form (opcode 0b0110).
+   Unlike LD3/ST3 (0b0100) these do NOT de-interleave: the three registers are
+   simply stored/loaded contiguously, so this is exactly three back-to-back
+   single-register accesses (cf. arm_STP for two). *)
+let arm_LD1_3 = define
+ `arm_LD1_3 (Rt1:(armstate,N word)component)
+            (Rt2:(armstate,N word)component)
+            (Rt3:(armstate,N word)component) Rn off =
+    \s. let base = read Rn s in
+        let addr = word_add base (offset_address off s) in
+        (if (Rn = SP ==> aligned 16 base) /\
+            orthogonal_components Rt1 Rt2 /\
+            orthogonal_components Rt1 Rt3 /\
+            orthogonal_components Rt2 Rt3 /\
+            (offset_writesback off
+             ==> orthogonal_components Rt1 Rn /\
+                 orthogonal_components Rt2 Rn /\
+                 orthogonal_components Rt3 Rn)
+         then
+           let w = dimindex(:N) DIV 8 in
+           Rt1 := read (memory :> wbytes addr) s ,,
+           Rt2 := read (memory :> wbytes(word_add addr (word w))) s ,,
+           Rt3 := read (memory :> wbytes(word_add addr (word(2 * w)))) s ,,
+           events := CONS (EventLoad (addr,3 * w)) (read events s) ,,
+           (if offset_writesback off
+            then Rn := word_add base (offset_writeback off s)
+            else (=))
+         else ASSIGNS entirety) s`;;
+
+let arm_ST1_3 = define
+ `arm_ST1_3 (Rt1:(armstate,N word)component)
+            (Rt2:(armstate,N word)component)
+            (Rt3:(armstate,N word)component) Rn off =
+    \s. let base = read Rn s in
+        let addr = word_add base (offset_address off s) in
+        (if (Rn = SP ==> aligned 16 base) /\
+            (offset_writesback off
+             ==> orthogonal_components Rt1 Rn /\
+                 orthogonal_components Rt2 Rn /\
+                 orthogonal_components Rt3 Rn)
+         then
+           let w = dimindex(:N) DIV 8 in
+           memory :> wbytes addr := read Rt1 s ,,
+           memory :> wbytes(word_add addr (word w)) := read Rt2 s ,,
+           memory :> wbytes(word_add addr (word(2 * w))) := read Rt3 s ,,
+           events := CONS (EventStore (addr,3 * w)) (read events s) ,,
+           (if offset_writesback off
+            then Rn := word_add base (offset_writeback off s)
+            else (=))
+         else ASSIGNS entirety) s`;;
+
 (* There is a bit of duplication in the following defintions.
   We have to do this because one step in symbolic execution
   doesn't handle let binding of pairs. *)
@@ -3427,6 +3502,7 @@ let arm_CMHI_VEC_ALT =   EXPAND_SIMD_RULE arm_CMHI_VEC;;
 let arm_CMLE_VEC_ZERO_ALT = EXPAND_SIMD_RULE arm_CMLE_VEC_ZERO;;
 let arm_CNT_ALT =        EXPAND_SIMD_RULE arm_CNT;;
 let arm_DUP_GEN_ALT =    EXPAND_SIMD_RULE arm_DUP_GEN;;
+let arm_DUP_ELEM_ALT =   EXPAND_SIMD_RULE arm_DUP_ELEM;;
 let arm_MLS_VEC_ALT =    EXPAND_SIMD_RULE arm_MLS_VEC;;
 let arm_MLA_VEC_ALT =    EXPAND_SIMD_RULE arm_MLA_VEC;;
 let arm_MUL_VEC_ALT =    EXPAND_SIMD_RULE arm_MUL_VEC;;
@@ -3560,7 +3636,7 @@ let ARM_OPERATION_CLAUSES =
        arm_CBNZ_ALT; arm_CBZ_ALT; arm_CCMN; arm_CCMP; arm_CLZ;
        arm_CMGE_VEC_ALT; arm_CMGT_VEC_ALT; arm_CMHI_VEC_ALT; arm_CMLE_VEC_ZERO_ALT; arm_CNT_ALT;
        arm_CSEL; arm_CSINC; arm_CSINV; arm_CSNEG;
-       arm_DUP_GEN_ALT;
+       arm_DUP_GEN_ALT; arm_DUP_ELEM_ALT;
        arm_EON; arm_EOR; arm_EOR_VEC; arm_EOR3; arm_EXT; arm_EXTR;
        arm_FCSEL; arm_FMOV_FtoI; arm_FMOV_ItoF; arm_INS; arm_INS_GEN;
        arm_LSL; arm_LSLV; arm_LSR; arm_LSRV;
@@ -3625,4 +3701,5 @@ let ARM_OPERATION_CLAUSES =
 let ARM_LOAD_STORE_CLAUSES =
   map (CONV_RULE(TOP_DEPTH_CONV let_CONV) o SPEC_ALL)
       [arm_LDR; arm_STR; arm_LDRB; arm_STRB; arm_LDP; arm_STP;
+       arm_LD1_3; arm_ST1_3;
        arm_LD2_ALT; arm_ST2_ALT; arm_LD1R; arm_LD3_ALT; arm_ST3_ALT];;
