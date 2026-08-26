@@ -668,3 +668,369 @@ let GCM_INIT_V8_H34 = prove
   REPEAT CONJ_TAC THEN
   MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
   CONV_TAC NORM1 THEN CONV_TAC WORD_BITWISE_RULE);;
+
+(* ========================================================================= *)
+(* Phase 6a: the H^5 & H^6 power block, PC 0x134 -> 0x1cc.                    *)
+(*                                                                            *)
+(* Precondition = GCM_INIT_V8_H34's postcondition, PLUS the accumulated lower *)
+(* slots +0/+16/+32/+48/+64/+80 carried through unchanged (0x134..0x1c8 never *)
+(* writes below +96, so they thread for free) so Phase 7 composes without     *)
+(* re-deriving them.  Writing H2i,H3i for the internal powers (h2 = H2i =     *)
+(* polyval_dot h1 h1, h3 = H3i = polyval_dot h1 h2), the block computes two    *)
+(* powers by two interleaved carryless products + Gueron reductions:          *)
+(*                                                                            *)
+(*   H^5i = polyval_dot H2i H3i  (Q22 . Q23 : operands DIFFER, genuine mid)    *)
+(*   H^6i = polyval_dot H3i H3i  (Q23 . Q23 : a SQUARE, mid via FROB64)        *)
+(*                                                                            *)
+(* then stores byteswap128 H^5i, word_join(kmid H^6i)(kmid H^5i) and           *)
+(* byteswap128 H^6i at Htable[6..8] (offsets +96/+112/+128) via one 3-register *)
+(* st1 (arm_STP3 at 0x1c8).                                                    *)
+(*                                                                            *)
+(* Mirrors GCM_INIT_V8_H34's recipe with ONE new wrinkle: the hardware forms   *)
+(* the H^5 Karatsuba middle as pmull v16,v18 = (fold H^3i).(fold H^2i), i.e.    *)
+(* word_pmul with operands in the OPPOSITE order to KARA_H2H3's decomposition  *)
+(* of word_pmul H2i H3i.  MID_SWAP5 (a directed instance of WORD_PMUL_SYM)     *)
+(* normalizes that hardware mid to the h2-first form so the single PM5          *)
+(* abbreviation collapses both sides.  (H34's H^3 mid was pmull v16,v17 =       *)
+(* fold h1 . fold h2, already in KARA order, so it needed no swap.)            *)
+(*                                                                            *)
+(* The postcondition exposes every register the H^7/H^8 block (Phase 6b) reads *)
+(* at 0x1cc: Q22 = byteswap128 H^2i, Q26 = byteswap128 H^5i, Q28 = byteswap128 *)
+(* H^6i, and the folds Q18 (H^2i), Q16 (H^5i), Q17 (H^6i), plus all nine lower *)
+(* memory slots (+0..+128).  Powers kept in OPERAND form (Phase 7 reconciles   *)
+(* to htable_mem's h_power via polyval_dot commutativity/associativity).       *)
+(* ========================================================================= *)
+
+(* Karatsuba decompositions for the two interleaved products.                  *)
+let KARA_H2H3 = CONV_RULE(TOP_DEPTH_CONV let_CONV)
+                  (ISPECL [`h2:int128`;`h3:int128`] PMUL_KARATSUBA);;
+let KARA_H3H3 = CONV_RULE(TOP_DEPTH_CONV let_CONV)
+                  (ISPECL [`h3:int128`;`h3:int128`] PMUL_KARATSUBA);;
+
+let MID_SWAP5 = ISPECL
+  [`word_xor (word_subword (h3:int128) (0,64):64 word) (word_subword h3 (64,64)):64 word`;
+   `word_xor (word_subword (h2:int128) (0,64):64 word) (word_subword h2 (64,64)):64 word`]
+  WORD_PMUL_SYM;;
+
+let VEQ5 = WORD_BITWISE_RULE
+  `word_xor (word_xor (word_subword (PL5:128 word) (64,64):64 word)
+                      (word_xor (word_xor (word_subword (PM5:128 word) (0,64))
+                                          (word_subword PL5 (0,64)))
+                                (word_subword (PH5:128 word) (0,64))))
+            (word_subword (QA5:128 word) (0,64)) =
+   word_xor (word_subword QA5 (0,64))
+            (word_xor (word_xor (word_subword PH5 (0,64)) (word_subword PL5 (0,64)))
+                      (word_xor (word_subword PL5 (64,64)) (word_subword PM5 (0,64))))`;;
+
+let VEQ6 = WORD_BITWISE_RULE
+  `word_xor (word_xor (word_subword (PL6:128 word) (64,64):64 word)
+                      (word_xor (word_xor (word_xor (word_subword PL6 (0,64))
+                                                    (word_subword (PH6:128 word) (0,64)))
+                                          (word_subword PL6 (0,64)))
+                                (word_subword PH6 (0,64))))
+            (word_subword (QA6:128 word) (0,64)) =
+   word_xor (word_subword QA6 (0,64))
+            (word_xor (word_xor (word_subword PH6 (0,64)) (word_subword PL6 (0,64)))
+                      (word_xor (word_subword PL6 (64,64))
+                                (word_xor (word_subword PL6 (0,64)) (word_subword PH6 (0,64)))))`;;
+
+let GCM_INIT_V8_H56 = prove
+ (`!Htable h1 pc.
+    nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
+    ==> ensures arm
+         (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+              read PC s = word (pc + 0x134) /\
+              read X0 s = word_add Htable (word 96) /\
+              read Q19 s = word 0xC200000000000000 /\
+              read Q22 s = byteswap128 (polyval_dot h1 h1) /\
+              read Q23 s = byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
+              read Q16 s = word_xor (polyval_dot h1 (polyval_dot h1 h1))
+                                    (byteswap128 (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read Q18 s = word_xor (polyval_dot h1 h1)
+                                    (byteswap128 (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1 /\
+              read (memory :> bytes128 (word_add Htable (word 16))) s =
+                word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
+              read (memory :> bytes128 (word_add Htable (word 32))) s =
+                byteswap128 (polyval_dot h1 h1) /\
+              read (memory :> bytes128 (word_add Htable (word 48))) s =
+                byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 64))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)))
+                          (karatsuba_mid (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 80))) s =
+                byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)))
+         (\s. read PC s = word (pc + 0x1cc) /\
+              read X0 s = word_add Htable (word 144) /\
+              read Q19 s = word 0xC200000000000000 /\
+              read Q22 s = byteswap128 (polyval_dot h1 h1) /\
+              read Q26 s = byteswap128
+                (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read Q28 s = byteswap128
+                (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read Q18 s = word_xor (polyval_dot h1 h1)
+                                    (byteswap128 (polyval_dot h1 h1)) /\
+              read Q16 s = word_xor
+                (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1)))
+                (byteswap128
+                  (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read Q17 s = word_xor
+                (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1)))
+                (byteswap128
+                  (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1 /\
+              read (memory :> bytes128 (word_add Htable (word 16))) s =
+                word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
+              read (memory :> bytes128 (word_add Htable (word 32))) s =
+                byteswap128 (polyval_dot h1 h1) /\
+              read (memory :> bytes128 (word_add Htable (word 48))) s =
+                byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 64))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)))
+                          (karatsuba_mid (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 80))) s =
+                byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 96))) s =
+                byteswap128
+                  (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 112))) s =
+                word_join
+                  (karatsuba_mid
+                    (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))))
+                  (karatsuba_mid
+                    (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read (memory :> bytes128 (word_add Htable (word 128))) s =
+                byteswap128
+                  (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))))
+         (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+          MAYCHANGE [memory :> bytes(Htable, 192)])`,
+  MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; C_ARGUMENTS;
+              NONOVERLAPPING_CLAUSES; ALL; fst GCM_INIT_V8_EXEC] THEN
+  DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
+  REWRITE_TAC[SOME_FLAGS; MODIFIABLE_SIMD_REGS] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--38) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  ABBREV_TAC `h2 = polyval_dot h1 h1` THEN
+  ABBREV_TAC `h3 = polyval_dot h1 h2` THEN
+  REWRITE_TAC[SUBWORD_BS_LEMMAS] THEN
+  REWRITE_TAC[polyval_dot; karatsuba_mid; byteswap128; KARA_H2H3; KARA_H3H3] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC[XOR0] THEN
+  REWRITE_TAC[FROB64] THEN
+  REWRITE_TAC[MID_SWAP5] THEN
+  ABBREV_TAC `PL5 = word_pmul (word_subword (h2:int128) (0,64):64 word)
+                             (word_subword (h3:int128) (0,64):64 word):128 word` THEN
+  ABBREV_TAC `PH5 = word_pmul (word_subword (h2:int128) (64,64):64 word)
+                             (word_subword (h3:int128) (64,64):64 word):128 word` THEN
+  ABBREV_TAC `PM5 = word_pmul (word_xor (word_subword (h2:int128) (0,64):64 word)
+                                        (word_subword h2 (64,64)))
+                             (word_xor (word_subword (h3:int128) (0,64):64 word)
+                                       (word_subword h3 (64,64))):128 word` THEN
+  ABBREV_TAC `PL6 = word_pmul (word_subword (h3:int128) (0,64):64 word)
+                             (word_subword (h3:int128) (0,64):64 word):128 word` THEN
+  ABBREV_TAC `PH6 = word_pmul (word_subword (h3:int128) (64,64):64 word)
+                             (word_subword (h3:int128) (64,64):64 word):128 word` THEN
+  ABBREV_TAC `QA5 = word_pmul (word_subword (PL5:128 word) (0,64):64 word)
+                             ((word 13979173243358019584):64 word):128 word` THEN
+  ABBREV_TAC `QA6 = word_pmul (word_subword (PL6:128 word) (0,64):64 word)
+                             ((word 13979173243358019584):64 word):128 word` THEN
+  CONV_TAC NORM1 THEN
+  REWRITE_TAC[VEQ5; VEQ6] THEN
+  ABBREV_TAC `QV5 = word_pmul
+                     (word_xor (word_subword (QA5:128 word) (0,64):64 word)
+                       (word_xor (word_xor (word_subword (PH5:128 word) (0,64))
+                                           (word_subword (PL5:128 word) (0,64)))
+                                 (word_xor (word_subword PL5 (64,64))
+                                           (word_subword (PM5:128 word) (0,64)))))
+                     ((word 13979173243358019584):64 word):128 word` THEN
+  ABBREV_TAC `QV6 = word_pmul
+                     (word_xor (word_subword (QA6:128 word) (0,64):64 word)
+                       (word_xor (word_xor (word_subword (PH6:128 word) (0,64))
+                                           (word_subword (PL6:128 word) (0,64)))
+                                 (word_xor (word_subword PL6 (64,64))
+                                           (word_xor (word_subword PL6 (0,64))
+                                                     (word_subword PH6 (0,64))))))
+                     ((word 13979173243358019584):64 word):128 word` THEN
+  REPEAT CONJ_TAC THEN
+  MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
+  CONV_TAC NORM1 THEN CONV_TAC WORD_BITWISE_RULE);;
+
+(* ========================================================================= *)
+(* Phase 6b: the H^7 & H^8 power block, PC 0x1cc -> 0x25c (ends at the ret).  *)
+(*                                                                            *)
+(* Precondition = GCM_INIT_V8_H56's postcondition (registers + the nine lower *)
+(* slots +0..+128 carried through unchanged).  Writing H2i,H5i,H6i for the    *)
+(* internal powers (h5 = polyval_dot h2 h3, h6 = polyval_dot h3 h3), the block *)
+(* computes the last two powers by two interleaved carryless products:        *)
+(*                                                                            *)
+(*   H^7i = polyval_dot H2i H5i  (Q22 . Q26 : genuine mid)                     *)
+(*   H^8i = polyval_dot H2i H6i  (Q22 . Q28 : genuine mid)                     *)
+(*                                                                            *)
+(* NEITHER is a square, so unlike H34/H56 there is no FROB64 step: both mids   *)
+(* are genuine and both need a MID_SWAP (the hardware mid pmulls at 0x1dc/     *)
+(* 0x1e0 are (fold H5i).(fold H2i) and (fold H6i).(fold H2i), operands in the  *)
+(* OPPOSITE order to KARA_H2H5/KARA_H2H6; MID_SWAP7/MID_SWAP8 normalize them).  *)
+(* Stores byteswap128 H^7i, word_join(kmid H^8i)(kmid H^7i) and byteswap128    *)
+(* H^8i at Htable[9..11] (offsets +144/+160/+176) via the final 3-register st1 *)
+(* (arm_STP3 at 0x258, NO post-index -- X0 stays Htable+144).  Symbolic        *)
+(* execution ends at the ret (0x25c); the ret is handled by the Phase 8        *)
+(* subroutine wrapper.                                                         *)
+(*                                                                            *)
+(* The postcondition carries ALL TWELVE slots (+0..+176), so Phase 7's         *)
+(* GCM_INIT_V8_CORRECT reads the full htable_mem table off this block's post   *)
+(* (still in OPERAND form; h_power reconciliation is Phase 7's job).           *)
+(* ========================================================================= *)
+
+(* Karatsuba decompositions for the two interleaved products.                  *)
+let KARA_H2H5 = CONV_RULE(TOP_DEPTH_CONV let_CONV)
+                  (ISPECL [`h2:int128`;`h5:int128`] PMUL_KARATSUBA);;
+let KARA_H2H6 = CONV_RULE(TOP_DEPTH_CONV let_CONV)
+                  (ISPECL [`h2:int128`;`h6:int128`] PMUL_KARATSUBA);;
+
+(* MID_SWAP7/8: the hardware forms each genuine mid with the HIGHER power's     *)
+(* fold first (pmull v16/v17, v18), the opposite order to KARA_H2H5/H2H6.  A    *)
+(* directed WORD_PMUL_SYM instance normalizes each to the h2-first KARA form.   *)
+let MID_SWAP7 = ISPECL
+  [`word_xor (word_subword (h5:int128) (0,64):64 word) (word_subword h5 (64,64)):64 word`;
+   `word_xor (word_subword (h2:int128) (0,64):64 word) (word_subword h2 (64,64)):64 word`]
+  WORD_PMUL_SYM;;
+let MID_SWAP8 = ISPECL
+  [`word_xor (word_subword (h6:int128) (0,64):64 word) (word_subword h6 (64,64)):64 word`;
+   `word_xor (word_subword (h2:int128) (0,64):64 word) (word_subword h2 (64,64)):64 word`]
+  WORD_PMUL_SYM;;
+
+(* VEQ7/8: hardware vs. spec 2nd-phase pmul-by-w argument agree (genuine-mid    *)
+(* form, structurally identical to VEQ3/VEQ5).                                  *)
+let VEQ7 = WORD_BITWISE_RULE
+  `word_xor (word_xor (word_subword (PL7:128 word) (64,64):64 word)
+                      (word_xor (word_xor (word_subword (PM7:128 word) (0,64))
+                                          (word_subword PL7 (0,64)))
+                                (word_subword (PH7:128 word) (0,64))))
+            (word_subword (QA7:128 word) (0,64)) =
+   word_xor (word_subword QA7 (0,64))
+            (word_xor (word_xor (word_subword PH7 (0,64)) (word_subword PL7 (0,64)))
+                      (word_xor (word_subword PL7 (64,64)) (word_subword PM7 (0,64))))`;;
+let VEQ8 = WORD_BITWISE_RULE
+  `word_xor (word_xor (word_subword (PL8:128 word) (64,64):64 word)
+                      (word_xor (word_xor (word_subword (PM8:128 word) (0,64))
+                                          (word_subword PL8 (0,64)))
+                                (word_subword (PH8:128 word) (0,64))))
+            (word_subword (QA8:128 word) (0,64)) =
+   word_xor (word_subword QA8 (0,64))
+            (word_xor (word_xor (word_subword PH8 (0,64)) (word_subword PL8 (0,64)))
+                      (word_xor (word_subword PL8 (64,64)) (word_subword PM8 (0,64))))`;;
+
+let GCM_INIT_V8_H78 = prove
+ (`!Htable h1 pc.
+    nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
+    ==> ensures arm
+         (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+              read PC s = word (pc + 0x1cc) /\
+              read X0 s = word_add Htable (word 144) /\
+              read Q19 s = word 0xC200000000000000 /\
+              read Q22 s = byteswap128 (polyval_dot h1 h1) /\
+              read Q26 s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read Q28 s = byteswap128 (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read Q18 s = word_xor (polyval_dot h1 h1) (byteswap128 (polyval_dot h1 h1)) /\
+              read Q16 s = word_xor (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) (byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read Q17 s = word_xor (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))) (byteswap128 (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1 /\
+              read (memory :> bytes128 (word_add Htable (word 16))) s =
+                word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
+              read (memory :> bytes128 (word_add Htable (word 32))) s = byteswap128 (polyval_dot h1 h1) /\
+              read (memory :> bytes128 (word_add Htable (word 48))) s = byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 64))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1))) (karatsuba_mid (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 80))) s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 96))) s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 112))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1)))) (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read (memory :> bytes128 (word_add Htable (word 128))) s = byteswap128 (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))))
+         (\s. read PC s = word (pc + 0x25c) /\
+              read X0 s = word_add Htable (word 144) /\
+              read (memory :> bytes128 Htable) s = byteswap128 h1 /\
+              read (memory :> bytes128 (word_add Htable (word 16))) s =
+                word_join (karatsuba_mid (polyval_dot h1 h1)) (karatsuba_mid h1) /\
+              read (memory :> bytes128 (word_add Htable (word 32))) s = byteswap128 (polyval_dot h1 h1) /\
+              read (memory :> bytes128 (word_add Htable (word 48))) s = byteswap128 (polyval_dot h1 (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 64))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1))) (karatsuba_mid (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 80))) s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 h1)) /\
+              read (memory :> bytes128 (word_add Htable (word 96))) s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 112))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1)))) (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read (memory :> bytes128 (word_add Htable (word 128))) s = byteswap128 (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))) /\
+              read (memory :> bytes128 (word_add Htable (word 144))) s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1)))) /\
+              read (memory :> bytes128 (word_add Htable (word 160))) s =
+                word_join (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1))))) (karatsuba_mid (polyval_dot (polyval_dot h1 h1) (polyval_dot (polyval_dot h1 h1) (polyval_dot h1 (polyval_dot h1 h1))))) /\
+              read (memory :> bytes128 (word_add Htable (word 176))) s = byteswap128 (polyval_dot (polyval_dot h1 h1) (polyval_dot (polyval_dot h1 (polyval_dot h1 h1)) (polyval_dot h1 (polyval_dot h1 h1)))))
+         (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+          MAYCHANGE [memory :> bytes(Htable, 192)])`,
+  MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; C_ARGUMENTS;
+              NONOVERLAPPING_CLAUSES; ALL; fst GCM_INIT_V8_EXEC] THEN
+  DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
+  REWRITE_TAC[SOME_FLAGS; MODIFIABLE_SIMD_REGS] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--36) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  ABBREV_TAC `h2 = polyval_dot h1 h1` THEN
+  ABBREV_TAC `h3 = polyval_dot h1 h2` THEN
+  ABBREV_TAC `h5 = polyval_dot h2 h3` THEN
+  ABBREV_TAC `h6 = polyval_dot h3 h3` THEN
+  REWRITE_TAC[SUBWORD_BS_LEMMAS] THEN
+  REWRITE_TAC[polyval_dot; karatsuba_mid; byteswap128; KARA_H2H5; KARA_H2H6] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC(SHL_LANES @ INS_LANES) THEN CONV_TAC NORM1 THEN
+  REWRITE_TAC[XOR0] THEN
+  REWRITE_TAC[MID_SWAP7; MID_SWAP8] THEN
+  ABBREV_TAC `PL7 = word_pmul (word_subword (h2:int128) (0,64):64 word)
+                             (word_subword (h5:int128) (0,64):64 word):128 word` THEN
+  ABBREV_TAC `PH7 = word_pmul (word_subword (h2:int128) (64,64):64 word)
+                             (word_subword (h5:int128) (64,64):64 word):128 word` THEN
+  ABBREV_TAC `PM7 = word_pmul (word_xor (word_subword (h2:int128) (0,64):64 word)
+                                        (word_subword h2 (64,64)))
+                             (word_xor (word_subword (h5:int128) (0,64):64 word)
+                                       (word_subword h5 (64,64))):128 word` THEN
+  ABBREV_TAC `PL8 = word_pmul (word_subword (h2:int128) (0,64):64 word)
+                             (word_subword (h6:int128) (0,64):64 word):128 word` THEN
+  ABBREV_TAC `PH8 = word_pmul (word_subword (h2:int128) (64,64):64 word)
+                             (word_subword (h6:int128) (64,64):64 word):128 word` THEN
+  ABBREV_TAC `PM8 = word_pmul (word_xor (word_subword (h2:int128) (0,64):64 word)
+                                        (word_subword h2 (64,64)))
+                             (word_xor (word_subword (h6:int128) (0,64):64 word)
+                                       (word_subword h6 (64,64))):128 word` THEN
+  ABBREV_TAC `QA7 = word_pmul (word_subword (PL7:128 word) (0,64):64 word)
+                             ((word 13979173243358019584):64 word):128 word` THEN
+  ABBREV_TAC `QA8 = word_pmul (word_subword (PL8:128 word) (0,64):64 word)
+                             ((word 13979173243358019584):64 word):128 word` THEN
+  CONV_TAC NORM1 THEN
+  REWRITE_TAC[VEQ7; VEQ8] THEN
+  ABBREV_TAC `QV7 = word_pmul
+                     (word_xor (word_subword (QA7:128 word) (0,64):64 word)
+                       (word_xor (word_xor (word_subword (PH7:128 word) (0,64))
+                                           (word_subword (PL7:128 word) (0,64)))
+                                 (word_xor (word_subword PL7 (64,64))
+                                           (word_subword (PM7:128 word) (0,64)))))
+                     ((word 13979173243358019584):64 word):128 word` THEN
+  ABBREV_TAC `QV8 = word_pmul
+                     (word_xor (word_subword (QA8:128 word) (0,64):64 word)
+                       (word_xor (word_xor (word_subword (PH8:128 word) (0,64))
+                                           (word_subword (PL8:128 word) (0,64)))
+                                 (word_xor (word_subword PL8 (64,64))
+                                           (word_subword (PM8:128 word) (0,64)))))
+                     ((word 13979173243358019584):64 word):128 word` THEN
+  REPEAT CONJ_TAC THEN
+  MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
+  CONV_TAC NORM1 THEN CONV_TAC WORD_BITWISE_RULE);;
