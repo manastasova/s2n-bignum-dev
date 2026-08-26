@@ -2191,3 +2191,72 @@ let GCM_INIT_V8_SUBROUTINE_CORRECT = prove
   REWRITE_TAC[htable_mem] THEN
   ARM_ADD_RETURN_NOSTACK_TAC GCM_INIT_V8_EXEC
     (REWRITE_RULE[htable_mem] GCM_INIT_V8_CORRECT));;
+
+(* ------------------------------------------------------------------------- *)
+(* Constant-time and memory-safety companion.                                *)
+(*                                                                            *)
+(* gcm_init_v8 is straight-line with no data-dependent branches and no        *)
+(* data-dependent addressing: it reads H once from [hp,16) and writes exactly *)
+(* the 12 used slots [htable,192).  So the microarchitectural event trace is  *)
+(* a function of the public buffer addresses / pc / returnaddress only (never *)
+(* of the secret H value), and every memory access lies in bounds.  Being a   *)
+(* leaf with no stack frame, both the core (GCM_INIT_V8_SAFE) and the          *)
+(* subroutine (GCM_INIT_V8_SUBROUTINE_SAFE) safety specs are proved directly   *)
+(* by PROVE_SAFETY_SPEC_TAC (the leaf pattern of                               *)
+(* arm/proofs/bignum_littleendian_6 and arm/tutorial/safety.ml); no core/      *)
+(* NOSTACK split is needed to derive the subroutine one.                       *)
+(*                                                                            *)
+(* Preconditions mirror GCM_INIT_V8_{,SUBROUTINE_}CORRECT verbatim.  The read /*)
+(* write regions follow the mk_safety_spec convention (reads = inputs @        *)
+(* outputs = [hp,16; htable,192]; writes = outputs = [htable,192]); f_events   *)
+(* is quantified over public arguments only ([hp; htable; pc(; returnaddress)] *)
+(* -- notably NOT the H value), which is exactly the constant-time property.   *)
+(* ------------------------------------------------------------------------- *)
+
+needs "arm/proofs/consttime.ml";;
+
+let GCM_INIT_V8_SAFE = prove
+ (`exists f_events.
+       forall e htable hp pc.
+           nonoverlapping (word pc,0x260) (htable,192) /\
+           nonoverlapping (htable,192) (hp,16)
+           ==> ensures arm
+               (\s.
+                    aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+                    read PC s = word pc /\
+                    C_ARGUMENTS [htable; hp] s /\
+                    read events s = e)
+               (\s.
+                    read PC s = word (pc + 0x25c) /\
+                    (exists e2.
+                         read events s = APPEND e2 e /\
+                         e2 = f_events hp htable pc /\
+                         memaccess_inbounds e2 [hp,16; htable,192] [htable,192]))
+               (\s s'. true)`,
+  PROVE_SAFETY_SPEC_TAC
+    ~public_vars:[`e:(uarch_event)list`; `pc:num`; `hp:int64`; `htable:int64`]
+    GCM_INIT_V8_EXEC);;
+
+let GCM_INIT_V8_SUBROUTINE_SAFE = prove
+ (`exists f_events.
+       forall e htable hp pc returnaddress.
+           nonoverlapping (word pc,0x260) (htable,192) /\
+           nonoverlapping (htable,192) (hp,16)
+           ==> ensures arm
+               (\s.
+                    aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
+                    read PC s = word pc /\
+                    read X30 s = returnaddress /\
+                    C_ARGUMENTS [htable; hp] s /\
+                    read events s = e)
+               (\s.
+                    read PC s = returnaddress /\
+                    (exists e2.
+                         read events s = APPEND e2 e /\
+                         e2 = f_events hp htable pc returnaddress /\
+                         memaccess_inbounds e2 [hp,16; htable,192] [htable,192]))
+               (\s s'. true)`,
+  PROVE_SAFETY_SPEC_TAC
+    ~public_vars:[`e:(uarch_event)list`; `pc:num`; `hp:int64`; `htable:int64`;
+                  `returnaddress:int64`]
+    GCM_INIT_V8_EXEC);;
