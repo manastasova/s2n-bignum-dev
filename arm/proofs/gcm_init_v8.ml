@@ -501,8 +501,7 @@ let POLYVAL_DOT_ASSOC = prove
     ANTS_TAC THENL [SIMP_TAC[BOOL_POLY_OF_WORD; POLY_VARPOW_BOOL_POLY];
                     DISCH_THEN SUBST1_TAC] THEN
     MATCH_MP_TAC MOD_POLYVAL_MUL THEN
-    CONJ_TAC THENL [REWRITE_TAC[POLYVAL_DOT_CORRECT];
-                    REWRITE_TAC[MOD_POLYVAL_REFL; BOOL_POLY_OF_WORD]];
+    CONJ_TAC THEN REWRITE_TAC[POLYVAL_DOT_CORRECT; MOD_POLYVAL_REFL; BOOL_POLY_OF_WORD];
     SUBGOAL_THEN
      `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (a:int128))
         (poly_of_word (b:int128))) (poly_of_word (c:int128)) =
@@ -522,8 +521,7 @@ let POLYVAL_DOT_ASSOC = prove
      [MATCH_MP_TAC(GSYM RING_MUL_ASSOC) THEN
       SIMP_TAC[BOOL_POLY_OF_WORD; POLY_VARPOW_BOOL_POLY]; ALL_TAC] THEN
     MATCH_MP_TAC MOD_POLYVAL_MUL THEN
-    CONJ_TAC THENL [REWRITE_TAC[MOD_POLYVAL_REFL; BOOL_POLY_OF_WORD];
-                    REWRITE_TAC[POLYVAL_DOT_CORRECT]]]);;
+    CONJ_TAC THEN REWRITE_TAC[POLYVAL_DOT_CORRECT; MOD_POLYVAL_REFL; BOOL_POLY_OF_WORD]]);;
 
 (* (c) exponent addition: dotting two H-powers adds their exponents.           *)
 (* h_power h k = h^{k+1} * x^{-128k} mod Q, so                                 *)
