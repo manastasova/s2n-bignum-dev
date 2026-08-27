@@ -571,10 +571,40 @@ let cosimulate_ldst3() =
   else
     [add_Xn_SP_imm rn stackoff; code; sub_Xn_SP_Xn rn];;
 
+(*** This covers LD1/ST1 (multiple structures), 3 registers contiguous
+ *** (opcode 0b0110), datasize 128 only (Q = 1 is forced by the decode).
+ *** Post-immediate #48 offset (someoffset = 1) and no offset
+ *** (someoffset = 0).  Mirrors cosimulate_ldst_1_2reg, changing the opcode
+ *** field from the 2-register 0b1010 to the 3-register 0b0110 and the
+ *** access/post-increment from 32 to 48 bytes (3 * 16). ***)
+let cosimulate_ldst1_3reg() =
+  let someoffset = Random.int 2
+  and rn = Random.int 32
+  and isld = Random.int 2
+  and rt = Random.int 32
+  and esize = Random.int 4 in
+  let stackoff =
+    if rn = 31 then Random.int 13 * 16
+    else Random.int 208 in
+  let postinc = someoffset * 48 in
+  let code =
+    pow2 24 */ num 0b01001100 +/
+    pow2 23 */ num someoffset +/
+    pow2 22 */ num isld +/
+    pow2 16 */ num(0b011111 * someoffset) +/
+    pow2 12 */ num 0b0110 +/
+    pow2 10 */ num esize +/
+    pow2 5 */ num rn +/
+    num rt in
+  if rn = 31 then
+    [add_Xn_SP_imm 31 stackoff; code; sub_Xn_SP_imm 31 (stackoff + postinc)]
+  else
+    [add_Xn_SP_imm rn stackoff; code; sub_Xn_SP_Xn rn];;
+
 let memclasses =
    [cosimulate_ldstr; cosimulate_ldstp; cosimulate_ldst_12;
     cosimulate_ldst_1_2reg; cosimulate_ldstrb; cosimulate_ld1r;
-    cosimulate_ldst3; cosimulate_ldstu
+    cosimulate_ldst3; cosimulate_ldst1_3reg; cosimulate_ldstu
     ];;
 
 let run_random_memopsimulation() =
