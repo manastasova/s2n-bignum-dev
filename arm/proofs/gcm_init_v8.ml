@@ -491,10 +491,7 @@ let POLYVAL_DOT_ASSOC = prove
                 (poly_of_word (c:int128))` THEN
   CONJ_TAC THENL [REWRITE_TAC[POLYVAL_DOT_CORRECT]; ALL_TAC] THEN
   MATCH_MP_TAC(ISPEC `128` MOD_POLYVAL_CANCEL_VARPOW_GEN) THEN
-  REPEAT CONJ_TAC THENL
-   [SIMP_TAC[RING_MUL; BOOL_POLY_OF_WORD];
-    SIMP_TAC[RING_MUL; BOOL_POLY_OF_WORD];
-    ALL_TAC] THEN
+  SIMP_TAC[RING_MUL; BOOL_POLY_OF_WORD] THEN
   MATCH_MP_TAC MOD_POLYVAL_TRANS THEN
   EXISTS_TAC `ring_mul bool_poly (ring_mul bool_poly (poly_of_word (a:int128))
                 (poly_of_word (b:int128))) (poly_of_word (c:int128))` THEN
