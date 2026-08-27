@@ -6,10 +6,10 @@
 
 // ----------------------------------------------------------------------------
 // GCM_INIT_V8: expand a GHASH key into the precomputed table (ARMv8 PMULL)
-// Input H[2]; output Htable[32]
+// Input h[2]; output htable[32]
 //
-//    extern void gcm_init_v8(uint64_t Htable[static 32],
-//                            const uint64_t H[static 2]);
+//    extern void gcm_init_v8(uint64_t htable[static 32],
+//                            const uint64_t h[static 2]);
 //
 // Given the 128-bit GHASH key H (two 64-bit words), fills the low 12 of the
 // 16 128-bit slots of Htable with the twisted powers H, H^2, ..., H^8 and the

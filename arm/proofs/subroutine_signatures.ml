@@ -4479,6 +4479,22 @@ let subroutine_signatures = [
    ])
 );
 
+("gcm_init_v8",
+  ([(*args*)
+     ("htable", "uint64_t[static 32]", (*is const?*)"false");
+     ("h", "uint64_t[static 2]", (*is const?*)"true");
+   ],
+   "void",
+   [(* input buffers *)
+    ("h", "2"(* num elems *), 8(* elem bytesize *));
+   ],
+   [(* output buffers *)
+    ("htable", "32"(* num elems *), 8(* elem bytesize *));
+   ],
+   [(* temporary buffers *)
+   ])
+);
+
 ("mldsa_intt_arm",
   ([(*args*)
      ("a", "int32_t[static 256]", (*is const?*)"false");

@@ -300,6 +300,7 @@ onlyInArm = [
   "bignum_mod_p256k1",
   "curve25519_x25519_byte",
   "curve25519_x25519_byte_alt",
+  "gcm_init_v8",
   "sha3_",
   "mldsa_intt_arm",
   "mldsa_pointwise",
