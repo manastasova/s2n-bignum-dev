@@ -149,6 +149,9 @@ let iclasses =
   "01001110000x1000000011xxxxxxxxxx"; (* original DUP Vd.2d, xn *)
   "0x001110000xxxxx000011xxxxxxxxxx"; (* other variants too     *)
 
+  (*** DUP (element): broadcast lane Vn.T[idx] to all lanes of Vd ***)
+  "0x001110000xxxxx000001xxxxxxxxxx";
+
   (*** EOR ***)
   "0x101110001xxxxx000111xxxxxxxxxx";
 
@@ -555,6 +558,18 @@ let check_insns () =
 
     (*** st1 (2 registers, Post-immediate offset) 128-bit ***)
     "01001100100111111010xxxxxxxxxxxx";
+
+    (*** ld1 (3 registers, contiguous, Post-immediate offset #48) 128-bit ***)
+    "01001100110111110110xxxxxxxxxxxx";
+
+    (*** st1 (3 registers, contiguous, Post-immediate offset #48) 128-bit ***)
+    "01001100100111110110xxxxxxxxxxxx";
+
+    (*** ld1 (3 registers, contiguous, no offset) 128-bit ***)
+    "01001100010000000110xxxxxxxxxxxx";
+
+    (*** st1 (3 registers, contiguous, no offset) 128-bit ***)
+    "01001100000000000110xxxxxxxxxxxx";
 
     (*** ld2 (2 register, Post-immediate offset) ***)
     "0x001100110111111000xxxxxxxxxxxx";
