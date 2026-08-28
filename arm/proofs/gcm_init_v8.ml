@@ -84,14 +84,14 @@ let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_in
   0x4ee3e060;       (* pmull2 v0.1q, v3.2d, v3.2d *)
   0xd503201f;       (* nop *)
   0x0ee3e062;       (* pmull v2.1q, v3.1d, v3.1d *)
-  0x0ef0e201;       (* pmull v1.1q, v16.1d, v16.1d *)
-  0x6e024011;       (* ext v17.16b, v0.16b, v2.16b, #8 *)
-  0x6e221c12;       (* eor v18.16b, v0.16b, v2.16b *)
-  0x6e311c21;       (* eor v1.16b, v1.16b, v17.16b *)
-  0x6e321c21;       (* eor v1.16b, v1.16b, v18.16b *)
+  0xd503201f;       (* nop *)
+  0xd503201f;       (* nop *)
+  0xd503201f;       (* nop *)
+  0xd503201f;       (* nop *)
+  0xd503201f;       (* nop *)
   0x0ef3e012;       (* pmull v18.1q, v0.1d, v19.1d *)
-  0x6e084422;       (* mov v2.d[0], v1.d[1] *)
-  0x6e180401;       (* mov v1.d[1], v0.d[0] *)
+  0xd503201f;       (* nop *)
+  0x6e004001;       (* ext v1.16b, v0.16b, v0.16b, #8 *)
   0x6e321c20;       (* eor v0.16b, v1.16b, v18.16b *)
   0x6e004012;       (* ext v18.16b, v0.16b, v0.16b, #8 *)
   0x0ef3e000;       (* pmull v0.1q, v0.1d, v19.1d *)
@@ -326,6 +326,27 @@ let SBW_JOIN = WORD_BLAST
  `(word_subword (word_join (p:64 word) (q:64 word) :128 word) (0,64):64 word = q) /\
   (word_subword (word_join (p:64 word) (q:64 word) :128 word) (64,64):64 word = p)`;;
 
+(* ------------------------------------------------------------------------- *)
+(* SQ: the Karatsuba middle is VACUOUS for a squaring.  In GF(2)[x] the cross *)
+(* terms of (x+y)^2 cancel in characteristic 2, so the mid product equals the *)
+(* XOR of the two half products, and the generic mul macro's mid pmull plus   *)
+(* its two folding XORs compute nothing.  The optimized .S drops them (as     *)
+(* in-place nops), so every SQUARING block's reconciliation needs this        *)
+(* identity to see that the shorter code still yields the spec's Karatsuba    *)
+(* form.  Proved algebraically from bilinearity (WORD_PMUL_XOR) plus          *)
+(* commutativity (WORD_PMUL_SYM) -- do NOT try to BITBLAST it (128 free bits, *)
+(* quadratic in the AND-terms; it will not return).                           *)
+(* ------------------------------------------------------------------------- *)
+let PMUL_SQ_XOR = prove
+ (`!x y:(64)word. (word_pmul (word_xor x y) (word_xor x y) :(128)word) =
+                  word_xor (word_pmul x x) (word_pmul y y)`,
+  REPEAT GEN_TAC THEN
+  REWRITE_TAC[WORD_PMUL_XOR] THEN
+  MP_TAC(ISPECL [`x:(64)word`; `y:(64)word`]
+                (INST_TYPE [`:64`,`:M`; `:128`,`:N`] WORD_PMUL_SYM)) THEN
+  DISCH_THEN SUBST1_TAC THEN
+  CONV_TAC WORD_BITWISE_RULE);;
+
 let GCM_INIT_V8_REDBRIDGE = prove
  (`!(a:int128) pc.
      ensures arm
@@ -355,17 +376,14 @@ let GCM_INIT_V8_REDBRIDGE = prove
   REWRITE_TAC[WORD_BLAST
    `word_xor (word_subword (a:int128) (64,64):64 word) (word_subword a (0,64)) =
     word_xor (word_subword a (0,64):64 word) (word_subword a (64,64))`] THEN
+  REWRITE_TAC[PMUL_SQ_XOR] THEN
   ABBREV_TAC `(qhi:(128)word) =
      word_pmul (word_subword (a:int128) (64,64) :(64)word)
                (word_subword (a:int128) (64,64) :(64)word)` THEN
   ABBREV_TAC `(qlo:(128)word) =
      word_pmul (word_subword (a:int128) (0,64) :(64)word)
                (word_subword (a:int128) (0,64) :(64)word)` THEN
-  ABBREV_TAC `(qmid:(128)word) =
-     word_pmul (word_xor (word_subword (a:int128) (0,64) :(64)word)
-                         (word_subword (a:int128) (64,64) :(64)word))
-               (word_xor (word_subword (a:int128) (0,64) :(64)word)
-                         (word_subword (a:int128) (64,64) :(64)word))` THEN
+  (* SQ: squaring -> no qmid (PMUL_SQ_XOR applied above). *)
   GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC);;
 
 (* ------------------------------------------------------------------------- *)
@@ -695,17 +713,15 @@ let GCM_INIT_V8_H2 = prove
   REWRITE_TAC[WORD_BLAST
    `word_xor (word_subword (a:int128) (64,64):64 word) (word_subword a (0,64)) =
     word_xor (word_subword a (0,64):64 word) (word_subword a (64,64))`] THEN
+  REWRITE_TAC[PMUL_SQ_XOR] THEN
   ABBREV_TAC `(qhi:(128)word) =
      word_pmul (word_subword (a:int128) (64,64) :(64)word)
                (word_subword (a:int128) (64,64) :(64)word)` THEN
   ABBREV_TAC `(qlo:(128)word) =
      word_pmul (word_subword (a:int128) (0,64) :(64)word)
                (word_subword (a:int128) (0,64) :(64)word)` THEN
-  ABBREV_TAC `(qmid:(128)word) =
-     word_pmul (word_xor (word_subword (a:int128) (0,64) :(64)word)
-                         (word_subword (a:int128) (64,64) :(64)word))
-               (word_xor (word_subword (a:int128) (0,64) :(64)word)
-                         (word_subword (a:int128) (64,64) :(64)word))` THEN
+  (* SQ: block B squares, so PMUL_SQ_XOR collapses the spec's Karatsuba mid to  *)
+  (* word_xor qlo qhi and the .S no longer computes it -- no qmid to abbreviate. *)
   REPEAT CONJ_TAC THEN
   CACHED_LANE_BLAST);;
 

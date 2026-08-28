@@ -57,16 +57,16 @@ S2N_BN_SYMBOL(gcm_init_v8):
         pmull2  v0.1q,v3.2d,v3.2d
         nop                                             //CSE: ppH computed at :56 directly
         pmull   v2.1q,v3.1d,v3.1d
-        pmull   v1.1q,v16.1d,v16.1d
+        nop                                     //SQ: mid pmull(ppH,ppH) is vacuous for a square
 
-        ext     v17.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
-        eor     v18.16b,v0.16b,v2.16b
-        eor     v1.16b,v1.16b,v17.16b
-        eor     v1.16b,v1.16b,v18.16b
+        nop                                     //SQ: Karatsuba post-processing all cancels
+        nop                                     //SQ:   (a0^a1)^2 == a0^2 ^ a1^2 in GF(2)[x],
+        nop                                     //SQ:   so mid ^ (hi^lo) == 0 and
+        nop                                     //SQ:   v1 collapses to ext(hi,lo,8)
         pmull   v18.1q,v0.1d,v19.1d             //1st phase
 
-        ins     v2.d[0],v1.d[1]
-        ins     v1.d[1],v0.d[0]
+        nop                                     //SQ: ins v2.d[0],v1.d[1] wrote lo.d[0] over itself
+        ext     v1.16b,v0.16b,v0.16b,#8         //SQ: v1 = ext(hi,hi,8), was two ins
         eor     v0.16b,v1.16b,v18.16b
 
         ext     v18.16b,v0.16b,v0.16b,#8                //2nd phase
