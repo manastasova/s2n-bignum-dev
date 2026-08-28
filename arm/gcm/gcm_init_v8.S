@@ -45,14 +45,12 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	movi	v2.16b,#0
 	shl	v19.2d,v19.2d,#57		//0xc2.0
 	ushr	v18.2d,v17.2d,#63
-	dup	v3.4s,v17.s[1]
-	ushr	v1.2d,v19.2d,#63
-	ext	v18.16b,v18.16b,v2.16b,#8	//carry-in bit for the low lane
+	sshr	v3.2d,v17.2d,#63		//lane 0 = the carry bit, broadcast
+	ext	v16.16b,v19.16b,v2.16b,#8	//t0 = {0xc2....00, 0}
 	shl	v20.2d,v17.2d,#1
-	ext	v16.16b,v19.16b,v1.16b,#8		//t0=0xc2....01, store-lane order
-	sshr	v3.4s,v3.4s,#31		//broadcast carry bit
-	orr	v20.16b,v20.16b,v18.16b		//H<<<=1
+	ext	v18.16b,v18.16b,v18.16b,#8	//lane 0 = carry, lane 1 = the 0x..01 bit
 	and	v16.16b,v16.16b,v3.16b
+	orr	v20.16b,v20.16b,v18.16b		//H<<<=1 AND the low lane's 0x..01
 	eor	v20.16b,v20.16b,v16.16b		//twisted H, already store-lane order
 
 	//calculate H^2 = H.H (a square)
