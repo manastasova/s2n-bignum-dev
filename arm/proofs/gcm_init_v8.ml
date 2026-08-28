@@ -136,18 +136,18 @@ let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_in
   0x6e104217;       (* ext v23.16b, v16.16b, v16.16b, #8 *)
   0x6e114239;       (* ext v25.16b, v17.16b, v17.16b, #8 *)
   0xd503201f;       (* nop *)
-  0x6e371e10;       (* eor v16.16b, v16.16b, v23.16b *)
-  0x6e391e31;       (* eor v17.16b, v17.16b, v25.16b *)
+  0x6e371e03;       (* eor v3.16b, v16.16b, v23.16b *)
+  0x6e391e35;       (* eor v21.16b, v17.16b, v25.16b *)
   0xd503201f;       (* nop *)
-  0x6e114218;       (* ext v24.16b, v16.16b, v17.16b, #8 *)
+  0x6e154078;       (* ext v24.16b, v3.16b, v21.16b, #8 *)
   0x4c9f6c17;       (* st1 {v23.2d-v25.2d}, [x0], #48   (3-reg, UNMODELED) *)
   (* --- Block D: H^5/H^6, slots 6,7,8 (0x134-0x1c8) --- *)
   0x4ef7e2c0;       (* pmull2 v0.1q, v22.2d, v23.2d *)
   0x4ef7e2e5;       (* pmull2 v5.1q, v23.2d, v23.2d *)
   0x0ef7e2c2;       (* pmull v2.1q, v22.1d, v23.1d *)
   0x0ef7e2e7;       (* pmull v7.1q, v23.1d, v23.1d *)
-  0x0ef4e201;       (* pmull v1.1q, v16.1d, v20.1d *)
-  0x0ef0e206;       (* pmull v6.1q, v16.1d, v16.1d *)
+  0x0ef4e061;       (* pmull v1.1q, v3.1d, v20.1d *)
+  0x0ee3e066;       (* pmull v6.1q, v3.1d, v3.1d *)
   0x6e024010;       (* ext v16.16b, v0.16b, v2.16b, #8 *)
   0x6e0740b1;       (* ext v17.16b, v5.16b, v7.16b, #8 *)
   0x6e221c12;       (* eor v18.16b, v0.16b, v2.16b *)
@@ -181,12 +181,12 @@ let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_in
   0x6e11421b;       (* ext v27.16b, v16.16b, v17.16b, #8 *)
   0x4c9f6c1a;       (* st1 {v26.2d-v28.2d}, [x0], #48   (3-reg, UNMODELED) *)
   (* --- Block E: H^7/H^8, slots 9,10,11 (0x1cc-0x258) --- *)
-  0x4efae2c0;       (* pmull2 v0.1q, v22.2d, v26.2d *)
-  0x4efce2c5;       (* pmull2 v5.1q, v22.2d, v28.2d *)
-  0x0efae2c2;       (* pmull v2.1q, v22.1d, v26.1d *)
-  0x0efce2c7;       (* pmull v7.1q, v22.1d, v28.1d *)
-  0x0ef4e201;       (* pmull v1.1q, v16.1d, v20.1d *)
-  0x0ef4e226;       (* pmull v6.1q, v17.1d, v20.1d *)
+  0x4ef9e2e0;       (* pmull2 v0.1q, v23.2d, v25.2d *)
+  0x4ef9e325;       (* pmull2 v5.1q, v25.2d, v25.2d *)
+  0x0ef9e2e2;       (* pmull v2.1q, v23.1d, v25.1d *)
+  0x0ef9e327;       (* pmull v7.1q, v25.1d, v25.1d *)
+  0x0ef5e061;       (* pmull v1.1q, v3.1d, v21.1d *)
+  0x0ef5e2a6;       (* pmull v6.1q, v21.1d, v21.1d *)
   0x6e024010;       (* ext v16.16b, v0.16b, v2.16b, #8 *)
   0x6e0740b1;       (* ext v17.16b, v5.16b, v7.16b, #8 *)
   0x6e221c12;       (* eor v18.16b, v0.16b, v2.16b *)
@@ -973,7 +973,7 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
            read Q25 s =
              byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b)))
       (MAYCHANGE [PC] ,,
-       MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q23;Q24;Q25] ,,
+       MAYCHANGE [Q0;Q1;Q2;Q3;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q21;Q23;Q24;Q25] ,,
        MAYCHANGE [events])`,
   MAP_EVERY X_GEN_TAC [`a:int128`; `b:int128`; `pc:num`] THEN
   ENSURES_INIT_TAC "s0" THEN
@@ -1028,12 +1028,13 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
 (*                                                                            *)
 (* One tactic serves all six shapes (the C/D/E register bridges and the        *)
 (* *_H<nn> cores).  The generic pmul-abstraction is what makes it              *)
-(* operand-agnostic: it handles both the a*b + b*b pair (blocks C/D, H34/H56)  *)
-(* and block E's shared-operand a*b1 + a*b2 triple (E_REGBRIDGE/H78) with no   *)
-(* hardcoded a/b names.  AB_MID_COMM (WORD_PMUL_SYM at the Karatsuba-middle     *)
-(* operand shape) is inert on block C -- whose a*b middle is already in         *)
-(* PMUL_KARATSUBA's (mid a, mid b) order -- and fires on blocks D/E, which     *)
-(* read that middle's operands swapped, so both abstract to the same var.      *)
+(* operand-agnostic: all three blocks are an a*b + b*b pair (C/D since the     *)
+(* start, E since the optimizer's E1 re-target made it read block C), and it   *)
+(* names no a/b, so it also survived block E's earlier shared-operand          *)
+(* a*b1 + a*b2 triple.  AB_MID_COMM (WORD_PMUL_SYM at the Karatsuba-middle      *)
+(* operand shape) is inert on blocks C and E -- whose a*b middle is already in  *)
+(* PMUL_KARATSUBA's (mid a, mid b) order -- and fires on block D, which        *)
+(* reads that middle's operands swapped, so both abstract to the same var.     *)
 (* ASM_REWRITE_TAC[] in the caller already discharges every non-lane conjunct  *)
 (* (X0 advance, preserved regs), so the tail is just CACHED_LANE_BLAST; an     *)
 (* earlier TRY(CONV_TAC WORD_RULE) here was measured inert for H34/H56/H78.    *)
@@ -1057,12 +1058,12 @@ let GCM_INIT_V8_KARA_TAC =
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   REWRITE_TAC[PMUL_W_64_128] THEN
   REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
-  REWRITE_TAC[AB_MID_COMM] THEN   (* inert on block C; flips (mid b, mid a) on D/E *)
+  REWRITE_TAC[AB_MID_COMM] THEN   (* inert on blocks C/E; flips (mid b, mid a) on D *)
   (* Abstract every remaining 64x64 word_pmul half-product to a fresh 128-bit    *)
   (* variable.  A generic find_term / ABBREV loop, NOT a fixed operand list, so   *)
-  (* it serves both the a*b + b*b pair (blocks C/D) and block E's shared-operand  *)
-  (* a*b1 + a*b2 triple with no hardcoded a/b names; BITBLAST then sees only      *)
-  (* opaque vars.                                                                 *)
+  (* it serves the a*b + b*b pair of all three paired blocks with no hardcoded    *)
+  (* a/b names (and served block E's pre-E1 a*b1 + a*b2 triple unchanged);        *)
+  (* BITBLAST then sees only opaque vars.                                         *)
   REPEAT(W(fun (_,w) ->
     let t = find_term
       (fun u -> match u with
@@ -1131,11 +1132,17 @@ let GCM_INIT_V8_H34 = prove
                read Q22 s = b /\
                read Q23 s =
                  byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b)) /\
+               read Q25 s =
+                 byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b)) /\
                read Q20 s = word_xor (byteswap128 b) b /\
-               read Q16 s = word_xor
+               read Q3 s = word_xor
                   (byteswap128 (byteswap128
                      (polyval_dot (byteswap128 a) (byteswap128 b))))
                   (byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b))) /\
+               read Q21 s = word_xor
+                  (byteswap128 (byteswap128
+                     (polyval_dot (byteswap128 b) (byteswap128 b))))
+                  (byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b))) /\
                read (memory :> bytes128 htable) s = g0 /\
                read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
                read (memory :> bytes128 (word_add htable (word 32))) s = g2 /\
@@ -1149,7 +1156,7 @@ let GCM_INIT_V8_H34 = prove
                  byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b)))
           (MAYCHANGE [PC] ,,
            MAYCHANGE [X0] ,,
-           MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q23;Q24;Q25] ,,
+           MAYCHANGE [Q0;Q1;Q2;Q3;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q21;Q23;Q24;Q25] ,,
            MAYCHANGE [memory :> bytes(word_add htable (word 48),48)] ,,
            MAYCHANGE [events])`,
   REWRITE_TAC[NONOVERLAPPING_CLAUSES; fst GCM_INIT_V8_EXEC] THEN
@@ -1211,14 +1218,20 @@ let GCM_INIT_V8_H34_MEM = prove
                  byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
                read Q23 s =
                  byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2) /\
+               read Q25 s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3) /\
                read Q20 s = word_xor
                   (byteswap128 (byteswap128
                      (h_power (ghash_twist (byteswap128 H_in)) 1)))
                   (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
-               read Q16 s = word_xor
+               read Q3 s = word_xor
                   (byteswap128 (byteswap128
                      (h_power (ghash_twist (byteswap128 H_in)) 2)))
                   (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)) /\
+               read Q21 s = word_xor
+                  (byteswap128 (byteswap128
+                     (h_power (ghash_twist (byteswap128 H_in)) 3)))
+                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3)) /\
                read (memory :> bytes128 htable) s =
                  byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
                read (memory :> bytes128 (word_add htable (word 16))) s =
@@ -1283,15 +1296,25 @@ let GCM_INIT_V8_H34_MEM = prove
           read Q23 s = byteswap128 (polyval_dot
              (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0)))
              (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))) /\
+          read Q25 s = byteswap128 (polyval_dot
+             (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
+             (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))) /\
           read Q20 s = word_xor
              (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
              (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
-          read Q16 s = word_xor
+          read Q3 s = word_xor
              (byteswap128 (byteswap128 (polyval_dot
                 (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0)))
                 (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1))))))
              (byteswap128 (polyval_dot
                 (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0)))
+                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1))))) /\
+          read Q21 s = word_xor
+             (byteswap128 (byteswap128 (polyval_dot
+                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
+                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1))))))
+             (byteswap128 (polyval_dot
+                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
                 (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1))))) /\
           read (memory :> bytes128 htable) s =
             byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
@@ -1332,7 +1355,7 @@ let GCM_INIT_V8_H34_MEM = prove
       GCM_INIT_V8_FRAME_TAC
        `MAYCHANGE [PC] ,,
         MAYCHANGE [X0] ,,
-        MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q23;Q24;Q25] ,,
+        MAYCHANGE [Q0;Q1;Q2;Q3;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q21;Q23;Q24;Q25] ,,
         MAYCHANGE [memory :> bytes(word_add htable (word 48),48)] ,,
         MAYCHANGE [events]`
        GCM_INIT_V8_H34]]);;
@@ -1342,8 +1365,9 @@ let GCM_INIT_V8_H34_MEM = prove
 (*                                                                            *)
 (* Block D is block C with the register lanes renamed: main operands          *)
 (* a = Q22 (block B's byteswap128 H^2), b = Q23 (block C's byteswap128 H^3);   *)
-(* mids Q18 = mid a', Q16 = mid b' (block C's tail leaves them there --        *)
-(* MEASURED, see the note below).  It runs the two interleaved Karatsuba +     *)
+(* mids Q18 = mid a', Q3 = mid b' (block C's tail leaves them there since the  *)
+(* optimizer's E1 re-homed mid H^3 from Q16 into Q3, which block D does not     *)
+(* clobber -- MEASURED, see the note below).  It runs the two Karatsuba +      *)
 (* 0xC2-reduction streams and computes, at 0x1c8 (before the store):           *)
 (*                                                                            *)
 (*   read Q26 = byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b))      *)
@@ -1380,7 +1404,7 @@ let GCM_INIT_V8_D_REGBRIDGE = prove
            read Q22 s = a /\
            read Q23 s = b /\
            read Q20 s = word_xor (byteswap128 a) a /\
-           read Q16 s = word_xor (byteswap128 b) b)
+           read Q3 s = word_xor (byteswap128 b) b)
       (\s. read PC s = word (pc + 0x1c8) /\
            read Q26 s =
              byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b)) /\
@@ -1451,7 +1475,7 @@ let GCM_INIT_V8_D_REGBRIDGE = prove
 (* ------------------------------------------------------------------------- *)
 
 let GCM_INIT_V8_H56 = prove
- (`!(a:int128) (b:int128) g0 g1 g2 g3 g4 g5 htable pc.
+ (`!(a:int128) (b:int128) (c:int128) g0 g1 g2 g3 g4 g5 htable pc.
      nonoverlapping (word pc,0x260) (htable,192)
      ==> ensures arm
           (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
@@ -1460,8 +1484,10 @@ let GCM_INIT_V8_H56 = prove
                read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
                read Q22 s = a /\
                read Q23 s = b /\
+               read Q25 s = c /\
                read Q20 s = word_xor (byteswap128 a) a /\
-               read Q16 s = word_xor (byteswap128 b) b /\
+               read Q3 s = word_xor (byteswap128 b) b /\
+               read Q21 s = word_xor (byteswap128 c) c /\
                read (memory :> bytes128 htable) s = g0 /\
                read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
                read (memory :> bytes128 (word_add htable (word 32))) s = g2 /\
@@ -1472,20 +1498,10 @@ let GCM_INIT_V8_H56 = prove
                read PC s = word (pc + 0x1cc) /\
                read X0 s = word_add htable (word 144) /\
                read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
-               read Q22 s = a /\
-               read Q26 s =
-                 byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b)) /\
-               read Q28 s =
-                 byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b)) /\
-               read Q20 s = word_xor (byteswap128 a) a /\
-               read Q16 s = word_xor
-                  (byteswap128 (byteswap128
-                     (polyval_dot (byteswap128 a) (byteswap128 b))))
-                  (byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b))) /\
-               read Q17 s = word_xor
-                  (byteswap128 (byteswap128
-                     (polyval_dot (byteswap128 b) (byteswap128 b))))
-                  (byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b))) /\
+               read Q23 s = b /\
+               read Q25 s = c /\
+               read Q3 s = word_xor (byteswap128 b) b /\
+               read Q21 s = word_xor (byteswap128 c) c /\
                read (memory :> bytes128 htable) s = g0 /\
                read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
                read (memory :> bytes128 (word_add htable (word 32))) s = g2 /\
@@ -1516,7 +1532,9 @@ let GCM_INIT_V8_H56 = prove
 (* Phase 9 -- H^5/H^6 sub-table with memory (entry -> pc+0x1cc, slots 0-8).    *)
 (*                                                                            *)
 (* Composes the strengthened GCM_INIT_V8_H34_MEM (entry->0x134: slots 0-5 +   *)
-(* block-D input registers in block D's INPUT form) with block D              *)
+(* block-D input registers in block D's INPUT form, PLUS since the optimizer's *)
+(* E1 re-target the two block-E inputs Q25/Q21 that block D only carries) with *)
+(* block D                                                                    *)
 (* (GCM_INIT_V8_H56, 0x134->0x1cc) into the first NINE htable_mem conjuncts    *)
 (* in h_power form (h = ghash_twist (byteswap128 H_in)):                       *)
 (*                                                                            *)
@@ -1551,24 +1569,18 @@ let GCM_INIT_V8_H56_MEM = prove
                read PC s = word (pc + 0x1cc) /\
                read X0 s = word_add htable (word 144) /\
                read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
-               read Q22 s =
-                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
-               read Q26 s =
-                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 4) /\
-               read Q28 s =
-                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 5) /\
-               read Q20 s = word_xor
+               read Q23 s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2) /\
+               read Q25 s =
+                 byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3) /\
+               read Q3 s = word_xor
                   (byteswap128 (byteswap128
-                     (h_power (ghash_twist (byteswap128 H_in)) 1)))
-                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
-               read Q16 s = word_xor
+                     (h_power (ghash_twist (byteswap128 H_in)) 2)))
+                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)) /\
+               read Q21 s = word_xor
                   (byteswap128 (byteswap128
-                     (h_power (ghash_twist (byteswap128 H_in)) 4)))
-                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 4)) /\
-               read Q17 s = word_xor
-                  (byteswap128 (byteswap128
-                     (h_power (ghash_twist (byteswap128 H_in)) 5)))
-                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 5)) /\
+                     (h_power (ghash_twist (byteswap128 H_in)) 3)))
+                  (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3)) /\
                read (memory :> bytes128 htable) s =
                  byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
                read (memory :> bytes128 (word_add htable (word 16))) s =
@@ -1606,14 +1618,19 @@ let GCM_INIT_V8_H56_MEM = prove
         read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
         read Q22 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
         read Q23 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2) /\
+        read Q25 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3) /\
         read Q20 s = word_xor
            (byteswap128 (byteswap128
               (h_power (ghash_twist (byteswap128 H_in)) 1)))
            (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
-        read Q16 s = word_xor
+        read Q3 s = word_xor
            (byteswap128 (byteswap128
               (h_power (ghash_twist (byteswap128 H_in)) 2)))
            (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)) /\
+        read Q21 s = word_xor
+           (byteswap128 (byteswap128
+              (h_power (ghash_twist (byteswap128 H_in)) 3)))
+           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3)) /\
         read (memory :> bytes128 htable) s =
           byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
         read (memory :> bytes128 (word_add htable (word 16))) s =
@@ -1646,31 +1663,16 @@ let GCM_INIT_V8_H56_MEM = prove
           read PC s = word (pc + 0x1cc) /\
           read X0 s = word_add htable (word 144) /\
           read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
-          read Q22 s =
-            byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
-          read Q26 s = byteswap128 (polyval_dot
-             (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
-             (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)))) /\
-          read Q28 s = byteswap128 (polyval_dot
+          read Q23 s =
+            byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2) /\
+          read Q25 s =
+            byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3) /\
+          read Q3 s = word_xor
              (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)))
-             (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)))) /\
-          read Q20 s = word_xor
-             (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
-             (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
-          read Q16 s = word_xor
-             (byteswap128 (byteswap128 (polyval_dot
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2))))))
-             (byteswap128 (polyval_dot
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)))
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2))))) /\
-          read Q17 s = word_xor
-             (byteswap128 (byteswap128 (polyval_dot
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)))
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2))))))
-             (byteswap128 (polyval_dot
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)))
-                (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2))))) /\
+             (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)) /\
+          read Q21 s = word_xor
+             (byteswap128 (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3)))
+             (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3)) /\
           read (memory :> bytes128 htable) s =
             byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
           read (memory :> bytes128 (word_add htable (word 16))) s =
@@ -1726,62 +1728,59 @@ let GCM_INIT_V8_H56_MEM = prove
 (* ========================================================================= *)
 (* Phase 9 -- block E (H^7/H^8) register bridge (0x1cc-0x258, steps 116-150). *)
 (*                                                                            *)
-(* Block E is NOT the same shape as blocks C/D.  Its two interleaved          *)
-(* Karatsuba+0xC2-reduction streams SHARE the operand a = Q22 (block B's      *)
-(* byteswap128 H^2, preserved through blocks C and D) and multiply it against *)
-(* TWO distinct powers:                                                       *)
-(*   stream 1 (v0/v2/v1 -> v16 -> v29):  a * b1,  b1 = Q26 = byteswap128 H^5  *)
-(*     (block D's slot-6 output) -> H^7                                       *)
-(*   stream 2 (v5/v7/v6 -> v17 -> v31):  a * b2,  b2 = Q28 = byteswap128 H^6  *)
-(*     (block D's slot-8 output) -> H^8                                       *)
-(* So the bridge takes THREE symbolic inputs a,b1,b2 and needs SIX ABBREV'd   *)
-(* half-products (a*b1 hi/lo/mid, a*b2 hi/lo/mid) -- not the a*b + b*b pair    *)
-(* of C/D.  The mids are Q18 = mid a, Q16 = mid b1, Q17 = mid b2.             *)
+(* Since the E1 re-target (optimizer session 033) block E has the SAME shape   *)
+(* as blocks C/D -- an a*b + b*b pair, not the old shared-operand a*b1 + a*b2  *)
+(* triple.  It reads block C's outputs rather than block D's, which is what     *)
+(* makes blocks D and E mutually independent (dependency depth 4 -> 3):        *)
+(*   stream 1 (v0/v2/v1 -> v16 -> v29):  a * b   -> H^7 = H^3 . H^4            *)
+(*   stream 2 (v5/v7/v6 -> v17 -> v31):  b * b   -> H^8 = H^4 . H^4            *)
+(* with a = Q23 = byteswap128 H^3 and b = Q25 = byteswap128 H^4 (block C's      *)
+(* slot-3 and slot-5 outputs, both preserved through block D), and the          *)
+(* Karatsuba pre-processed mids in Q3 = mid a, Q21 = mid b (block C now homes   *)
+(* them there instead of Q16/Q17, which block D would otherwise clobber).       *)
+(* So the bridge takes TWO symbolic inputs a,b and the C/D six ABBREV'd         *)
+(* half-products (a*b hi/lo/mid, b*b hi/lo/mid).                               *)
 (*                                                                            *)
 (* At 0x258 (before the no-writeback store):                                  *)
-(*   read Q29 = byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b1))     *)
-(*              (= slot 9,  byteswap128 H^7 = byteswap128 (H^2 . H^5))         *)
-(*   read Q30 = word_join (karatsuba_mid (dot (bs a)(bs b2)))                  *)
-(*                        (karatsuba_mid (dot (bs a)(bs b1)))                  *)
+(*   read Q29 = byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b))      *)
+(*              (= slot 9,  byteswap128 H^7 = byteswap128 (H^3 . H^4))         *)
+(*   read Q30 = word_join (karatsuba_mid (dot (bs b)(bs b)))                   *)
+(*                        (karatsuba_mid (dot (bs a)(bs b)))                   *)
 (*              (= slot 10 packed middle; HIGH = mid H^8, LOW = mid H^7 --      *)
 (*               the LAST untested slot, MEASURED here)                        *)
-(*   read Q31 = byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b2))     *)
-(*              (= slot 11, byteswap128 H^8 = byteswap128 (H^2 . H^6))         *)
+(*   read Q31 = byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b))      *)
+(*              (= slot 11, byteswap128 H^8 = byteswap128 (H^4 . H^4))         *)
 (*                                                                            *)
-(* BOTH a*bi mid pmulls read their operands in (mid bi, mid a) order -- step   *)
-(* 120 `pmull v1,v16,v18` (v16 = mid b1, v18 = mid a), step 121                *)
-(* `pmull v6,v17,v18` (v17 = mid b2, v18 = mid a) -- swapped from KARA's       *)
-(* (a-mid, b-mid) convention, so AB_MID_COMM must flip BOTH.  AB_MID_COMM is   *)
-(* generic in a,b; REWRITE_TAC[AB_MID_COMM] canonicalizes both without looping *)
-(* (verified: the prefix through the six ABBREVs leaves zero raw word_pmul).   *)
+(* Block E's a*b mid pmull now reads (mid a, mid b) -- `pmull v1,v3,v21` --     *)
+(* i.e. block C's canonical order rather than block D's swapped one, so        *)
+(* AB_MID_COMM is inert here; it is kept for uniformity with D_REGBRIDGE and    *)
+(* is ordered (WORD_PMUL_SYM at a permutative shape), so it cannot loop.        *)
 (* Same recipe as C_REGBRIDGE/D_REGBRIDGE otherwise.                          *)
 (* ------------------------------------------------------------------------- *)
 
 let GCM_INIT_V8_E_REGBRIDGE = prove
- (`!(a:int128) (b1:int128) (b2:int128) pc.
+ (`!(a:int128) (b:int128) pc.
      ensures arm
       (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
            read PC s = word (pc + 0x1cc) /\
            read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
-           read Q22 s = a /\
-           read Q26 s = b1 /\
-           read Q28 s = b2 /\
-           read Q20 s = word_xor (byteswap128 a) a /\
-           read Q16 s = word_xor (byteswap128 b1) b1 /\
-           read Q17 s = word_xor (byteswap128 b2) b2)
+           read Q23 s = a /\
+           read Q25 s = b /\
+           read Q3 s = word_xor (byteswap128 a) a /\
+           read Q21 s = word_xor (byteswap128 b) b)
       (\s. read PC s = word (pc + 0x258) /\
            read Q29 s =
-             byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b1)) /\
+             byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b)) /\
            read Q30 s =
              word_join
-               (karatsuba_mid (polyval_dot (byteswap128 a) (byteswap128 b2)))
-               (karatsuba_mid (polyval_dot (byteswap128 a) (byteswap128 b1))) /\
+               (karatsuba_mid (polyval_dot (byteswap128 b) (byteswap128 b)))
+               (karatsuba_mid (polyval_dot (byteswap128 a) (byteswap128 b))) /\
            read Q31 s =
-             byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b2)))
+             byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b)))
       (MAYCHANGE [PC] ,,
        MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q29;Q30;Q31] ,,
        MAYCHANGE [events])`,
-  MAP_EVERY X_GEN_TAC [`a:int128`; `b1:int128`; `b2:int128`; `pc:num`] THEN
+  MAP_EVERY X_GEN_TAC [`a:int128`; `b:int128`; `pc:num`] THEN
   ENSURES_INIT_TAC "s0" THEN
   ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--35) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
@@ -1791,36 +1790,36 @@ let GCM_INIT_V8_E_REGBRIDGE = prove
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   REWRITE_TAC[PMUL_W_64_128] THEN
   REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
-  REWRITE_TAC[AB_MID_COMM] THEN   (* flip block E's two (mid bi, mid a) products *)
-  ABBREV_TAC `(pab1_hi:128 word) =
+  REWRITE_TAC[AB_MID_COMM] THEN   (* inert on block E's post-E1 (mid a, mid b) *)
+  ABBREV_TAC `(pab_hi:128 word) =
      word_pmul (word_subword (a:int128) (64,64):64 word)
-               (word_subword (b1:int128) (64,64):64 word)` THEN
-  ABBREV_TAC `(pab1_lo:128 word) =
+               (word_subword (b:int128) (64,64):64 word)` THEN
+  ABBREV_TAC `(pab_lo:128 word) =
      word_pmul (word_subword (a:int128) (0,64):64 word)
-               (word_subword (b1:int128) (0,64):64 word)` THEN
-  ABBREV_TAC `(pab1_mid:128 word) =
+               (word_subword (b:int128) (0,64):64 word)` THEN
+  ABBREV_TAC `(pab_mid:128 word) =
      word_pmul (word_xor (word_subword (a:int128) (64,64):64 word)
                          (word_subword (a:int128) (0,64):64 word))
-               (word_xor (word_subword (b1:int128) (64,64):64 word)
-                         (word_subword (b1:int128) (0,64):64 word))` THEN
-  ABBREV_TAC `(pab2_hi:128 word) =
-     word_pmul (word_subword (a:int128) (64,64):64 word)
-               (word_subword (b2:int128) (64,64):64 word)` THEN
-  ABBREV_TAC `(pab2_lo:128 word) =
-     word_pmul (word_subword (a:int128) (0,64):64 word)
-               (word_subword (b2:int128) (0,64):64 word)` THEN
-  ABBREV_TAC `(pab2_mid:128 word) =
-     word_pmul (word_xor (word_subword (a:int128) (64,64):64 word)
-                         (word_subword (a:int128) (0,64):64 word))
-               (word_xor (word_subword (b2:int128) (64,64):64 word)
-                         (word_subword (b2:int128) (0,64):64 word))` THEN
+               (word_xor (word_subword (b:int128) (64,64):64 word)
+                         (word_subword (b:int128) (0,64):64 word))` THEN
+  ABBREV_TAC `(pbb_hi:128 word) =
+     word_pmul (word_subword (b:int128) (64,64):64 word)
+               (word_subword (b:int128) (64,64):64 word)` THEN
+  ABBREV_TAC `(pbb_lo:128 word) =
+     word_pmul (word_subword (b:int128) (0,64):64 word)
+               (word_subword (b:int128) (0,64):64 word)` THEN
+  ABBREV_TAC `(pbb_mid:128 word) =
+     word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
+                         (word_subword (b:int128) (0,64):64 word))
+               (word_xor (word_subword (b:int128) (64,64):64 word)
+                         (word_subword (b:int128) (0,64):64 word))` THEN
   REWRITE_TAC[byteswap128] THEN
   REPEAT CONJ_TAC THEN GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN
   BITBLAST_TAC);;
 
 (* ========================================================================= *)
 (* Phase 9 -- block E (H^7/H^8) core + 3-register store (0x1cc-0x25c,          *)
-(* steps 116-151), stated with SYMBOLIC inputs a = Q22, b1 = Q26, b2 = Q28.    *)
+(* steps 116-151), stated with SYMBOLIC inputs a = Q23, b = Q25 (post-E1).      *)
 (*                                                                            *)
 (* Block-E analogue of GCM_INIT_V8_H56: wraps the register bridge with the     *)
 (* contiguous 3-register store st1 {v29.2d-v31.2d},[x0] at 0x258.  Unlike the  *)
@@ -1833,8 +1832,8 @@ let GCM_INIT_V8_E_REGBRIDGE = prove
 (*     word_join (karatsuba_mid H^8) (karatsuba_mid H^7)  (HIGH = higher power)*)
 (*   slot 11 @ htable+176 (Htable[11]) = byteswap128 (H^8)                     *)
 (*                                                                            *)
-(* where H^7 = polyval_dot (byteswap128 a) (byteswap128 b1) and                *)
-(* H^8 = polyval_dot (byteswap128 a) (byteswap128 b2).  Slot 10 is exercised   *)
+(* where H^7 = polyval_dot (byteswap128 a) (byteswap128 b) and                 *)
+(* H^8 = polyval_dot (byteswap128 b) (byteswap128 b).  Slot 10 is exercised    *)
 (* by NEITHER the KAT nor the differential test -- the LAST such slot, so this *)
 (* proof is its only check; its measured HIGH=higher-power order matches the   *)
 (* corrected htable_mem.                                                       *)
@@ -1847,19 +1846,17 @@ let GCM_INIT_V8_E_REGBRIDGE = prove
 (* ------------------------------------------------------------------------- *)
 
 let GCM_INIT_V8_H78 = prove
- (`!(a:int128) (b1:int128) (b2:int128) g0 g1 g2 g3 g4 g5 g6 g7 g8 htable pc.
+ (`!(a:int128) (b:int128) g0 g1 g2 g3 g4 g5 g6 g7 g8 htable pc.
      nonoverlapping (word pc,0x260) (htable,192)
      ==> ensures arm
           (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
                read PC s = word (pc + 0x1cc) /\
                read X0 s = word_add htable (word 144) /\
                read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
-               read Q22 s = a /\
-               read Q26 s = b1 /\
-               read Q28 s = b2 /\
-               read Q20 s = word_xor (byteswap128 a) a /\
-               read Q16 s = word_xor (byteswap128 b1) b1 /\
-               read Q17 s = word_xor (byteswap128 b2) b2 /\
+               read Q23 s = a /\
+               read Q25 s = b /\
+               read Q3 s = word_xor (byteswap128 a) a /\
+               read Q21 s = word_xor (byteswap128 b) b /\
                read (memory :> bytes128 htable) s = g0 /\
                read (memory :> bytes128 (word_add htable (word 16))) s = g1 /\
                read (memory :> bytes128 (word_add htable (word 32))) s = g2 /\
@@ -1882,13 +1879,13 @@ let GCM_INIT_V8_H78 = prove
                read (memory :> bytes128 (word_add htable (word 112))) s = g7 /\
                read (memory :> bytes128 (word_add htable (word 128))) s = g8 /\
                read (memory :> bytes128 (word_add htable (word 144))) s =
-                 byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b1)) /\
+                 byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b)) /\
                read (memory :> bytes128 (word_add htable (word 160))) s =
                  word_join
-                   (karatsuba_mid (polyval_dot (byteswap128 a) (byteswap128 b2)))
-                   (karatsuba_mid (polyval_dot (byteswap128 a) (byteswap128 b1))) /\
+                   (karatsuba_mid (polyval_dot (byteswap128 b) (byteswap128 b)))
+                   (karatsuba_mid (polyval_dot (byteswap128 a) (byteswap128 b))) /\
                read (memory :> bytes128 (word_add htable (word 176))) s =
-                 byteswap128 (polyval_dot (byteswap128 a) (byteswap128 b2)))
+                 byteswap128 (polyval_dot (byteswap128 b) (byteswap128 b)))
           (MAYCHANGE [PC] ,,
            MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q29;Q30;Q31] ,,
            MAYCHANGE [memory :> bytes(word_add htable (word 144),48)] ,,
@@ -1915,14 +1912,14 @@ let GCM_INIT_V8_H78 = prove
 (*                                                                            *)
 (* Structure mirrors GCM_INIT_V8_H56_MEM: ENSURES_SEQUENCE_TAC at pc+0x1cc.    *)
 (*   SG1 (entry->0x1cc): the strengthened GCM_INIT_V8_H56_MEM, whose post is   *)
-(*     stated in block E's INPUT form (a = byteswap128 (h_power h 1),          *)
-(*     b1 = byteswap128 (h_power h 4), b2 = byteswap128 (h_power h 5)), so the *)
-(*     mid-assertion matches BOTH H56_MEM's post (SG1) and H78's precondition  *)
-(*     (SG2) verbatim -- both clean MATCH_MP_TAC.  (Do NOT unfold C_ARGUMENTS  *)
-(*     -- H56_MEM's pre keeps it folded.)                                     *)
+(*     stated in block E's INPUT form (post-E1: a = byteswap128 (h_power h 2), *)
+(*     b = byteswap128 (h_power h 3), CARRIED THROUGH block D untouched in     *)
+(*     Q23/Q25/Q3/Q21), so the mid-assertion matches BOTH H56_MEM's post (SG1) *)
+(*     and H78's precondition (SG2) verbatim -- both clean MATCH_MP_TAC.       *)
+(*     (Do NOT unfold C_ARGUMENTS -- H56_MEM's pre keeps it folded.)           *)
 (*   SG2 (0x1cc->0x25c): GCM_INIT_V8_H78; the ENSURES_POSTCONDITION bridge     *)
 (*     maps its polyval_dot post to h_power via BYTESWAP128_INVOL + HPOWER_DOT *)
-(*     + numeral reduction (1+4+1=6 for H^7, 1+5+1=7 for H^8).  Slot 10 packed *)
+(*     + numeral reduction (2+3+1=6 for H^7, 3+3+1=7 for H^8).  Slot 10 packed *)
 (*     middle -- the LAST untested slot; this proof is its only check.        *)
 (* ------------------------------------------------------------------------- *)
 
@@ -1981,21 +1978,16 @@ let GCM_INIT_V8_H78_MEM = prove
   ENSURES_SEQUENCE_TAC `pc + 0x1cc`
    `\s. read X0 s = word_add htable (word 144) /\
         read Q19 s = (word 0xC200000000000000C200000000000000:int128) /\
-        read Q22 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1) /\
-        read Q26 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 4) /\
-        read Q28 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 5) /\
-        read Q20 s = word_xor
+        read Q23 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2) /\
+        read Q25 s = byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3) /\
+        read Q3 s = word_xor
            (byteswap128 (byteswap128
-              (h_power (ghash_twist (byteswap128 H_in)) 1)))
-           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 1)) /\
-        read Q16 s = word_xor
+              (h_power (ghash_twist (byteswap128 H_in)) 2)))
+           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 2)) /\
+        read Q21 s = word_xor
            (byteswap128 (byteswap128
-              (h_power (ghash_twist (byteswap128 H_in)) 4)))
-           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 4)) /\
-        read Q17 s = word_xor
-           (byteswap128 (byteswap128
-              (h_power (ghash_twist (byteswap128 H_in)) 5)))
-           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 5)) /\
+              (h_power (ghash_twist (byteswap128 H_in)) 3)))
+           (byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3)) /\
         read (memory :> bytes128 htable) s =
           byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 0) /\
         read (memory :> bytes128 (word_add htable (word 16))) s =
@@ -2062,27 +2054,27 @@ let GCM_INIT_V8_H78_MEM = prove
           read (memory :> bytes128 (word_add htable (word 144))) s =
             byteswap128 (polyval_dot
               (byteswap128 (byteswap128
-                 (h_power (ghash_twist (byteswap128 H_in)) 1)))
+                 (h_power (ghash_twist (byteswap128 H_in)) 2)))
               (byteswap128 (byteswap128
-                 (h_power (ghash_twist (byteswap128 H_in)) 4)))) /\
+                 (h_power (ghash_twist (byteswap128 H_in)) 3)))) /\
           read (memory :> bytes128 (word_add htable (word 160))) s =
             word_join
               (karatsuba_mid (polyval_dot
                 (byteswap128 (byteswap128
-                   (h_power (ghash_twist (byteswap128 H_in)) 1)))
+                   (h_power (ghash_twist (byteswap128 H_in)) 3)))
                 (byteswap128 (byteswap128
-                   (h_power (ghash_twist (byteswap128 H_in)) 5)))))
+                   (h_power (ghash_twist (byteswap128 H_in)) 3)))))
               (karatsuba_mid (polyval_dot
                 (byteswap128 (byteswap128
-                   (h_power (ghash_twist (byteswap128 H_in)) 1)))
+                   (h_power (ghash_twist (byteswap128 H_in)) 2)))
                 (byteswap128 (byteswap128
-                   (h_power (ghash_twist (byteswap128 H_in)) 4))))) /\
+                   (h_power (ghash_twist (byteswap128 H_in)) 3))))) /\
           read (memory :> bytes128 (word_add htable (word 176))) s =
             byteswap128 (polyval_dot
               (byteswap128 (byteswap128
-                 (h_power (ghash_twist (byteswap128 H_in)) 1)))
+                 (h_power (ghash_twist (byteswap128 H_in)) 3)))
               (byteswap128 (byteswap128
-                 (h_power (ghash_twist (byteswap128 H_in)) 5))))` THEN
+                 (h_power (ghash_twist (byteswap128 H_in)) 3))))` THEN
     CONJ_TAC THENL
      [(* bridge: block E dot form ==> h_power form (slots 9,10,11) *)
       GCM_INIT_V8_DOTBRIDGE_TAC;
