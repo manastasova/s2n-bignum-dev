@@ -2069,10 +2069,7 @@ let GCM_INIT_V8_H78_MEM = prove
                  (h_power (ghash_twist (byteswap128 H_in)) 5))))` THEN
     CONJ_TAC THENL
      [(* bridge: block E dot form ==> h_power form (slots 9,10,11) *)
-      GEN_TAC THEN
-      REWRITE_TAC[BYTESWAP128_INVOL; HPOWER_DOT] THEN
-      CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
-      STRIP_TAC THEN ASM_REWRITE_TAC[];
+      GCM_INIT_V8_DOTBRIDGE_TAC;
       (* apply block E (GCM_INIT_V8_H78) *)
       GCM_INIT_V8_FRAME_TAC
        `MAYCHANGE [PC] ,,
