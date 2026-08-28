@@ -608,7 +608,8 @@ let KARATSUBA_MID_BYTESWAP = prove
 (* recipe as GCM_INIT_V8_REDBRIDGE (KARA_EQ splits the 128x128 product,        *)
 (* PMUL_W_64_128 folds the 0xC2 pmuls, a WORD_BLAST reconciles the lane        *)
 (* shuffles, the three half-products are ABBREV'd to free 128-bit vars, and    *)
-(* LANE128 + BITBLAST closes each 64-bit lane).  PC/X0 close by WORD_RULE.      *)
+(* LANE128 + BITBLAST closes each lane, memoized by CACHED_LANE_BLAST).  PC/X0  *)
+(* close by ASM_REWRITE; the KARA_TAC family's inert WORD_RULE was dropped.     *)
 (*                                                                            *)
 (* The lemma also threads an UNMODIFIED slot-0 value v0 (read at htable) from  *)
 (* pre to post: block B stores only to [htable+16, htable+48), disjoint from   *)
@@ -692,8 +693,7 @@ let GCM_INIT_V8_H2 = prove
                (word_xor (word_subword (a:int128) (0,64) :(64)word)
                          (word_subword (a:int128) (64,64) :(64)word))` THEN
   REPEAT CONJ_TAC THEN
-  TRY(CONV_TAC WORD_RULE) THEN
-  GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC);;
+  CACHED_LANE_BLAST);;
 
 (* polyval_dot h h = h_power h 1 (specialize HPOWER_DOT at a=b=0, 0+0+1=1).    *)
 (* Used to bridge block B's polyval_dot output to the h_power form htable_mem  *)
