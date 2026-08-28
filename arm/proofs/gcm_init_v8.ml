@@ -718,6 +718,28 @@ let GCM_INIT_V8_FRAME_TAC frame core =
    [SUBSUMED_MAYCHANGE_TAC;
     MATCH_MP_TAC core THEN ASM_REWRITE_TAC[NONOVERLAPPING_CLAUSES]];;
 
+(* ------------------------------------------------------------------------- *)
+(* Dot->h_power postcondition bridge -- the second block-composition idiom.   *)
+(* Block C/D/E's core lemma (GCM_INIT_V8_H34/H56/H78) produces each slot and  *)
+(* exposed register in polyval_dot form over doubly-byteswapped powers,       *)
+(* because that is what the register-split Karatsuba reduction computes; the  *)
+(* composed *_MEM statement advertises the same slots in the h_power form     *)
+(* htable_mem uses.  This names the ENSURES_POSTCONDITION bridge branch that   *)
+(* converts one to the other: cancel each doubled byteswap (BYTESWAP128_INVOL)*)
+(* and collapse dot of two powers into one (HPOWER_DOT: dot (h_power h i)      *)
+(* (h_power h j) = h_power h (i+j+1)), reduce the resulting exponent numeral   *)
+(* (NUM_ADD_CONV), then discharge.  Unlike GCM_INIT_V8_FRAME_TAC it takes no   *)
+(* arguments -- the power indices are already in the goal.  Serves the three   *)
+(* H34_MEM/H56_MEM/H78_MEM bridge branches (character-identical); H2_MEM's     *)
+(* bridge differs (KARATSUBA_MID_BYTESWAP/HDOT1, no NUM_ADD_CONV) and is not   *)
+(* a consumer.                                                                *)
+(* ------------------------------------------------------------------------- *)
+let GCM_INIT_V8_DOTBRIDGE_TAC:tactic =
+  GEN_TAC THEN
+  REWRITE_TAC[BYTESWAP128_INVOL; HPOWER_DOT] THEN
+  CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
+  STRIP_TAC THEN ASM_REWRITE_TAC[];;
+
 (* ========================================================================= *)
 (* Phase 7 -- H^2 sub-table with memory (entry -> pc+0x9c, slots 0,1,2 +       *)
 (* block-C input registers).                                                   *)
@@ -1289,10 +1311,7 @@ let GCM_INIT_V8_H34_MEM = prove
                  (h_power (ghash_twist (byteswap128 H_in)) 1))))` THEN
     CONJ_TAC THENL
      [(* bridge: block C dot form ==> h_power form (slots 3,4,5) *)
-      GEN_TAC THEN
-      REWRITE_TAC[BYTESWAP128_INVOL; HPOWER_DOT] THEN
-      CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
-      STRIP_TAC THEN ASM_REWRITE_TAC[];
+      GCM_INIT_V8_DOTBRIDGE_TAC;
       (* apply block C (GCM_INIT_V8_H34) *)
       GCM_INIT_V8_FRAME_TAC
        `MAYCHANGE [PC] ,,
