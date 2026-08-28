@@ -48,15 +48,15 @@ S2N_BN_SYMBOL(gcm_init_v8):
         ext     v18.16b,v18.16b,v18.16b,#8
         and     v16.16b,v16.16b,v17.16b
         orr     v3.16b,v3.16b,v18.16b           //H<<<=1
-        eor     v20.16b,v3.16b,v16.16b          //twisted H
-        ext     v20.16b, v20.16b, v20.16b, #8
-        st1     {v20.2d},[x0],#16               //store Htable[0]
+        eor     v20.16b,v3.16b,v16.16b          //twisted H (pre-swap T; v20 free after :56)
+        ext     v3.16b, v20.16b, v20.16b, #8    //S = swap64(T) = H^1 byteswapped form
+        st1     {v3.2d},[x0],#16                //store Htable[0]
 
         //calculate H^2
-        ext     v16.16b,v20.16b,v20.16b,#8              //Karatsuba pre-processing
-        pmull2  v0.1q,v20.2d,v20.2d
-        eor     v16.16b,v16.16b,v20.16b
-        pmull   v2.1q,v20.1d,v20.1d
+        eor     v16.16b,v20.16b,v3.16b                  //ppH = T ^ S (CSE double-swap)
+        pmull2  v0.1q,v3.2d,v3.2d
+        nop                                             //CSE: ppH computed at :56 directly
+        pmull   v2.1q,v3.1d,v3.1d
         pmull   v1.1q,v16.1d,v16.1d
 
         ext     v17.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
@@ -75,18 +75,18 @@ S2N_BN_SYMBOL(gcm_init_v8):
         eor     v17.16b,v0.16b,v18.16b
 
         ext     v22.16b,v17.16b,v17.16b,#8              //Karatsuba pre-processing
-        eor     v17.16b,v17.16b,v22.16b
-        ext     v21.16b,v16.16b,v17.16b,#8              //pack Karatsuba pre-processed
+        eor     v20.16b,v17.16b,v22.16b                 //ppH2 into freed v20 (full CSE)
+        ext     v21.16b,v16.16b,v20.16b,#8              //pack Karatsuba pre-processed
         st1     {v21.2d},[x0],#16       //store Htable[1..2]
         st1     {v22.2d},[x0],#16       //store Htable[1..2]
 
         //calculate H^3 and H^4
-        pmull2  v0.1q,v20.2d, v22.2d
+        pmull2  v0.1q,v3.2d, v22.2d
         pmull2  v5.1q,v22.2d,v22.2d
-        pmull   v2.1q,v20.1d, v22.1d
+        pmull   v2.1q,v3.1d, v22.1d
         pmull   v7.1q,v22.1d,v22.1d
-        pmull   v1.1q,v16.1d,v17.1d
-        pmull   v6.1q,v17.1d,v17.1d
+        pmull   v1.1q,v16.1d,v20.1d
+        pmull   v6.1q,v20.1d,v20.1d
 
         ext     v16.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
         ext     v17.16b,v5.16b,v7.16b,#8
@@ -118,10 +118,10 @@ S2N_BN_SYMBOL(gcm_init_v8):
 
         ext     v23.16b,v16.16b,v16.16b,#8              //Karatsuba pre-processing
         ext     v25.16b,v17.16b,v17.16b,#8
-        ext     v18.16b,v22.16b,v22.16b,#8
+        nop                                     //CSE: ppH2 carried in v20 from :78
         eor     v16.16b,v16.16b,v23.16b
         eor     v17.16b,v17.16b,v25.16b
-        eor     v18.16b,v18.16b,v22.16b
+        nop
         ext     v24.16b,v16.16b,v17.16b,#8      //pack Karatsuba pre-processed
         st1     {v23.2d,v24.2d,v25.2d},[x0],#48 //store Htable[3..5]
 
@@ -130,7 +130,7 @@ S2N_BN_SYMBOL(gcm_init_v8):
         pmull2  v5.1q,v23.2d,v23.2d
         pmull   v2.1q,v22.1d, v23.1d
         pmull   v7.1q,v23.1d,v23.1d
-        pmull   v1.1q,v16.1d,v18.1d
+        pmull   v1.1q,v16.1d,v20.1d
         pmull   v6.1q,v16.1d,v16.1d
 
         ext     v16.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
@@ -163,10 +163,10 @@ S2N_BN_SYMBOL(gcm_init_v8):
 
         ext     v26.16b, v16.16b, v16.16b,#8            //Karatsuba pre-processing
         ext     v28.16b, v17.16b, v17.16b,#8
-        ext     v18.16b,v22.16b,v22.16b,#8
+        nop                                     //CSE: ppH2 carried in v20 from :78
         eor     v16.16b,v16.16b,v26.16b
         eor     v17.16b,v17.16b,v28.16b
-        eor     v18.16b,v18.16b,v22.16b
+        nop
         ext     v27.16b,v16.16b,v17.16b,#8      //pack Karatsuba pre-processed
         st1     {v26.2d,v27.2d,v28.2d},[x0],#48 //store Htable[6..8]
 
@@ -175,8 +175,8 @@ S2N_BN_SYMBOL(gcm_init_v8):
         pmull2  v5.1q,v22.2d,v28.2d
         pmull   v2.1q,v22.1d,v26.1d
         pmull   v7.1q,v22.1d,v28.1d
-        pmull   v1.1q,v16.1d,v18.1d
-        pmull   v6.1q,v17.1d,v18.1d
+        pmull   v1.1q,v16.1d,v20.1d
+        pmull   v6.1q,v17.1d,v20.1d
 
         ext     v16.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
         ext     v17.16b,v5.16b,v7.16b,#8
