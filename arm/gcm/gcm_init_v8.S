@@ -125,10 +125,10 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	ext	v23.16b,v16.16b,v16.16b,#8		//Karatsuba pre-processing
 	ext	v25.16b,v17.16b,v17.16b,#8
 	ext	v18.16b,v22.16b,v22.16b,#8
-	eor	v16.16b,v16.16b,v23.16b
-	eor	v17.16b,v17.16b,v25.16b
+	eor	v3.16b,v16.16b,v23.16b		//fold(H^3), kept live for H^7
+	eor	v21.16b,v17.16b,v25.16b		//fold(H^4), kept live for H^7/H^8
 	eor	v18.16b,v18.16b,v22.16b
-	ext	v24.16b,v16.16b,v17.16b,#8	//pack Karatsuba pre-processed
+	ext	v24.16b,v3.16b,v21.16b,#8	//pack Karatsuba pre-processed
 	st1	{v23.2d,v24.2d,v25.2d},[x0],#48	//store Htable[3..5]
 
 	//calculate H^5 and H^6
@@ -136,8 +136,8 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	pmull2	v5.1q,v23.2d,v23.2d
 	pmull	v2.1q,v22.1d, v23.1d
 	pmull	v7.1q,v23.1d,v23.1d
-	pmull	v1.1q,v16.1d,v18.1d
-	pmull	v6.1q,v16.1d,v16.1d
+	pmull	v1.1q,v3.1d,v18.1d
+	pmull	v6.1q,v3.1d,v3.1d
 
 	ext	v16.16b,v0.16b,v2.16b,#8		//Karatsuba post-processing
 	ext	v17.16b,v5.16b,v7.16b,#8
@@ -169,20 +169,18 @@ S2N_BN_SYMBOL(gcm_init_v8):
 
 	ext	v26.16b, v16.16b, v16.16b,#8		//Karatsuba pre-processing
 	ext	v28.16b, v17.16b, v17.16b,#8
-	ext	v18.16b,v22.16b,v22.16b,#8
 	eor	v16.16b,v16.16b,v26.16b
 	eor	v17.16b,v17.16b,v28.16b
-	eor	v18.16b,v18.16b,v22.16b
 	ext	v27.16b,v16.16b,v17.16b,#8	//pack Karatsuba pre-processed
 	st1	{v26.2d,v27.2d,v28.2d},[x0],#48	//store Htable[6..8]
 
-	//calculate H^7 and H^8
-	pmull2	v0.1q,v22.2d,v26.2d
-	pmull2	v5.1q,v22.2d,v28.2d
-	pmull	v2.1q,v22.1d,v26.1d
-	pmull	v7.1q,v22.1d,v28.1d
-	pmull	v1.1q,v16.1d,v18.1d
-	pmull	v6.1q,v17.1d,v18.1d
+	//calculate H^7 = H^3.H^4 and H^8 = H^4.H^4 (depth 3, independent of H^5/H^6)
+	pmull2	v0.1q,v23.2d,v25.2d
+	pmull2	v5.1q,v25.2d,v25.2d
+	pmull	v2.1q,v23.1d,v25.1d
+	pmull	v7.1q,v25.1d,v25.1d
+	pmull	v1.1q,v3.1d,v21.1d
+	pmull	v6.1q,v21.1d,v21.1d
 
 	ext	v16.16b,v0.16b,v2.16b,#8		//Karatsuba post-processing
 	ext	v17.16b,v5.16b,v7.16b,#8
