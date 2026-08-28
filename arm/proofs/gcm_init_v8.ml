@@ -287,6 +287,24 @@ let LANE128 = BITBLAST_RULE
     (word_subword x (0,64):64 word = word_subword y (0,64)) /\
     (word_subword x (64,64):64 word = word_subword y (64,64))`;;
 
+(* Memoized lane closer for the block-C/D/E slot proofs.  After the half-products *)
+(* are ABBREV'd, the residual is a conjunction of closed 128-bit word identities   *)
+(* over the free products; a core+store lemma emits a stored register value and    *)
+(* its memory slot as ALPHA-EQUIVALENT conjuncts (e.g. GCM_INIT_V8_H56: read Q26 = *)
+(* slot 6, read Q28 = slot 8).  This proves each DISTINCT conjunct once (LANE128 +  *)
+(* per-64-bit-lane BITBLAST_TAC) and reuses the theorem for its duplicate, cutting  *)
+(* the redundant BDD blasts (~16 s off GCM_INIT_V8_H56).  Reuse is guarded by       *)
+(* aconv, so a cache hit only ever ACCEPTs a theorem that already proves the goal.  *)
+let blast_cache = ref ([]:(term*thm)list);;
+let CACHED_LANE_BLAST:tactic = fun (asl,w) ->
+  let th =
+    (try snd(find (fun (k,_) -> aconv k w) !blast_cache)
+     with Failure _ ->
+       let t = prove(w,
+         GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC) in
+       blast_cache := (w,t)::(!blast_cache); t) in
+  ACCEPT_TAC th (asl,w);;
+
 let GCM_INIT_V8_REDBRIDGE = prove
  (`!(a:int128) pc.
      ensures arm
@@ -1059,8 +1077,7 @@ let GCM_INIT_V8_H34 = prove
                          (word_subword (b:int128) (0,64):64 word))` THEN
   REWRITE_TAC[byteswap128] THEN
   REPEAT CONJ_TAC THEN
-  TRY(CONV_TAC WORD_RULE) THEN
-  GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC);;
+  CACHED_LANE_BLAST);;
 
 (* ========================================================================= *)
 (* Phase 8 -- H^3/H^4 sub-table with memory (entry -> pc+0x134, slots 0-5).    *)
@@ -1382,24 +1399,6 @@ let GCM_INIT_V8_D_REGBRIDGE = prove
 (* reach those (PRECEDE this helper): it and AB_MID_COMM must move above       *)
 (* GCM_INIT_V8_C_REGBRIDGE.                                                    *)
 (* ------------------------------------------------------------------------- *)
-
-(* Memoized lane closer for the block-C/D/E slot proofs.  After the half-products *)
-(* are ABBREV'd, the residual is a conjunction of closed 128-bit word identities   *)
-(* over the free products; a core+store lemma emits a stored register value and    *)
-(* its memory slot as ALPHA-EQUIVALENT conjuncts (e.g. GCM_INIT_V8_H56: read Q26 = *)
-(* slot 6, read Q28 = slot 8).  This proves each DISTINCT conjunct once (LANE128 +  *)
-(* per-64-bit-lane BITBLAST_TAC) and reuses the theorem for its duplicate, cutting  *)
-(* the redundant BDD blasts (~16 s off GCM_INIT_V8_H56).  Reuse is guarded by       *)
-(* aconv, so a cache hit only ever ACCEPTs a theorem that already proves the goal.  *)
-let blast_cache = ref ([]:(term*thm)list);;
-let CACHED_LANE_BLAST:tactic = fun (asl,w) ->
-  let th =
-    (try snd(find (fun (k,_) -> aconv k w) !blast_cache)
-     with Failure _ ->
-       let t = prove(w,
-         GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN BITBLAST_TAC) in
-       blast_cache := (w,t)::(!blast_cache); t) in
-  ACCEPT_TAC th (asl,w);;
 
 let GCM_INIT_V8_KARA_TAC =
   REWRITE_TAC[polyval_dot; karatsuba_mid] THEN
