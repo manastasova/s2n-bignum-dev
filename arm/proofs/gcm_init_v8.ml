@@ -446,7 +446,7 @@ let MID_SWAP =
   fun a b -> ISPECL [fold b; fold a] WORD_PMUL_SYM;;
 
 (* ------------------------------------------------------------------------- *)
-(* The three tactics every block is built from.                              *)
+(* The four tactics every block is built from.                               *)
 (* ------------------------------------------------------------------------- *)
 
 (* Set up a straight-line block goal and run its `n` instructions: expand the *)
@@ -481,6 +481,59 @@ let LANE_CLOSE_TAC =
   REPEAT CONJ_TAC THEN
   MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
   CONV_TAC LANE_CONV THEN CONV_TAC WORD_BITWISE_RULE;;
+
+(* Name the five opaque atoms of ONE of a block's two carryless products, and  *)
+(* normalize the lanes over them.  For product `k` of operands a,b:            *)
+(*   PL<k>, PH<k>  the two 64x64 half-products,                                *)
+(*   PM<k>         the Karatsuba middle -- present only when the operands       *)
+(*                 DIFFER, since for a square FROB64 has already collapsed the  *)
+(*                 middle to PL<k> (+) PH<k>,                                   *)
+(*   QA<k>, QV<k>  the first- and second-phase Gueron pmul-by-w results, the    *)
+(*                 second in VEQ-normalized form so that the hardware's and the *)
+(*                 spec's shape of its argument become the same atom.           *)
+(* Once both products have been through this the goal is PMUL-FREE and          *)
+(* LANE_CLOSE_TAC finishes.  Everything power-specific about a block lives in   *)
+(* the two calls to PRODUCT_TAC / SQUARE_TAC below.                             *)
+let GUERON_ATOMS_TAC =
+  let p_lo_tm = `word_pmul (word_subword (a:int128) (0,64):64 word)
+                           (word_subword (b:int128) (0,64):64 word):128 word`
+  and p_hi_tm = `word_pmul (word_subword (a:int128) (64,64):64 word)
+                           (word_subword (b:int128) (64,64):64 word):128 word`
+  and p_mid_tm = `word_pmul (word_xor (word_subword (a:int128) (0,64):64 word)
+                                      (word_subword a (64,64)))
+                            (word_xor (word_subword (b:int128) (0,64):64 word)
+                                      (word_subword b (64,64))):128 word`
+  and q_a_tm = `word_pmul (word_subword (PL:128 word) (0,64):64 word)
+                          ((word 13979173243358019584):64 word):128 word`
+  and q_v_tm = `word_pmul
+                 (word_xor (word_subword (QA:128 word) (0,64):64 word)
+                   (word_xor (word_xor (word_subword (PH:128 word) (0,64))
+                                       (word_subword (PL:128 word) (0,64)))
+                             (word_xor (word_subword PL (64,64)) (m:64 word))))
+                 ((word 13979173243358019584):64 word):128 word`
+  and sq_mid_tm = `word_xor (word_subword (PL:128 word) (0,64):64 word)
+                            (word_subword (PH:128 word) (0,64))`
+  and gen_mid_tm = `word_subword (PM:128 word) (0,64):64 word`
+  and atom s k = mk_var(s ^ string_of_int k,`:128 word`) in
+  let abbrev v tm = ABBREV_TAC(mk_eq(v,tm)) in
+  fun k square a b ->
+    let pl = atom "PL" k and ph = atom "PH" k and qa = atom "QA" k in
+    let opnds = [a,`a:int128`; b,`b:int128`]
+    and atoms = [pl,`PL:128 word`; ph,`PH:128 word`; qa,`QA:128 word`] in
+    MAP_EVERY (uncurry abbrev)
+     ([pl, subst opnds p_lo_tm; ph, subst opnds p_hi_tm] @
+      (if square then [] else [atom "PM" k, subst opnds p_mid_tm]) @
+      [qa, subst atoms q_a_tm]) THEN
+    CONV_TAC LANE_CONV THEN REWRITE_TAC[VEQ] THEN
+    abbrev (atom "QV" k)
+      (subst ((subst (if square then atoms
+                      else [atom "PM" k,`PM:128 word`])
+                     (if square then sq_mid_tm else gen_mid_tm),
+               `m:64 word`) :: atoms)
+             q_v_tm);;
+
+let PRODUCT_TAC k a b = GUERON_ATOMS_TAC k false a b;;   (* operands differ *)
+let SQUARE_TAC k a = GUERON_ATOMS_TAC k true a a;;       (* a . a *)
 
 (* ========================================================================= *)
 (* Phase 3: the twist (PC 0x0 -> 0x44).                                       *)
@@ -588,22 +641,7 @@ let GCM_INIT_V8_H2 = prove
   REWRITE_TAC[HPOWER_OPERANDS] THEN
   SPEC_UNFOLD_TAC THEN
   REWRITE_TAC[FROB64] THEN
-  ABBREV_TAC `PL2 = word_pmul (word_subword (h1:int128) (0,64):64 word)
-                              (word_subword h1 (0,64):64 word):128 word` THEN
-  ABBREV_TAC `PH2 = word_pmul (word_subword (h1:int128) (64,64):64 word)
-                              (word_subword h1 (64,64):64 word):128 word` THEN
-  ABBREV_TAC `QA2 = word_pmul (word_subword (PL2:128 word) (0,64):64 word)
-                              ((word 13979173243358019584):64 word):128 word` THEN
-  CONV_TAC LANE_CONV THEN
-  REWRITE_TAC[VEQ] THEN
-  ABBREV_TAC `QV2 = word_pmul
-                     (word_xor (word_subword (QA2:128 word) (0,64):64 word)
-                       (word_xor (word_xor (word_subword (PH2:128 word) (0,64))
-                                           (word_subword (PL2:128 word) (0,64)))
-                                 (word_xor (word_subword PL2 (64,64))
-                                           (word_xor (word_subword PL2 (0,64))
-                                                     (word_subword PH2 (0,64))))))
-                     ((word 13979173243358019584):64 word):128 word` THEN
+  SQUARE_TAC 2 `h1:int128` THEN
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
@@ -667,39 +705,8 @@ let GCM_INIT_V8_H34 = prove
   ABBREV_TAC `h2 = polyval_dot h1 h1` THEN
   SPEC_UNFOLD_TAC THEN
   REWRITE_TAC[FROB64] THEN
-  ABBREV_TAC `PL3 = word_pmul (word_subword (h1:int128) (0,64):64 word)
-                              (word_subword (h2:int128) (0,64):64 word):128 word` THEN
-  ABBREV_TAC `PH3 = word_pmul (word_subword (h1:int128) (64,64):64 word)
-                              (word_subword (h2:int128) (64,64):64 word):128 word` THEN
-  ABBREV_TAC `PM3 = word_pmul (word_xor (word_subword (h1:int128) (0,64):64 word)
-                                        (word_subword h1 (64,64)))
-                              (word_xor (word_subword (h2:int128) (0,64):64 word)
-                                        (word_subword h2 (64,64))):128 word` THEN
-  ABBREV_TAC `PL4 = word_pmul (word_subword (h2:int128) (0,64):64 word)
-                              (word_subword (h2:int128) (0,64):64 word):128 word` THEN
-  ABBREV_TAC `PH4 = word_pmul (word_subword (h2:int128) (64,64):64 word)
-                              (word_subword (h2:int128) (64,64):64 word):128 word` THEN
-  ABBREV_TAC `QA3 = word_pmul (word_subword (PL3:128 word) (0,64):64 word)
-                              ((word 13979173243358019584):64 word):128 word` THEN
-  ABBREV_TAC `QA4 = word_pmul (word_subword (PL4:128 word) (0,64):64 word)
-                              ((word 13979173243358019584):64 word):128 word` THEN
-  CONV_TAC LANE_CONV THEN
-  REWRITE_TAC[VEQ] THEN
-  ABBREV_TAC `QV3 = word_pmul
-                     (word_xor (word_subword (QA3:128 word) (0,64):64 word)
-                       (word_xor (word_xor (word_subword (PH3:128 word) (0,64))
-                                           (word_subword (PL3:128 word) (0,64)))
-                                 (word_xor (word_subword PL3 (64,64))
-                                           (word_subword (PM3:128 word) (0,64)))))
-                     ((word 13979173243358019584):64 word):128 word` THEN
-  ABBREV_TAC `QV4 = word_pmul
-                     (word_xor (word_subword (QA4:128 word) (0,64):64 word)
-                       (word_xor (word_xor (word_subword (PH4:128 word) (0,64))
-                                           (word_subword (PL4:128 word) (0,64)))
-                                 (word_xor (word_subword PL4 (64,64))
-                                           (word_xor (word_subword PL4 (0,64))
-                                                     (word_subword PH4 (0,64))))))
-                     ((word 13979173243358019584):64 word):128 word` THEN
+  PRODUCT_TAC 3 `h1:int128` `h2:int128` THEN
+  SQUARE_TAC 4 `h2:int128` THEN
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
@@ -771,44 +778,13 @@ let GCM_INIT_V8_H56 = prove
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
   GCM_BLOCK_STEPS_TAC 38 THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
-  ABBREV_TAC `h2 = polyval_dot h1 h1` THEN
-  ABBREV_TAC `h3 = polyval_dot h1 h2` THEN
+  MAP_EVERY ABBREV_TAC
+   [`h2 = polyval_dot h1 h1`; `h3 = polyval_dot h1 h2`] THEN
   SPEC_UNFOLD_TAC THEN
   REWRITE_TAC[FROB64] THEN
   REWRITE_TAC[MID_SWAP `h2:int128` `h3:int128`] THEN
-  ABBREV_TAC `PL5 = word_pmul (word_subword (h2:int128) (0,64):64 word)
-                              (word_subword (h3:int128) (0,64):64 word):128 word` THEN
-  ABBREV_TAC `PH5 = word_pmul (word_subword (h2:int128) (64,64):64 word)
-                              (word_subword (h3:int128) (64,64):64 word):128 word` THEN
-  ABBREV_TAC `PM5 = word_pmul (word_xor (word_subword (h2:int128) (0,64):64 word)
-                                        (word_subword h2 (64,64)))
-                              (word_xor (word_subword (h3:int128) (0,64):64 word)
-                                        (word_subword h3 (64,64))):128 word` THEN
-  ABBREV_TAC `PL6 = word_pmul (word_subword (h3:int128) (0,64):64 word)
-                              (word_subword (h3:int128) (0,64):64 word):128 word` THEN
-  ABBREV_TAC `PH6 = word_pmul (word_subword (h3:int128) (64,64):64 word)
-                              (word_subword (h3:int128) (64,64):64 word):128 word` THEN
-  ABBREV_TAC `QA5 = word_pmul (word_subword (PL5:128 word) (0,64):64 word)
-                              ((word 13979173243358019584):64 word):128 word` THEN
-  ABBREV_TAC `QA6 = word_pmul (word_subword (PL6:128 word) (0,64):64 word)
-                              ((word 13979173243358019584):64 word):128 word` THEN
-  CONV_TAC LANE_CONV THEN
-  REWRITE_TAC[VEQ] THEN
-  ABBREV_TAC `QV5 = word_pmul
-                     (word_xor (word_subword (QA5:128 word) (0,64):64 word)
-                       (word_xor (word_xor (word_subword (PH5:128 word) (0,64))
-                                           (word_subword (PL5:128 word) (0,64)))
-                                 (word_xor (word_subword PL5 (64,64))
-                                           (word_subword (PM5:128 word) (0,64)))))
-                     ((word 13979173243358019584):64 word):128 word` THEN
-  ABBREV_TAC `QV6 = word_pmul
-                     (word_xor (word_subword (QA6:128 word) (0,64):64 word)
-                       (word_xor (word_xor (word_subword (PH6:128 word) (0,64))
-                                           (word_subword (PL6:128 word) (0,64)))
-                                 (word_xor (word_subword PL6 (64,64))
-                                           (word_xor (word_subword PL6 (0,64))
-                                                     (word_subword PH6 (0,64))))))
-                     ((word 13979173243358019584):64 word):128 word` THEN
+  PRODUCT_TAC 5 `h2:int128` `h3:int128` THEN
+  SQUARE_TAC 6 `h3:int128` THEN
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
@@ -889,49 +865,14 @@ let GCM_INIT_V8_H78 = prove
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
   GCM_BLOCK_STEPS_TAC 36 THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
-  ABBREV_TAC `h2 = polyval_dot h1 h1` THEN
-  ABBREV_TAC `h3 = polyval_dot h1 h2` THEN
-  ABBREV_TAC `h5 = polyval_dot h2 h3` THEN
-  ABBREV_TAC `h6 = polyval_dot h3 h3` THEN
+  MAP_EVERY ABBREV_TAC
+   [`h2 = polyval_dot h1 h1`; `h3 = polyval_dot h1 h2`;
+    `h5 = polyval_dot h2 h3`; `h6 = polyval_dot h3 h3`] THEN
   SPEC_UNFOLD_TAC THEN
   REWRITE_TAC[MID_SWAP `h2:int128` `h5:int128`;
               MID_SWAP `h2:int128` `h6:int128`] THEN
-  ABBREV_TAC `PL7 = word_pmul (word_subword (h2:int128) (0,64):64 word)
-                              (word_subword (h5:int128) (0,64):64 word):128 word` THEN
-  ABBREV_TAC `PH7 = word_pmul (word_subword (h2:int128) (64,64):64 word)
-                              (word_subword (h5:int128) (64,64):64 word):128 word` THEN
-  ABBREV_TAC `PM7 = word_pmul (word_xor (word_subword (h2:int128) (0,64):64 word)
-                                        (word_subword h2 (64,64)))
-                              (word_xor (word_subword (h5:int128) (0,64):64 word)
-                                        (word_subword h5 (64,64))):128 word` THEN
-  ABBREV_TAC `PL8 = word_pmul (word_subword (h2:int128) (0,64):64 word)
-                              (word_subword (h6:int128) (0,64):64 word):128 word` THEN
-  ABBREV_TAC `PH8 = word_pmul (word_subword (h2:int128) (64,64):64 word)
-                              (word_subword (h6:int128) (64,64):64 word):128 word` THEN
-  ABBREV_TAC `PM8 = word_pmul (word_xor (word_subword (h2:int128) (0,64):64 word)
-                                        (word_subword h2 (64,64)))
-                              (word_xor (word_subword (h6:int128) (0,64):64 word)
-                                        (word_subword h6 (64,64))):128 word` THEN
-  ABBREV_TAC `QA7 = word_pmul (word_subword (PL7:128 word) (0,64):64 word)
-                              ((word 13979173243358019584):64 word):128 word` THEN
-  ABBREV_TAC `QA8 = word_pmul (word_subword (PL8:128 word) (0,64):64 word)
-                              ((word 13979173243358019584):64 word):128 word` THEN
-  CONV_TAC LANE_CONV THEN
-  REWRITE_TAC[VEQ] THEN
-  ABBREV_TAC `QV7 = word_pmul
-                     (word_xor (word_subword (QA7:128 word) (0,64):64 word)
-                       (word_xor (word_xor (word_subword (PH7:128 word) (0,64))
-                                           (word_subword (PL7:128 word) (0,64)))
-                                 (word_xor (word_subword PL7 (64,64))
-                                           (word_subword (PM7:128 word) (0,64)))))
-                     ((word 13979173243358019584):64 word):128 word` THEN
-  ABBREV_TAC `QV8 = word_pmul
-                     (word_xor (word_subword (QA8:128 word) (0,64):64 word)
-                       (word_xor (word_xor (word_subword (PH8:128 word) (0,64))
-                                           (word_subword (PL8:128 word) (0,64)))
-                                 (word_xor (word_subword PL8 (64,64))
-                                           (word_subword (PM8:128 word) (0,64)))))
-                     ((word 13979173243358019584):64 word):128 word` THEN
+  PRODUCT_TAC 7 `h2:int128` `h5:int128` THEN
+  PRODUCT_TAC 8 `h2:int128` `h6:int128` THEN
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
