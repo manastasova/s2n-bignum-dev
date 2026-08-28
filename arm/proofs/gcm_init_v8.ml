@@ -702,6 +702,22 @@ let HDOT1 = prove
  (`!h:int128. polyval_dot h h = h_power h 1`,
   GEN_TAC THEN REWRITE_TAC[num_CONV `1`; h_power]);;
 
+(* ------------------------------------------------------------------------- *)
+(* Frame-widen-and-apply -- the block-composition idiom.  A composed lemma's  *)
+(* MAYCHANGE is wider than the sub-lemma it invokes over one code range, so    *)
+(* the sub-lemma is applied by widening to its (tighter) frame `frame`,        *)
+(* discharging the subsumption, then MATCH_MP_TAC `core` under the code/table  *)
+(* nonoverlap hypotheses.  H2_MEM widens once (block B), and each of           *)
+(* H34_MEM/H56_MEM/H78_MEM twice (previous *_MEM, then its block); this names  *)
+(* the 6-tactic ritual so the compose family reads as "apply core in frame".   *)
+(* ------------------------------------------------------------------------- *)
+let GCM_INIT_V8_FRAME_TAC frame core =
+  MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN
+  EXISTS_TAC frame THEN
+  CONJ_TAC THENL
+   [SUBSUMED_MAYCHANGE_TAC;
+    MATCH_MP_TAC core THEN ASM_REWRITE_TAC[NONOVERLAPPING_CLAUSES]];;
+
 (* ========================================================================= *)
 (* Phase 7 -- H^2 sub-table with memory (entry -> pc+0x9c, slots 0,1,2 +       *)
 (* block-C input registers).                                                   *)
@@ -838,17 +854,13 @@ let GCM_INIT_V8_H2_MEM = prove
                   HDOT1; CONJUNCT1 h_power] THEN
       STRIP_TAC THEN ASM_REWRITE_TAC[];
       (* widen H2's tight frame, then apply it at a := v0 := byteswap128 h *)
-      MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN
-      EXISTS_TAC
+      GCM_INIT_V8_FRAME_TAC
        `MAYCHANGE [PC] ,,
         MAYCHANGE [X0] ,,
         MAYCHANGE [Q0;Q1;Q2;Q16;Q17;Q18;Q21;Q22] ,,
         MAYCHANGE [memory :> bytes(word_add htable (word 16),32)] ,,
-        MAYCHANGE [events]` THEN
-      CONJ_TAC THENL
-       [SUBSUMED_MAYCHANGE_TAC;
-        MATCH_MP_TAC GCM_INIT_V8_H2 THEN
-        ASM_REWRITE_TAC[NONOVERLAPPING_CLAUSES]]]]);;
+        MAYCHANGE [events]`
+       GCM_INIT_V8_H2]]);;
 
 (* ========================================================================= *)
 (* Phase 8 -- block C (H^3/H^4) register bridge (0x09c-0x130, steps 40-77).    *)
