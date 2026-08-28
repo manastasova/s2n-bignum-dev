@@ -1616,18 +1616,14 @@ let GCM_INIT_V8_H56_MEM = prove
           byteswap128 (h_power (ghash_twist (byteswap128 H_in)) 3)` THEN
   CONJ_TAC THENL
    [(* --- SG1: entry -> pc+0x134 via strengthened GCM_INIT_V8_H34_MEM --- *)
-    MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN
-    EXISTS_TAC
+    GCM_INIT_V8_FRAME_TAC
      `MAYCHANGE [PC] ,,
       MAYCHANGE [X0] ,,
       MAYCHANGE [Q0;Q1;Q2;Q3;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q19;Q20;Q21;Q22;
                  Q23;Q24;Q25] ,,
       MAYCHANGE [memory :> bytes(htable,96)] ,,
-      MAYCHANGE [events]` THEN
-    CONJ_TAC THENL
-     [SUBSUMED_MAYCHANGE_TAC;
-      MATCH_MP_TAC GCM_INIT_V8_H34_MEM THEN
-      ASM_REWRITE_TAC[NONOVERLAPPING_CLAUSES]];
+      MAYCHANGE [events]`
+     GCM_INIT_V8_H34_MEM;
     (* --- SG2: pc+0x134 -> pc+0x1cc via block D (GCM_INIT_V8_H56) --- *)
     ENSURES_POSTCONDITION_TAC
      `\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
@@ -1706,17 +1702,13 @@ let GCM_INIT_V8_H56_MEM = prove
       CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN
       STRIP_TAC THEN ASM_REWRITE_TAC[];
       (* apply block D (GCM_INIT_V8_H56) *)
-      MATCH_MP_TAC ENSURES_FRAME_SUBSUMED THEN
-      EXISTS_TAC
+      GCM_INIT_V8_FRAME_TAC
        `MAYCHANGE [PC] ,,
         MAYCHANGE [X0] ,,
         MAYCHANGE [Q0;Q1;Q2;Q4;Q5;Q6;Q7;Q16;Q17;Q18;Q26;Q27;Q28] ,,
         MAYCHANGE [memory :> bytes(word_add htable (word 96),48)] ,,
-        MAYCHANGE [events]` THEN
-      CONJ_TAC THENL
-       [SUBSUMED_MAYCHANGE_TAC;
-        MATCH_MP_TAC GCM_INIT_V8_H56 THEN
-        ASM_REWRITE_TAC[NONOVERLAPPING_CLAUSES]]]]);;
+        MAYCHANGE [events]`
+       GCM_INIT_V8_H56]]);;
 
 (* ========================================================================= *)
 (* Phase 9 -- block E (H^7/H^8) register bridge (0x1cc-0x258, steps 116-150). *)
