@@ -963,6 +963,68 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
   REPEAT CONJ_TAC THEN GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN
   BITBLAST_TAC);;
 
+(* ------------------------------------------------------------------------- *)
+(* AB_MID_COMM and the shared "Karatsuba-abstract + lane-blast" tail, defined  *)
+(* here just above their first consumer GCM_INIT_V8_H34 so every block-C/D/E   *)
+(* slot proof (H34, H56, H78) can call GCM_INIT_V8_KARA_TAC.                    *)
+(*                                                                            *)
+(* After ENSURES_FINAL_STATE_TAC + ASM_REWRITE_TAC[] the residual goal of each *)
+(* such block is a conjunction of 128-bit slot / register equalities in        *)
+(* polyval_dot / karatsuba_mid form.  GCM_INIT_V8_KARA_TAC unfolds them to the *)
+(* register-split Karatsuba scheme (KARA_EQ), constant-folds the 0xC2          *)
+(* reduction pmuls (PMUL_W_64_128), reconciles the lane-shuffle forms          *)
+(* (SBW_XOR / SBW_BS / SBW_JOIN), abstracts every remaining 64x64 word_pmul    *)
+(* half-product to a fresh 128-bit variable (a generic find_term / ABBREV      *)
+(* loop, NOT a fixed operand list), then blasts each slot equality one 64-bit  *)
+(* lane at a time (LANE128 + BITBLAST_TAC, memoized by CACHED_LANE_BLAST).     *)
+(*                                                                            *)
+(* One tactic serves all six shapes (the C/D/E register bridges and the        *)
+(* *_H<nn> cores).  The generic pmul-abstraction is what makes it              *)
+(* operand-agnostic: it handles both the a*b + b*b pair (blocks C/D, H34/H56)  *)
+(* and block E's shared-operand a*b1 + a*b2 triple (E_REGBRIDGE/H78) with no   *)
+(* hardcoded a/b names.  AB_MID_COMM (WORD_PMUL_SYM at the Karatsuba-middle     *)
+(* operand shape) is inert on block C -- whose a*b middle is already in         *)
+(* PMUL_KARATSUBA's (mid a, mid b) order -- and fires on blocks D/E, which     *)
+(* read that middle's operands swapped, so both abstract to the same var.      *)
+(* TRY(CONV_TAC WORD_RULE) is inert on the register bridges (no word-arith     *)
+(* conjunct) and closes any X0-advance conjunct ASM_REWRITE_TAC[] left open.   *)
+(* ------------------------------------------------------------------------- *)
+
+let AB_MID_COMM = prove
+ (`word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
+                       (word_subword b (0,64):64 word))
+             (word_xor (word_subword (a:int128) (64,64):64 word)
+                       (word_subword a (0,64):64 word)) =
+   word_pmul (word_xor (word_subword a (64,64):64 word)
+                       (word_subword a (0,64):64 word))
+             (word_xor (word_subword b (64,64):64 word)
+                       (word_subword b (0,64):64 word))`,
+  MATCH_ACCEPT_TAC WORD_PMUL_SYM);;
+
+let GCM_INIT_V8_KARA_TAC =
+  REWRITE_TAC[polyval_dot; karatsuba_mid] THEN
+  REWRITE_TAC[KARA_EQ] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REWRITE_TAC[PMUL_W_64_128] THEN
+  REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
+  REWRITE_TAC[AB_MID_COMM] THEN   (* inert on block C; flips (mid b, mid a) on D/E *)
+  (* Abstract every remaining 64x64 word_pmul half-product to a fresh 128-bit    *)
+  (* variable.  A generic find_term / ABBREV loop, NOT a fixed operand list, so   *)
+  (* it serves both the a*b + b*b pair (blocks C/D) and block E's shared-operand  *)
+  (* a*b1 + a*b2 triple with no hardcoded a/b names; BITBLAST then sees only      *)
+  (* opaque vars.                                                                 *)
+  REPEAT(W(fun (_,w) ->
+    let t = find_term
+      (fun u -> match u with
+                  Comb(Comb(Const("word_pmul",_),x),_) -> type_of x = `:(64)word`
+                | _ -> false) w in
+    ABBREV_TAC(mk_eq(genvar(type_of t),t)))) THEN
+  REWRITE_TAC[byteswap128] THEN
+  REPEAT CONJ_TAC THEN
+  TRY(CONV_TAC WORD_RULE) THEN
+  CACHED_LANE_BLAST;;
+
 (* ========================================================================= *)
 (* Phase 8 -- block C (H^3/H^4) register core + 3-register store               *)
 (* (0x09c-0x134, steps 40-77 + the st1), stated with SYMBOLIC inputs           *)
@@ -1047,37 +1109,7 @@ let GCM_INIT_V8_H34 = prove
   ENSURES_INIT_TAC "s0" THEN
   ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--38) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[polyval_dot; karatsuba_mid] THEN
-  REWRITE_TAC[KARA_EQ] THEN
-  REWRITE_TAC[polyval_reduce_prop3] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[PMUL_W_64_128] THEN
-  REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
-  ABBREV_TAC `(pab_hi:128 word) =
-     word_pmul (word_subword (a:int128) (64,64):64 word)
-               (word_subword (b:int128) (64,64):64 word)` THEN
-  ABBREV_TAC `(pab_lo:128 word) =
-     word_pmul (word_subword (a:int128) (0,64):64 word)
-               (word_subword (b:int128) (0,64):64 word)` THEN
-  ABBREV_TAC `(pab_mid:128 word) =
-     word_pmul (word_xor (word_subword (a:int128) (64,64):64 word)
-                         (word_subword (a:int128) (0,64):64 word))
-               (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))` THEN
-  ABBREV_TAC `(pbb_hi:128 word) =
-     word_pmul (word_subword (b:int128) (64,64):64 word)
-               (word_subword (b:int128) (64,64):64 word)` THEN
-  ABBREV_TAC `(pbb_lo:128 word) =
-     word_pmul (word_subword (b:int128) (0,64):64 word)
-               (word_subword (b:int128) (0,64):64 word)` THEN
-  ABBREV_TAC `(pbb_mid:128 word) =
-     word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))
-               (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))` THEN
-  REWRITE_TAC[byteswap128] THEN
-  REPEAT CONJ_TAC THEN
-  CACHED_LANE_BLAST);;
+  GCM_INIT_V8_KARA_TAC);;
 
 (* ========================================================================= *)
 (* Phase 8 -- H^3/H^4 sub-table with memory (entry -> pc+0x134, slots 0-5).    *)
@@ -1302,17 +1334,6 @@ let GCM_INIT_V8_H34_MEM = prove
 (* on the hi/lo/square products, whose operand order block D preserves.        *)
 (* ------------------------------------------------------------------------- *)
 
-let AB_MID_COMM = prove
- (`word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
-                       (word_subword b (0,64):64 word))
-             (word_xor (word_subword (a:int128) (64,64):64 word)
-                       (word_subword a (0,64):64 word)) =
-   word_pmul (word_xor (word_subword a (64,64):64 word)
-                       (word_subword a (0,64):64 word))
-             (word_xor (word_subword b (64,64):64 word)
-                       (word_subword b (0,64):64 word))`,
-  MATCH_ACCEPT_TAC WORD_PMUL_SYM);;
-
 let GCM_INIT_V8_D_REGBRIDGE = prove
  (`!(a:int128) (b:int128) pc.
      ensures arm
@@ -1371,58 +1392,6 @@ let GCM_INIT_V8_D_REGBRIDGE = prove
   REWRITE_TAC[byteswap128] THEN
   REPEAT CONJ_TAC THEN GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN
   BITBLAST_TAC);;
-
-(* ------------------------------------------------------------------------- *)
-(* Shared "Karatsuba-abstract + lane-blast" tail for the block C/D/E slot      *)
-(* proofs.  After ENSURES_FINAL_STATE_TAC + ASM_REWRITE_TAC[] the residual     *)
-(* goal of each such block is a conjunction of 128-bit slot / register         *)
-(* equalities stated in polyval_dot / karatsuba_mid form.  This tactic unfolds *)
-(* them to the register-split Karatsuba scheme (KARA_EQ), constant-folds the   *)
-(* 0xC2 reduction pmuls (PMUL_W_64_128), reconciles the lane-shuffle forms     *)
-(* (SBW_XOR / SBW_BS / SBW_JOIN), abstracts every remaining 64x64 word_pmul    *)
-(* half-product to a fresh 128-bit variable (a generic find_term / ABBREV      *)
-(* loop, NOT a fixed operand list), then blasts each slot equality one 64-bit  *)
-(* lane at a time (LANE128 + BITBLAST_TAC).                                    *)
-(*                                                                            *)
-(* One tactic serves all six shapes (the C/D/E register bridges and the        *)
-(* *_H<nn> cores).  The generic pmul-abstraction is what makes it              *)
-(* operand-agnostic: handles both the a*b + b*b pair (blocks C/D, H34/H56)     *)
-(* and block E's shared-operand a*b1 + a*b2 triple (E_REGBRIDGE/H78) with no   *)
-(* hardcoded a/b names.  REWRITE_TAC[AB_MID_COMM] is inert on block C (whose   *)
-(* a*b middle is already in PMUL_KARATSUBA's (mid a, mid b) order) and fires   *)
-(* on blocks D/E (which read that middle's operands swapped), so both sides    *)
-(* abstract to the same var; TRY(CONV_TAC WORD_RULE) is inert on the           *)
-(* register bridges (no word-arith conjunct) and closes the X0 advance +       *)
-(* byteswap-involution register conjuncts of the *_H<nn> variants.  Used by    *)
-(* GCM_INIT_V8_H56 (block D) and GCM_INIT_V8_H78 (block E).  A later size      *)
-(* session can extend it to the block-C siblings (H34, C_REGBRIDGE); to        *)
-(* reach those (PRECEDE this helper): it and AB_MID_COMM must move above       *)
-(* GCM_INIT_V8_C_REGBRIDGE.                                                    *)
-(* ------------------------------------------------------------------------- *)
-
-let GCM_INIT_V8_KARA_TAC =
-  REWRITE_TAC[polyval_dot; karatsuba_mid] THEN
-  REWRITE_TAC[KARA_EQ] THEN
-  REWRITE_TAC[polyval_reduce_prop3] THEN
-  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
-  REWRITE_TAC[PMUL_W_64_128] THEN
-  REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
-  REWRITE_TAC[AB_MID_COMM] THEN   (* inert on block C; flips (mid b, mid a) on D/E *)
-  (* Abstract every remaining 64x64 word_pmul half-product to a fresh 128-bit    *)
-  (* variable.  A generic find_term / ABBREV loop, NOT a fixed operand list, so   *)
-  (* it serves both the a*b + b*b pair (blocks C/D) and block E's shared-operand  *)
-  (* a*b1 + a*b2 triple with no hardcoded a/b names; BITBLAST then sees only      *)
-  (* opaque vars.                                                                 *)
-  REPEAT(W(fun (_,w) ->
-    let t = find_term
-      (fun u -> match u with
-                  Comb(Comb(Const("word_pmul",_),x),_) -> type_of x = `:(64)word`
-                | _ -> false) w in
-    ABBREV_TAC(mk_eq(genvar(type_of t),t)))) THEN
-  REWRITE_TAC[byteswap128] THEN
-  REPEAT CONJ_TAC THEN
-  TRY(CONV_TAC WORD_RULE) THEN
-  CACHED_LANE_BLAST;;
 
 (* ========================================================================= *)
 (* Phase 9 -- block D (H^5/H^6) core + 3-register store (0x134-0x1cc,          *)
