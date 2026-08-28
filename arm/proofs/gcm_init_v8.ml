@@ -986,8 +986,9 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
 (* operand shape) is inert on block C -- whose a*b middle is already in         *)
 (* PMUL_KARATSUBA's (mid a, mid b) order -- and fires on blocks D/E, which     *)
 (* read that middle's operands swapped, so both abstract to the same var.      *)
-(* TRY(CONV_TAC WORD_RULE) is inert on the register bridges (no word-arith     *)
-(* conjunct) and closes any X0-advance conjunct ASM_REWRITE_TAC[] left open.   *)
+(* ASM_REWRITE_TAC[] in the caller already discharges every non-lane conjunct  *)
+(* (X0 advance, preserved regs), so the tail is just CACHED_LANE_BLAST; an     *)
+(* earlier TRY(CONV_TAC WORD_RULE) here was measured inert for H34/H56/H78.    *)
 (* ------------------------------------------------------------------------- *)
 
 let AB_MID_COMM = prove
@@ -1022,7 +1023,6 @@ let GCM_INIT_V8_KARA_TAC =
     ABBREV_TAC(mk_eq(genvar(type_of t),t)))) THEN
   REWRITE_TAC[byteswap128] THEN
   REPEAT CONJ_TAC THEN
-  TRY(CONV_TAC WORD_RULE) THEN
   CACHED_LANE_BLAST;;
 
 (* ========================================================================= *)
