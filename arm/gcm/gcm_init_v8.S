@@ -40,39 +40,31 @@ S2N_BN_SYMBOL(gcm_init_v8):
     // AARCH64_VALID_CALL_TARGET
         CFI_START
 
-	ld1	{v17.2d},[x1]		//load input H
+	ld1	{v17.2d},[x1]		//load input H = {w0,w1}
 	movi	v19.16b,#0xe1
+	movi	v2.16b,#0
 	shl	v19.2d,v19.2d,#57		//0xc2.0
-	ext	v3.16b,v17.16b,v17.16b,#8
-	ushr	v18.2d,v19.2d,#63
-	dup	v17.4s,v17.s[1]
-	ext	v16.16b,v18.16b,v19.16b,#8		//t0=0xc2....01
-	ushr	v18.2d,v3.2d,#63
-	sshr	v17.4s,v17.4s,#31		//broadcast carry bit
-	and	v18.16b,v18.16b,v16.16b
-	shl	v3.2d,v3.2d,#1
-	ext	v18.16b,v18.16b,v18.16b,#8
-	and	v16.16b,v16.16b,v17.16b
-	orr	v3.16b,v3.16b,v18.16b		//H<<<=1
-	eor	v20.16b,v3.16b,v16.16b		//twisted H
-	ext	v20.16b, v20.16b, v20.16b, #8
-	st1	{v20.2d},[x0],#16		//store Htable[0]
+	ushr	v18.2d,v17.2d,#63
+	dup	v3.4s,v17.s[1]
+	ushr	v1.2d,v19.2d,#63
+	ext	v18.16b,v18.16b,v2.16b,#8	//carry-in bit for the low lane
+	shl	v20.2d,v17.2d,#1
+	ext	v16.16b,v19.16b,v1.16b,#8		//t0=0xc2....01, store-lane order
+	sshr	v3.4s,v3.4s,#31		//broadcast carry bit
+	orr	v20.16b,v20.16b,v18.16b		//H<<<=1
+	and	v16.16b,v16.16b,v3.16b
+	eor	v20.16b,v20.16b,v16.16b		//twisted H, already store-lane order
 
         //calculate H^2
 	ext	v16.16b,v20.16b,v20.16b,#8		//Karatsuba pre-processing
 	pmull2	v0.1q,v20.2d,v20.2d
 	eor	v16.16b,v16.16b,v20.16b
 	pmull	v2.1q,v20.1d,v20.1d
-	pmull	v1.1q,v16.1d,v16.1d
 
-	ext	v17.16b,v0.16b,v2.16b,#8		//Karatsuba post-processing
-	eor	v18.16b,v0.16b,v2.16b
-	eor	v1.16b,v1.16b,v17.16b
-	eor	v1.16b,v1.16b,v18.16b
+	ext	v1.16b,v0.16b,v0.16b,#8		//square: middle vanishes, so the
+						//low half is just swap64(PL) and
+						//the high half is PH untouched
 	pmull	v18.1q,v0.1d,v19.1d		//1st phase
-
-	ins	v2.d[0],v1.d[1]
-	ins	v1.d[1],v0.d[0]
 	eor	v0.16b,v1.16b,v18.16b
 
 	ext	v18.16b,v0.16b,v0.16b,#8		//2nd phase
@@ -83,8 +75,7 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	ext	v22.16b,v17.16b,v17.16b,#8		//Karatsuba pre-processing
 	eor	v17.16b,v17.16b,v22.16b
 	ext	v21.16b,v16.16b,v17.16b,#8		//pack Karatsuba pre-processed
-	st1	{v21.2d},[x0],#16	//store Htable[1..2]
-	st1	{v22.2d},[x0],#16	//store Htable[1..2]
+	stp	q20,q21,[x0]			//store Htable[0..1]
 
 	//calculate H^3 and H^4
 	pmull2	v0.1q,v20.2d, v22.2d
@@ -92,23 +83,19 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	pmull	v2.1q,v20.1d, v22.1d
 	pmull	v7.1q,v22.1d,v22.1d
 	pmull	v1.1q,v16.1d,v17.1d
-	pmull	v6.1q,v17.1d,v17.1d
 
 	ext	v16.16b,v0.16b,v2.16b,#8		//Karatsuba post-processing
-	ext	v17.16b,v5.16b,v7.16b,#8
+	ext	v6.16b,v5.16b,v5.16b,#8		//square: middle vanishes, so the
+						//low half is just swap64(PL) and
+						//the high half is PH untouched
 	eor	v18.16b,v0.16b,v2.16b
 	eor	v1.16b,v1.16b,v16.16b
-	eor	v4.16b,v5.16b,v7.16b
-	eor	v6.16b,v6.16b,v17.16b
 	eor	v1.16b,v1.16b,v18.16b
 	pmull	v18.1q,v0.1d,v19.1d		//1st phase
-	eor	v6.16b,v6.16b,v4.16b
 	pmull	v4.1q,v5.1d,v19.1d
 
 	ins	v2.d[0],v1.d[1]
-	ins	v7.d[0],v6.d[1]
 	ins	v1.d[1],v0.d[0]
-	ins	v6.d[1],v5.d[0]
 	eor	v0.16b,v1.16b,v18.16b
 	eor	v5.16b,v6.16b,v4.16b
 
@@ -129,7 +116,8 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	eor	v21.16b,v17.16b,v25.16b		//fold(H^4), kept live for H^7/H^8
 	eor	v18.16b,v18.16b,v22.16b
 	ext	v24.16b,v3.16b,v21.16b,#8	//pack Karatsuba pre-processed
-	st1	{v23.2d,v24.2d,v25.2d},[x0],#48	//store Htable[3..5]
+	stp	q22,q23,[x0,#32]		//store Htable[2..3]
+	stp	q24,q25,[x0,#64]		//store Htable[4..5]
 
 	//calculate H^5 and H^6
 	pmull2	v0.1q,v22.2d, v23.2d
@@ -137,23 +125,19 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	pmull	v2.1q,v22.1d, v23.1d
 	pmull	v7.1q,v23.1d,v23.1d
 	pmull	v1.1q,v3.1d,v18.1d
-	pmull	v6.1q,v3.1d,v3.1d
 
 	ext	v16.16b,v0.16b,v2.16b,#8		//Karatsuba post-processing
-	ext	v17.16b,v5.16b,v7.16b,#8
+	ext	v6.16b,v5.16b,v5.16b,#8		//square: middle vanishes, so the
+						//low half is just swap64(PL) and
+						//the high half is PH untouched
 	eor	v18.16b,v0.16b,v2.16b
 	eor	v1.16b,v1.16b,v16.16b
-	eor	v4.16b,v5.16b,v7.16b
-	eor	v6.16b,v6.16b,v17.16b
 	eor	v1.16b,v1.16b,v18.16b
 	pmull	v18.1q,v0.1d,v19.1d		//1st phase
-	eor	v6.16b,v6.16b,v4.16b
 	pmull	v4.1q,v5.1d,v19.1d
 
 	ins	v2.d[0],v1.d[1]
-	ins	v7.d[0],v6.d[1]
 	ins	v1.d[1],v0.d[0]
-	ins	v6.d[1],v5.d[0]
 	eor	v0.16b,v1.16b,v18.16b
 	eor	v5.16b,v6.16b,v4.16b
 
@@ -172,7 +156,7 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	eor	v16.16b,v16.16b,v26.16b
 	eor	v17.16b,v17.16b,v28.16b
 	ext	v27.16b,v16.16b,v17.16b,#8	//pack Karatsuba pre-processed
-	st1	{v26.2d,v27.2d,v28.2d},[x0],#48	//store Htable[6..8]
+	stp	q26,q27,[x0,#96]		//store Htable[6..7]
 
 	//calculate H^7 = H^3.H^4 and H^8 = H^4.H^4 (depth 3, independent of H^5/H^6)
 	pmull2	v0.1q,v23.2d,v25.2d
@@ -180,23 +164,19 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	pmull	v2.1q,v23.1d,v25.1d
 	pmull	v7.1q,v25.1d,v25.1d
 	pmull	v1.1q,v3.1d,v21.1d
-	pmull	v6.1q,v21.1d,v21.1d
 
 	ext	v16.16b,v0.16b,v2.16b,#8		//Karatsuba post-processing
-	ext	v17.16b,v5.16b,v7.16b,#8
+	ext	v6.16b,v5.16b,v5.16b,#8		//square: middle vanishes, so the
+						//low half is just swap64(PL) and
+						//the high half is PH untouched
 	eor	v18.16b,v0.16b,v2.16b
 	eor	v1.16b,v1.16b,v16.16b
-	eor	v4.16b,v5.16b,v7.16b
-	eor	v6.16b,v6.16b,v17.16b
 	eor	v1.16b,v1.16b,v18.16b
 	pmull	v18.1q,v0.1d,v19.1d		//1st phase
-	eor	v6.16b,v6.16b,v4.16b
 	pmull	v4.1q,v5.1d,v19.1d
 
 	ins	v2.d[0],v1.d[1]
-	ins	v7.d[0],v6.d[1]
 	ins	v1.d[1],v0.d[0]
-	ins	v6.d[1],v5.d[0]
 	eor	v0.16b,v1.16b,v18.16b
 	eor	v5.16b,v6.16b,v4.16b
 
@@ -214,7 +194,8 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	eor	v16.16b,v16.16b,v29.16b
 	eor	v17.16b,v17.16b,v31.16b
 	ext	v30.16b,v16.16b,v17.16b,#8	//pack Karatsuba pre-processed
-	st1	{v29.2d,v30.2d,v31.2d},[x0]		//store Htable[9..11]
+	stp	q28,q29,[x0,#128]		//store Htable[8..9]
+	stp	q30,q31,[x0,#160]		//store Htable[10..11]
         CFI_RET
 
 S2N_BN_SIZE_DIRECTIVE(gcm_init_v8)
