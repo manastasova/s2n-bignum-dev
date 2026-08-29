@@ -46,18 +46,29 @@
 // SCHEDULING.  Neoverse-V1 dispatches IN ORDER (out-of-order execution behind a
 // finite window), so an instruction placed late cannot execute early even when
 // its operands are ready -- the static ORDER is itself an optimization variable.
-// Measured on Graviton 3: this routine is within a few percent of its own
-// RESOURCE floor (a dependency-free clone of the same 131 opcodes runs at 44.1
-// cycles against 48.1 for the 018 stream), one extra vector instruction anywhere
-// costs 0.27 cycles, and `movi` costs 0.13.  The stream below is therefore NOT a
-// hand schedule and not ASAP order either: it is the best topological order of
-// the whole RAW dependence graph found by a stochastic list-scheduling search
-// scored on hardware, with every SIMD register re-allocated by linear scan over
-// that order -- WAR and WAW on architectural registers are the only things that
-// can block static motion, since the hardware renames.  That is why the six
-// power chains interleave and why the register numbering looks unstructured; the
-// order alone is worth 7% over the same 131 instructions in 018's ASAP order.
-// Do not "tidy" it back into per-power blocks.
+// The stream below is therefore NOT a hand schedule and not ASAP order either:
+// it is the best topological order of the whole RAW dependence graph found by a
+// stochastic list-scheduling search scored on hardware, with every SIMD register
+// re-allocated by linear scan over that order -- WAR and WAW on architectural
+// registers are the only things that can block static motion, since the hardware
+// renames.  That is why the six power chains interleave and why the register
+// numbering looks unstructured; ordering alone (no algebra change) is worth about
+// 4.5% over the same instructions in 018's ASAP order, and the folds plus
+// H^5 = H.H^4 take it to 7.8%.
+//
+// Do not "tidy" it back into per-power blocks, and do not perturb it casually:
+// measured on Graviton 3 against benchmarks/benchmark.c, this order sits in a
+// SHARP local optimum.  Swapping the two adjacent, independent, register-safe
+// `ext`s near the end costs 4.8%; each of the 33 legal single-instruction moves
+// in the tail costs 2-5%; one `nop` inserted before the `ret` costs 1.9% (four
+// `nop`s in the MIDDLE cost 0.17%, so the cost of an instruction is strongly
+// positional, not uniform).  Freeing any single instruction's operands -- all
+// 124 probed -- gains at most 0.11%, so no one latency edge gates it either.
+// (An earlier version of this comment claimed the routine was near a RESOURCE
+// floor derived from a dependency-free clone.  That was measured with a harness
+// later shown to be anti-correlated with the benchmark; re-measured properly the
+// clone is 11% SLOWER than this code, because stripping the dependences also
+// strips operand forwarding, so it is not a floor at all.)
 //
 // Standard ARM ABI: X0 = Htable, X1 = H
 // ----------------------------------------------------------------------------
@@ -226,6 +237,3 @@ S2N_BN_SIZE_DIRECTIVE(gcm_init_v8)
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack, "", %progbits
 #endif
-
-
-

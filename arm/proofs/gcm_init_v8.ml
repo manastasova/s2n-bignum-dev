@@ -25,7 +25,7 @@
 (* lives once in the two toolkit sections below and each block's script is     *)
 (* still just steps + SPEC_UNFOLD_TAC + one PRODUCT_TAC/SQUARE_TAC per product *)
 (* + LANE_CLOSE_TAC.  Six powers land in ONE block because the search's order  *)
-(* leaves no cut between them; see the Phase 5 header.                        *)
+(* leaves no cut between them; see the Phase 2 header.                        *)
 (* ========================================================================= *)
 
 needs "arm/proofs/base.ml";;
@@ -333,14 +333,15 @@ let HPOWER_OPERANDS = prove
   REWRITE_TAC[POLYVAL_DOT_ASSOC]);;
 
 (* ========================================================================= *)
-(* WORD-LEVEL TOOLKIT shared by the four power blocks (Phases 4-6).           *)
+(* WORD-LEVEL TOOLKIT shared by the power blocks (Phases 1-2).                *)
 (*                                                                            *)
-(* Each power block computes two powers by two interleaved carryless products, *)
-(* each followed by the same two-phase Gueron reduction, and stores three      *)
-(* 128-bit words.  Every register and store value in its postcondition is an   *)
-(* XOR / lane rearrangement of the SAME opaque 64x64 base products, so ONE set *)
-(* of rules discharges all four blocks -- genuine-mid and square products      *)
-(* alike.  This is why nothing below is specialised to a power.                *)
+(* Each power is computed by a carryless product (or square) followed by the   *)
+(* same two-phase Gueron reduction; the searched instruction order interleaves *)
+(* all seven of those chains, so Phase 2 alone holds six of them.  Every       *)
+(* register and store value in a block's postcondition is an XOR / lane        *)
+(* rearrangement of the SAME opaque 64x64 base products, so ONE set of rules   *)
+(* discharges every block -- genuine-mid and square products alike.  This is   *)
+(* why nothing below is specialised to a power.                               *)
 (*                                                                            *)
 (* PROOF STRATEGY (algebraic, NOT a brute bit-blast -- a symbolic word_pmul is *)
 (* opaque to WORD_BLAST):                                                     *)
@@ -384,7 +385,7 @@ let SQ_CROSS_0 = prove
 (* cross term appears twice (word_pmul is commutative) and so cancels.  Each     *)
 (* lane of the twisted key is an XOR of 2-3 DISJOINT summands, so this is what   *)
 (* lets H^2's two products be taken off the RAW key in parallel with the twist    *)
-(* instead of after it (Phase 3) -- the single biggest remaining latency win.    *)
+(* instead of after it (Phase 1) -- the single biggest remaining latency win.    *)
 let PMUL_SQ_XOR2 = prove
  (`!(a:64 word) (b:64 word).
      word_pmul (word_xor a b) (word_xor a b):128 word =
@@ -425,7 +426,7 @@ let WORD_EQ_128_LANES = prove
 (* It ALSO fully distributes every pmul-by-w over its argument's xor chain     *)
 (* (WORD_PMUL_XOR, already in common/ghash.ml).  That is what makes the split  *)
 (* reductions provable.  The routine exploits that `\x. word_pmul x w` is      *)
-(* GF(2)-LINEAR to take Gueron's reduction apart (see the Phase 5 header):     *)
+(* GF(2)-LINEAR to take Gueron's reduction apart (see the Phase 2 header):     *)
 (* where the spec folds a whole xor chain through ONE pmul-by-w, the           *)
 (* hardware multiplies the summands SEPARATELY and xors afterwards -- and for  *)
 (* the middle term, vice versa.  So the two sides' pmul-by-w terms are no      *)
@@ -555,7 +556,7 @@ let PRODUCT_TAC k a b = GUERON_ATOMS_TAC k false a b;;   (* operands differ *)
 let SQUARE_TAC k a = GUERON_ATOMS_TAC k true a a;;       (* a . a *)
 
 (* ------------------------------------------------------------------------- *)
-(* Extra machinery for the fused twist+H^2 block (Phase 3).                   *)
+(* Extra machinery for the fused twist+H^2 block (Phase 1).                   *)
 (*                                                                            *)
 (* The routine no longer forms the twisted key's two carryless products at     *)
 (* all.  Both the twist `T` and the Gueron reduce `L` are GF(2)-LINEAR and a   *)
@@ -678,18 +679,13 @@ let ATOMIZE_POWER_TAC rname sname atom tac : tactic =
     let raw = rand(concl th) in
     (SUBGOAL_THEN (mk_eq(raw,atom)) SUBST_ALL_TAC THENL [tac; ALL_TAC]) (asl,w);;
 
-(* When a block's postcondition mentions not just a power but a PRODUCT of that   *)
-(* power (block 2 hands H^8's two 64x64 halves to block 3, because the ASAP        *)
-(* schedule issues them off H^4 five instructions after H^4 exists), the product   *)
-(* conjuncts cannot be closed by LANE_CLOSE_TAC: WORD_BITWISE_RULE cannot see       *)
-(* inside `word_pmul`.  Prove the POWER's own conjunct first and substitute it, and *)
-(* the product conjuncts then close by reflexivity.  The raw term is read off the   *)
-(* goal rather than transcribed, exactly as ATOMIZE_TWIST_TAC reads it off the      *)
-(* assumptions, so a reschedule does not invalidate this.                           *)
-let SUBST_POWER_TAC pat tac : tactic =
-  fun (asl,w) ->
-    let c = find (fun t -> is_eq t && rand t = pat) (conjuncts w) in
-    (SUBGOAL_THEN c SUBST_ALL_TAC THENL [tac; ALL_TAC]) (asl,w);;
+(* (Historical note, for the next reschedule: when a block interface has to carry  *)
+(* not just a power but a raw 64x64 PRODUCT of one -- which happened in 018, where  *)
+(* the ASAP order issued H^8's halves five instructions after H^4 existed -- those  *)
+(* conjuncts cannot be closed by LANE_CLOSE_TAC, because WORD_BITWISE_RULE cannot   *)
+(* see inside `word_pmul`.  The fix was to prove the POWER's own conjunct first and  *)
+(* SUBST_ALL_TAC it, after which the product conjuncts close by reflexivity.  The    *)
+(* current tiling needs no such interface, so the tactic itself is gone.)            *)
 
 (* LANE_CLOSE_TAC plus the carry-constant collapse.  The two must ALTERNATE:     *)
 (* LANE_CONV's distribution of pmul-by-w is what exposes the next carry-only     *)
@@ -705,7 +701,7 @@ let CARRY_CLOSE_TAC =
   CONV_TAC WORD_BITWISE_RULE;;
 
 (* ========================================================================= *)
-(* Phase 3: the FUSED twist + H^2 block (PC 0x0 -> 0x80, 32 steps).           *)
+(* Phase 1: the FUSED twist + H^2 block (PC 0x0 -> 0x80, 32 steps).           *)
 (*                                                                            *)
 (* The routine never forms the twisted key's two carryless products.  Both the *)
 (* twist `T` and the Gueron reduce `L` are GF(2)-LINEAR and a carryless SQUARE  *)
@@ -761,7 +757,7 @@ let GCM_INIT_V8_TWIST_H2 = prove
   CARRY_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 5: ALL SIX remaining powers in one block, PC 0x80 -> 0x1e4 (89 steps).*)
+(* Phase 2: ALL SIX remaining powers in one block, PC 0x80 -> 0x1e4 (89 steps).*)
 (*                                                                            *)
 (*   H^3 = h_power h1 2 = polyval_dot h1 H^2   (genuine)                       *)
 (*   H^4 = h_power h1 3 = polyval_dot H^2 H^2  (a SQUARE)                      *)
@@ -853,7 +849,7 @@ let GCM_INIT_V8_H345678 = prove
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 6: the closing block, PC 0x1e4 -> 0x208 (9 steps, ends at the ret).   *)
+(* Phase 3: the closing block, PC 0x1e4 -> 0x208 (9 steps, ends at the ret).   *)
 (*                                                                            *)
 (* No products at all: byteswap128 H^7, the folds of H^5, H^6 and H^7, the two  *)
 (* remaining Karatsuba packs (each one `ext` of two broadcast folds) and the     *)
@@ -862,7 +858,7 @@ let GCM_INIT_V8_H345678 = prove
 (* PMUL reasoning and no atoms, though SPEC_UNFOLD_TAC is still what turns the   *)
 (* spec's karatsuba_mid / byteswap128 into lanes.                               *)
 (*                                                                            *)
-(* The postcondition carries ALL TWELVE slots, so Phase 7 reads the full        *)
+(* The postcondition carries ALL TWELVE slots, so Phase 4 reads the full        *)
 (* htable_mem table straight off this block's post.                            *)
 (* ========================================================================= *)
 
@@ -925,9 +921,9 @@ let GCM_INIT_V8_TAIL = prove
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 7: the core correctness theorem, GCM_INIT_V8_CORRECT.                *)
+(* Phase 4: the core correctness theorem, GCM_INIT_V8_CORRECT.                *)
 (*                                                                            *)
-(* Compose the four blocks into one `ensures` from function entry (PC 0x0) to *)
+(* Compose the three blocks into one `ensures` from function entry (PC 0x0) to *)
 (* the `ret` (PC 0x208), establishing the full 12-slot htable_mem             *)
 (* postcondition for the half-swapped algebraic key h1 = ghash_twist(         *)
 (* byteswap128 H).  Each block is applied as a single atomic transition with  *)
@@ -990,7 +986,7 @@ let GCM_INIT_V8_CORRECT = prove
   ASM_REWRITE_TAC[htable_mem; CONJUNCT1 h_power]);;
 
 (* ========================================================================= *)
-(* Phase 8: the standard-ABI subroutine wrapper (leaf, no stack frame).       *)
+(* Phase 5: the standard-ABI subroutine wrapper (leaf, no stack frame).       *)
 (*                                                                            *)
 (* Wrap the core with the return via X30.  Two mechanical points:             *)
 (*  - Reduce LENGTH gcm_init_v8_mc to 524 (`fst GCM_INIT_V8_EXEC`) in the goal *)
@@ -1022,7 +1018,7 @@ let GCM_INIT_V8_SUBROUTINE_CORRECT = prove
   REWRITE_TAC[htable_mem] THEN ASM_REWRITE_TAC[]);;
 
 (* ------------------------------------------------------------------------- *)
-(* Phase 9: constant-time and memory-safety.                                  *)
+(* Phase 6: constant-time and memory-safety.                                  *)
 (*                                                                            *)
 (* The routine is branch-free with fully data-independent addressing, so it   *)
 (* is constant-time: the event trace f_events depends only on the PUBLIC args *)
