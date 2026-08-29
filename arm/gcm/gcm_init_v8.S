@@ -97,14 +97,17 @@ S2N_BN_SYMBOL(gcm_init_v8):
 
 	//L(A) ^ E ^ F: the five leaves A/B/ext(aw)/aw.d[0].w and E/F land two
 	//cycles apart, and this tree roots one level earlier than iterating the
-	//reduction would.
-	eor	v0.16b,v0.16b,v25.16b		//A ^ B
-	eor	v5.16b,v5.16b,v24.16b		//E ^ F
+	//reduction would.  Of the several shapes with that same depth, THIS one
+	//(the two aw-derived leaves paired first, into R(aw)) measures fastest --
+	//it puts the pair whose inputs arrive LAST on its own branch, so the two
+	//independent halves of the tree issue in parallel.
 	ext	v1.16b,v7.16b,v7.16b,#8		//ext(aw)
 	pmull	v7.1q,v7.1d,v19.1d		//aw.d[0] . w
-	eor	v0.16b,v0.16b,v1.16b
-	eor	v5.16b,v5.16b,v7.16b
-	eor	v17.16b,v0.16b,v5.16b		//H^2
+	eor	v0.16b,v0.16b,v25.16b		//A ^ B
+	eor	v5.16b,v5.16b,v24.16b		//E ^ F
+	eor	v1.16b,v1.16b,v7.16b		//R(aw)
+	eor	v0.16b,v0.16b,v5.16b
+	eor	v17.16b,v0.16b,v1.16b		//H^2
 	//the twisted key itself is only needed from here on, so it is finished
 	//here, out of the head's crowded issue slots; its conditional constant is
 	//F's own high lane, so no separate mask-and is needed
