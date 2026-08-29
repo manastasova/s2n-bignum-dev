@@ -28,8 +28,9 @@
 // squares, the two-phase
 // Gueron reduction expanded by linearity rather than iterated (for H^2 all the
 // way through the twist, so that H^2 needs neither of the two products the
-// twisted key would have fed), a store-lane-order twist, Karatsuba mids packed
-// from the folds x ^ byteswap128 x (the byteswaps the table needs anyway) and
+// twisted key would have fed), a store-lane-order twist whose conditional
+// modulus is a single `pmull` by the carry bit rather than a masked constant,
+// Karatsuba mids packed as trn1(A,B) ^ trn2(A,B) off the two RAW powers, and
 // `stp`-based stores.  For the current size, shape and the exact
 // sequence of optimizations, read the code below and
 // `git log arm/gcm/gcm_init_v8.S` -- do not trust a count quoted here.
@@ -53,8 +54,20 @@
 // registers are the only things that can block static motion, since the hardware
 // renames.  That is why the six power chains interleave and why the register
 // numbering looks unstructured; ordering alone (no algebra change) is worth about
-// 4.5% over the same instructions in 018's ASAP order, and the folds plus
-// H^5 = H.H^4 take it to 7.8%.
+// 4.5% over the same instructions in 018's ASAP order, and the algebra changes
+// on top of that take the whole routine from 37.3 ns at import to 16.35 ns.
+//
+// The last two of those changes are worth stating as a rule, because they are
+// what session 021 found and they cut BOTH size and depth: (a) the twist's
+// conditional modulus does not have to be materialised -- `u = H >>u 63` already
+// holds the carry as an integer 0/1, so `pmull(u.d[0], w)` IS the masked constant
+// and `trn1(u ^ ext(u), that)` is the whole thing (-7 instructions); and (b) a
+// Karatsuba mid pack is `trn1(A,B) ^ trn2(A,B)`, exactly as many instructions as
+// building it out of the folds A ^ byteswap128 A but TWO CYCLES shallower,
+// because it reads the powers raw instead of waiting on their byteswaps.  Since
+// the last pack is the last thing the routine computes, that is 2 cycles off the
+// dependence height of the whole function.  Measured on Graviton 3, one cycle of
+// dependence height at CONSTANT instruction count is worth 0.5-0.8% of runtime.
 //
 // Do not "tidy" it back into per-power blocks, and do not perturb it casually:
 // measured on Graviton 3 against benchmarks/benchmark.c, this order sits in a
@@ -98,152 +111,150 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	// leading `movi`s whenever the schedule moves them, and then benchmarks the
 	// wrong code -- that cost session 019 a whole screening pass.)
 
-	// BLOCK 1 (PC 0x0 -> 0x80, 32 instructions): the FUSED twist + H^2.
+	// BLOCK 1 (PC 0x0 -> 0x64, 25 instructions): the FUSED twist + H^2.
 	// L o square o T distributes over the twist's disjoint summands, so
 	//   H^2 = L(S.d[1]^2) ^ S.d[0]^2 ^ u.d[1] ^ (u.d[0] ? Q : 0)
 	// with Q = L(1) ^ w^2 the POLYVAL modulus; neither of the twisted key's own
-	// products is ever formed.  Live out: v4 = w, v0 = byteswap128 H, v1 = H^2.
+	// products is ever formed.  And the modulus is never BUILT either: u = H >>u 63
+	// already holds the carry as the integer 0/1 in lane 0, so pmull(u.d[0], w) IS
+	// {carry ? 0xc2..00 : 0, 0} and trn1(u ^ ext(u), that) is the masked modulus
+	// with u.d[1] already folded in -- which retires the 0xff and 0x0 `movi`s, the
+	// {1,1}, the `ext` that assembled Q, the `sshr` mask and its `trn1` broadcast,
+	// the `and`, and one `eor`.  Live out: v2 = w, v0 = byteswap128 H, v3 = H^2.
 	ld1	{v0.2d},[x1]
 	ldr	x3,[x1,#8]
 	movi	v1.16b,#0xe1
-	movi	v2.16b,#0xff
-	movi	v3.16b,#0x0
-	shl	v4.2d,v1.2d,#57		//w = {0xc2..0, 0xc2..0}
-	ushr	v1.2d,v2.2d,#63
-	ushr	v2.2d,v0.2d,#63
+	shl	v2.2d,v1.2d,#57		//w = {0xc2..0, 0xc2..0}
+	ushr	v1.2d,v0.2d,#63		//u = H >>u 63 per lane: the carry as an INTEGER 0/1 in lane 0
 	lsl	x4,x3,#1
-	ext	v5.16b,v1.16b,v4.16b,#8		//Q = {1, 0xc2....00}, the POLYVAL modulus
-	fmov	d1,x4
-	sshr	v6.2d,v0.2d,#63
-	shl	v7.2d,v0.2d,#1
-	pmull	v0.1q,v1.1d,v1.1d
-	trn1	v1.2d,v6.2d,v6.2d
-	pmull	v6.1q,v7.1d,v7.1d
-	pmull2	v16.1q,v2.2d,v2.2d
-	ext	v17.16b,v2.16b,v2.16b,#8
-	pmull2	v2.1q,v0.2d,v4.2d
-	pmull	v18.1q,v0.1d,v4.1d
-	and	v19.16b,v5.16b,v1.16b		//F = carry ? Q : 0
-	eor	v1.16b,v6.16b,v16.16b		//(S.d[0] ^ u.d[1])^2 -- a carryless square is ADDITIVE
-	orr	v5.16b,v7.16b,v17.16b
-	ext	v6.16b,v18.16b,v18.16b,#8
-	pmull	v7.1q,v18.1d,v4.1d
-	eor	v16.16b,v0.16b,v2.16b
-	eor	v0.16b,v1.16b,v19.16b
-	ext	v1.16b,v19.16b,v3.16b,#8
-	eor	v2.16b,v6.16b,v7.16b
-	eor	v3.16b,v16.16b,v0.16b
-	eor	v0.16b,v5.16b,v1.16b		//twisted H, store-lane order  == Htable[0]
-	eor	v1.16b,v3.16b,v2.16b		//H^2
+	fmov	d3,x4
+	shl	v4.2d,v0.2d,#1
+	pmull	v0.1q,v3.1d,v3.1d		//(S.d[1])^2 -- via the GP pipe, two cycles before a vector shl could
+	pmull	v3.1q,v4.1d,v4.1d		//(S.d[0])^2
+	ext	v5.16b,v1.16b,v1.16b,#8
+	pmull2	v6.1q,v0.2d,v2.2d
+	pmull	v7.1q,v0.1d,v2.1d
+	orr	v16.16b,v4.16b,v5.16b
+	ext	v4.16b,v7.16b,v7.16b,#8
+	pmull	v17.1q,v7.1d,v2.1d
+	pmull	v7.1q,v1.1d,v2.1d		//pmull(u.d[0], w) IS {carry ? 0xc2..00 : 0, 0} -- no mask, no modulus
+	eor	v18.16b,v1.16b,v5.16b
+	eor	v1.16b,v0.16b,v3.16b
+	eor	v0.16b,v16.16b,v7.16b		//twisted H, store-lane order  == Htable[0]
+	trn1	v3.2d,v18.2d,v7.2d		//{carry ^ u.d[1], carry ? 0xc2..00 : 0} == the masked POLYVAL modulus ^ u.d[1]
+	eor	v5.16b,v6.16b,v1.16b
+	eor	v1.16b,v4.16b,v17.16b
+	eor	v4.16b,v3.16b,v5.16b
+	eor	v3.16b,v1.16b,v4.16b		//H^2
 
-	// BLOCK 2 (PC 0x80 -> 0x1e4, 89 instructions): ALL SIX remaining powers --
+	// BLOCK 2 (PC 0x64 -> 0x1c4, 88 instructions): ALL SIX remaining powers --
 	// H^3 = H.H^2, H^4 = H^2.H^2, H^5 = H.H^4, H^6 = H^3.H^3, H^7 = H^4.H^3,
-	// H^8 = H^4.H^4 -- plus the Htable[0..5] stores.  The six reduction chains are
-	// fully INTERLEAVED because the order is a search over topological orders of the
+	// H^8 = H^4.H^4 -- plus Htable[0..5].  The six reduction chains are fully
+	// INTERLEAVED because the order is a search over topological orders of the
 	// whole dependence graph, and the exit is the only PC in here at which every
-	// live value is a NAMED quantity.  Live out: v1 = H^5, v3 = H^6, v16 = H^7,
-	// v6 = bsw H^5, v5 = bsw H^6, v0 = bsw H^8, v4 = fold(H^8).
-	ext	v2.16b,v0.16b,v0.16b,#8		//H in multiplicand (algebraic) lane order
-	pmull	v3.1q,v1.1d,v1.1d
-	pmull	v5.1q,v0.1d,v1.1d
-	pmull2	v6.1q,v0.2d,v1.2d
-	pmull2	v7.1q,v1.2d,v1.2d
-	ext	v16.16b,v1.16b,v1.16b,#8		//byteswap128 H^2  == Htable[2]
-	eor	v17.16b,v0.16b,v2.16b		//fold(H) = {mid H, mid H}
-	pmull2	v18.1q,v2.2d,v1.2d
-	pmull	v19.1q,v2.1d,v1.1d
-	pmull	v20.1q,v3.1d,v4.1d
-	eor	v21.16b,v6.16b,v5.16b
-	pmull2	v5.1q,v3.2d,v4.2d
-	eor	v6.16b,v3.16b,v7.16b
-	eor	v3.16b,v1.16b,v16.16b		//fold(H^2)
-	ext	v1.16b,v19.16b,v19.16b,#8
-	pmull	v7.1q,v19.1d,v4.1d
+	// live value is a NAMED quantity.  Live out: v2 = H^5, v4 = H^6, v16 = H^7,
+	// v0 = H^8, v7 = bsw H^5, v5 = bsw H^6, v3 = bsw H^8.
+	ext	v1.16b,v0.16b,v0.16b,#8		//H in multiplicand (algebraic) lane order
+	pmull	v4.1q,v3.1d,v3.1d
+	pmull	v5.1q,v0.1d,v3.1d
+	pmull2	v6.1q,v0.2d,v3.2d
+	pmull2	v7.1q,v3.2d,v3.2d
+	ext	v16.16b,v3.16b,v3.16b,#8		//byteswap128 H^2  == Htable[2]
+	pmull2	v17.1q,v1.2d,v3.2d
+	pmull	v18.1q,v1.1d,v3.1d
+	pmull	v19.1q,v4.1d,v2.1d
+	eor	v20.16b,v6.16b,v5.16b
+	pmull	v5.1q,v19.1d,v2.1d
+	pmull2	v6.1q,v4.2d,v2.2d
+	eor	v21.16b,v4.16b,v7.16b
+	ext	v4.16b,v18.16b,v18.16b,#8
+	pmull	v7.1q,v18.1d,v2.1d
+	ext	v18.16b,v19.16b,v19.16b,#8
 	ext	v19.16b,v20.16b,v20.16b,#8
-	pmull	v22.1q,v20.1d,v4.1d
-	ext	v20.16b,v21.16b,v21.16b,#8
-	pmull	v23.1q,v21.1d,v4.1d
-	eor	v21.16b,v6.16b,v5.16b
-	ext	v5.16b,v17.16b,v3.16b,#8		//Karatsuba pack {mid H, mid H^2}  == Htable[1]
-	eor	v3.16b,v1.16b,v7.16b
-	eor	v1.16b,v19.16b,v22.16b
-	eor	v6.16b,v23.16b,v20.16b
-	stp	q0,q5,[x0]		//store Htable[0..1]
-	ext	v5.16b,v3.16b,v3.16b,#8
-	pmull	v7.1q,v3.1d,v4.1d
-	eor	v3.16b,v21.16b,v1.16b		//H^4
-	eor	v1.16b,v6.16b,v18.16b
-	eor	v6.16b,v5.16b,v7.16b
-	ext	v5.16b,v3.16b,v3.16b,#8		//byteswap128 H^4  == Htable[5]
-	pmull2	v7.1q,v0.2d,v3.2d
-	pmull	v17.1q,v2.1d,v3.1d
-	pmull	v18.1q,v0.1d,v3.1d
-	pmull	v0.1q,v3.1d,v3.1d		//H^8: p_lo (a square's middle vanishes)
-	pmull2	v19.1q,v3.2d,v3.2d		//H^8: p_hi
-	pmull2	v20.1q,v2.2d,v3.2d
-	eor	v2.16b,v6.16b,v1.16b		//H^3
-	eor	v1.16b,v7.16b,v18.16b
-	pmull	v6.1q,v17.1d,v4.1d
-	ext	v7.16b,v17.16b,v17.16b,#8
-	pmull	v17.1q,v0.1d,v4.1d
-	eor	v18.16b,v0.16b,v19.16b
-	pmull2	v19.1q,v0.2d,v4.2d
-	eor	v0.16b,v3.16b,v5.16b		//fold(H^4)
-	pmull	v21.1q,v3.1d,v2.1d
-	pmull2	v22.1q,v5.2d,v2.2d
-	pmull	v23.1q,v5.1d,v2.1d
-	pmull	v24.1q,v2.1d,v2.1d
-	pmull2	v25.1q,v2.2d,v2.2d
-	pmull2	v26.1q,v3.2d,v2.2d
-	eor	v3.16b,v1.16b,v6.16b
-	ext	v1.16b,v17.16b,v17.16b,#8
-	pmull	v6.1q,v17.1d,v4.1d
-	ext	v17.16b,v2.16b,v2.16b,#8		//byteswap128 H^3  == Htable[3]
-	eor	v27.16b,v22.16b,v23.16b
-	eor	v22.16b,v18.16b,v19.16b
-	ext	v18.16b,v21.16b,v21.16b,#8
-	pmull	v19.1q,v21.1d,v4.1d
-	pmull	v21.1q,v24.1d,v4.1d
-	eor	v23.16b,v24.16b,v25.16b
-	pmull2	v25.1q,v24.2d,v4.2d
-	eor	v24.16b,v2.16b,v17.16b		//fold(H^3)
-	stp	q16,q17,[x0,#32]		//store Htable[2..3]
-	eor	v2.16b,v3.16b,v7.16b
-	eor	v3.16b,v1.16b,v6.16b
-	eor	v1.16b,v27.16b,v19.16b
-	ext	v6.16b,v21.16b,v21.16b,#8
-	pmull	v7.1q,v21.1d,v4.1d
-	eor	v16.16b,v23.16b,v25.16b
-	ext	v17.16b,v24.16b,v0.16b,#8		//Karatsuba pack {mid H^3, mid H^4}  == Htable[4]
-	ext	v0.16b,v2.16b,v2.16b,#8
-	pmull	v19.1q,v2.1d,v4.1d
-	eor	v2.16b,v22.16b,v3.16b		//H^8
-	eor	v3.16b,v1.16b,v18.16b
-	eor	v1.16b,v6.16b,v7.16b
-	stp	q17,q5,[x0,#64]		//store Htable[4..5]
-	eor	v5.16b,v0.16b,v20.16b
-	ext	v0.16b,v2.16b,v2.16b,#8		//byteswap128 H^8  == Htable[11]
-	ext	v6.16b,v3.16b,v3.16b,#8
-	pmull	v7.1q,v3.1d,v4.1d
-	eor	v3.16b,v16.16b,v1.16b		//H^6
-	eor	v1.16b,v19.16b,v5.16b		//H^5
-	eor	v4.16b,v2.16b,v0.16b		//fold(H^8)
-	eor	v2.16b,v6.16b,v26.16b
-	ext	v5.16b,v3.16b,v3.16b,#8		//byteswap128 H^6  == Htable[8]
-	ext	v6.16b,v1.16b,v1.16b,#8		//byteswap128 H^5  == Htable[6]
-	eor	v16.16b,v7.16b,v2.16b		//H^7
+	pmull	v22.1q,v20.1d,v2.1d
+	eor	v20.16b,v21.16b,v6.16b
+	trn1	v6.2d,v0.2d,v3.2d
+	trn2	v21.2d,v0.2d,v3.2d
+	eor	v3.16b,v6.16b,v21.16b		//{mid H, mid H^2}  == Htable[1]
+	eor	v6.16b,v4.16b,v7.16b
+	eor	v4.16b,v18.16b,v5.16b
+	eor	v5.16b,v22.16b,v19.16b
+	stp	q0,q3,[x0]		//store Htable[0..1]
+	ext	v3.16b,v6.16b,v6.16b,#8
+	pmull	v7.1q,v6.1d,v2.1d
+	eor	v6.16b,v20.16b,v4.16b		//H^4
+	eor	v4.16b,v5.16b,v17.16b
+	eor	v5.16b,v3.16b,v7.16b
+	ext	v3.16b,v6.16b,v6.16b,#8		//byteswap128 H^4  == Htable[5]
+	pmull	v7.1q,v0.1d,v6.1d
+	pmull2	v17.1q,v0.2d,v6.2d
+	pmull	v0.1q,v1.1d,v6.1d
+	pmull	v18.1q,v6.1d,v6.1d		//H^8: p_lo (a square's middle vanishes)
+	pmull2	v19.1q,v6.2d,v6.2d		//H^8: p_hi
+	pmull2	v20.1q,v1.2d,v6.2d
+	eor	v1.16b,v5.16b,v4.16b		//H^3
+	eor	v4.16b,v17.16b,v7.16b
+	pmull	v5.1q,v0.1d,v2.1d
+	ext	v7.16b,v0.16b,v0.16b,#8
+	pmull	v0.1q,v18.1d,v2.1d
+	eor	v17.16b,v18.16b,v19.16b
+	pmull2	v19.1q,v18.2d,v2.2d
+	pmull	v18.1q,v6.1d,v1.1d
+	pmull2	v21.1q,v3.2d,v1.2d
+	pmull	v22.1q,v3.1d,v1.1d
+	pmull	v23.1q,v1.1d,v1.1d
+	pmull2	v24.1q,v1.2d,v1.2d
+	pmull2	v25.1q,v6.2d,v1.2d
+	eor	v26.16b,v4.16b,v5.16b
+	ext	v4.16b,v0.16b,v0.16b,#8
+	pmull	v5.1q,v0.1d,v2.1d
+	ext	v0.16b,v1.16b,v1.16b,#8		//byteswap128 H^3  == Htable[3]
+	eor	v27.16b,v17.16b,v19.16b
+	ext	v17.16b,v18.16b,v18.16b,#8
+	pmull	v19.1q,v18.1d,v2.1d
+	pmull	v18.1q,v23.1d,v2.1d
+	eor	v28.16b,v23.16b,v24.16b
+	pmull2	v24.1q,v23.2d,v2.2d
+	stp	q16,q0,[x0,#32]		//store Htable[2..3]
+	eor	v0.16b,v26.16b,v7.16b
+	eor	v7.16b,v4.16b,v5.16b
+	ext	v4.16b,v18.16b,v18.16b,#8
+	pmull	v5.1q,v18.1d,v2.1d
+	eor	v16.16b,v28.16b,v24.16b
+	trn1	v18.2d,v1.2d,v6.2d
+	trn2	v23.2d,v1.2d,v6.2d
+	eor	v1.16b,v18.16b,v23.16b		//{mid H^3, mid H^4}  == Htable[4]
+	ext	v6.16b,v0.16b,v0.16b,#8
+	pmull	v18.1q,v0.1d,v2.1d
+	eor	v0.16b,v27.16b,v7.16b		//H^8
+	eor	v7.16b,v21.16b,v22.16b
+	eor	v21.16b,v17.16b,v19.16b
+	eor	v17.16b,v7.16b,v21.16b
+	eor	v7.16b,v4.16b,v5.16b
+	stp	q1,q3,[x0,#64]		//store Htable[4..5]
+	eor	v1.16b,v6.16b,v20.16b
+	ext	v3.16b,v0.16b,v0.16b,#8		//byteswap128 H^8  == Htable[11]
+	eor	v4.16b,v16.16b,v7.16b		//H^6
+	ext	v5.16b,v17.16b,v17.16b,#8
+	pmull	v6.1q,v17.1d,v2.1d
+	eor	v2.16b,v18.16b,v1.16b		//H^5
+	eor	v1.16b,v5.16b,v25.16b
+	ext	v5.16b,v4.16b,v4.16b,#8		//byteswap128 H^6  == Htable[8]
+	ext	v7.16b,v2.16b,v2.16b,#8		//byteswap128 H^5  == Htable[6]
+	eor	v16.16b,v6.16b,v1.16b		//H^7
 
-	// BLOCK 3 (PC 0x1e4 -> 0x208, 9 instructions): byteswap128 H^7, the last two
-	// Karatsuba packs and the Htable[6..11] stores.  No products.
-	eor	v2.16b,v3.16b,v5.16b		//fold(H^6)
-	eor	v3.16b,v1.16b,v6.16b		//fold(H^5)
+	// BLOCK 3 (PC 0x1c4 -> 0x1ec, 10 instructions): byteswap128 H^7, the last two
+	// Karatsuba packs and Htable[6..11].  No products.
 	ext	v1.16b,v16.16b,v16.16b,#8		//byteswap128 H^7  == Htable[9]
-	ext	v7.16b,v3.16b,v2.16b,#8		//Karatsuba pack {mid H^5, mid H^6}  == Htable[7]
-	eor	v2.16b,v16.16b,v1.16b		//fold(H^7)
+	trn1	v6.2d,v2.2d,v4.2d
+	trn2	v17.2d,v2.2d,v4.2d
+	eor	v2.16b,v6.16b,v17.16b		//{mid H^5, mid H^6}  == Htable[7]
 	stp	q5,q1,[x0,#128]		//store Htable[8..9]
-	ext	v1.16b,v2.16b,v4.16b,#8		//Karatsuba pack {mid H^7, mid H^8}  == Htable[10]
-	stp	q6,q7,[x0,#96]		//store Htable[6..7]
-	stp	q1,q0,[x0,#160]		//store Htable[10..11]
+	trn1	v1.2d,v16.2d,v0.2d
+	trn2	v4.2d,v16.2d,v0.2d
+	eor	v0.16b,v1.16b,v4.16b		//{mid H^7, mid H^8}  == Htable[10]
+	stp	q7,q2,[x0,#96]		//store Htable[6..7]
+	stp	q0,q3,[x0,#160]		//store Htable[10..11]
 	// ---BODY-END---
         CFI_RET
 

@@ -9,12 +9,12 @@
 (* common/polyval_ghash.ml.  X0 = Htable (192 bytes written), X1 = H.         *)
 (*                                                                            *)
 (* Layout: the routine is branch-free, so the proof is three straight-line     *)
-(* blocks tiling PC 0x0..0x208, composed by ARM_BIGSTEP_TAC into              *)
+(* blocks tiling PC 0x0..0x1ec, composed by ARM_BIGSTEP_TAC into              *)
 (* GCM_INIT_V8_CORRECT:                                                       *)
 (*                                                                            *)
-(*   0x0   -> 0x80   the fused twist + H^2                    (32 steps)       *)
-(*   0x80  -> 0x1e4  H^3..H^8 + Htable[0..5]                  (89 steps)       *)
-(*   0x1e4 -> 0x208  the closing packs and Htable[6..11]       (9 steps)       *)
+(*   0x0   -> 0x64   the fused twist + H^2                    (25 steps)       *)
+(*   0x64  -> 0x1c4  H^3..H^8 + Htable[0..5]                  (88 steps)       *)
+(*   0x1c4 -> 0x1ec  the closing packs and Htable[6..11]      (10 steps)       *)
 (*                                                                            *)
 (* The .S's instruction ORDER is a hardware-scored search over topological     *)
 (* orders of its whole RAW dependence graph, with the SIMD registers allocated *)
@@ -41,133 +41,126 @@ let gcm_init_v8_mc = define_assert_from_elf
   0x4c407c20;       (* arm_LDR Q0 X1 No_Offset *)
   0xf9400423;       (* arm_LDR X3 X1 (Immediate_Offset (word 8)) *)
   0x4f07e421;       (* arm_MOVI Q1 (word 16276538888567251425) *)
-  0x4f07e7e2;       (* arm_MOVI Q2 (word 18446744073709551615) *)
-  0x4f00e403;       (* arm_MOVI Q3 (word 0) *)
-  0x4f795424;       (* arm_SHL_VEC Q4 Q1 57 64 128 *)
-  0x6f410441;       (* arm_USHR_VEC Q1 Q2 63 64 128 *)
-  0x6f410402;       (* arm_USHR_VEC Q2 Q0 63 64 128 *)
+  0x4f795422;       (* arm_SHL_VEC Q2 Q1 57 64 128 *)
+  0x6f410401;       (* arm_USHR_VEC Q1 Q0 63 64 128 *)
   0xd37ff864;       (* arm_LSL X4 X3 1 *)
-  0x6e044025;       (* arm_EXT Q5 Q1 Q4 64 *)
-  0x9e670081;       (* arm_FMOV_ItoF Q1 X4 0 *)
-  0x4f410406;       (* arm_SSHR_VEC Q6 Q0 63 64 128 *)
-  0x4f415407;       (* arm_SHL_VEC Q7 Q0 1 64 128 *)
-  0x0ee1e020;       (* arm_PMULL_VEC Q0 Q1 Q1 64 *)
-  0x4ec628c1;       (* arm_TRN1 Q1 Q6 Q6 64 128 *)
-  0x0ee7e0e6;       (* arm_PMULL_VEC Q6 Q7 Q7 64 *)
-  0x4ee2e050;       (* arm_PMULL2_VEC Q16 Q2 Q2 64 *)
-  0x6e024051;       (* arm_EXT Q17 Q2 Q2 64 *)
-  0x4ee4e002;       (* arm_PMULL2_VEC Q2 Q0 Q4 64 *)
-  0x0ee4e012;       (* arm_PMULL_VEC Q18 Q0 Q4 64 *)
-  0x4e211cb3;       (* arm_AND_VEC Q19 Q5 Q1 128 *)
-  0x6e301cc1;       (* arm_EOR_VEC Q1 Q6 Q16 128 *)
-  0x4eb11ce5;       (* arm_ORR_VEC Q5 Q7 Q17 128 *)
-  0x6e124246;       (* arm_EXT Q6 Q18 Q18 64 *)
-  0x0ee4e247;       (* arm_PMULL_VEC Q7 Q18 Q4 64 *)
-  0x6e221c10;       (* arm_EOR_VEC Q16 Q0 Q2 128 *)
-  0x6e331c20;       (* arm_EOR_VEC Q0 Q1 Q19 128 *)
-  0x6e034261;       (* arm_EXT Q1 Q19 Q3 64 *)
-  0x6e271cc2;       (* arm_EOR_VEC Q2 Q6 Q7 128 *)
-  0x6e201e03;       (* arm_EOR_VEC Q3 Q16 Q0 128 *)
-  0x6e211ca0;       (* arm_EOR_VEC Q0 Q5 Q1 128 *)
-  0x6e221c61;       (* arm_EOR_VEC Q1 Q3 Q2 128 *)
-  0x6e004002;       (* arm_EXT Q2 Q0 Q0 64 *)
-  0x0ee1e023;       (* arm_PMULL_VEC Q3 Q1 Q1 64 *)
-  0x0ee1e005;       (* arm_PMULL_VEC Q5 Q0 Q1 64 *)
-  0x4ee1e006;       (* arm_PMULL2_VEC Q6 Q0 Q1 64 *)
-  0x4ee1e027;       (* arm_PMULL2_VEC Q7 Q1 Q1 64 *)
-  0x6e014030;       (* arm_EXT Q16 Q1 Q1 64 *)
-  0x6e221c11;       (* arm_EOR_VEC Q17 Q0 Q2 128 *)
-  0x4ee1e052;       (* arm_PMULL2_VEC Q18 Q2 Q1 64 *)
-  0x0ee1e053;       (* arm_PMULL_VEC Q19 Q2 Q1 64 *)
-  0x0ee4e074;       (* arm_PMULL_VEC Q20 Q3 Q4 64 *)
-  0x6e251cd5;       (* arm_EOR_VEC Q21 Q6 Q5 128 *)
-  0x4ee4e065;       (* arm_PMULL2_VEC Q5 Q3 Q4 64 *)
-  0x6e271c66;       (* arm_EOR_VEC Q6 Q3 Q7 128 *)
-  0x6e301c23;       (* arm_EOR_VEC Q3 Q1 Q16 128 *)
-  0x6e134261;       (* arm_EXT Q1 Q19 Q19 64 *)
-  0x0ee4e267;       (* arm_PMULL_VEC Q7 Q19 Q4 64 *)
-  0x6e144293;       (* arm_EXT Q19 Q20 Q20 64 *)
-  0x0ee4e296;       (* arm_PMULL_VEC Q22 Q20 Q4 64 *)
-  0x6e1542b4;       (* arm_EXT Q20 Q21 Q21 64 *)
-  0x0ee4e2b7;       (* arm_PMULL_VEC Q23 Q21 Q4 64 *)
-  0x6e251cd5;       (* arm_EOR_VEC Q21 Q6 Q5 128 *)
-  0x6e034225;       (* arm_EXT Q5 Q17 Q3 64 *)
-  0x6e271c23;       (* arm_EOR_VEC Q3 Q1 Q7 128 *)
-  0x6e361e61;       (* arm_EOR_VEC Q1 Q19 Q22 128 *)
-  0x6e341ee6;       (* arm_EOR_VEC Q6 Q23 Q20 128 *)
-  0xad001400;       (* arm_STP Q0 Q5 X0 (Immediate_Offset (iword (&0))) *)
-  0x6e034065;       (* arm_EXT Q5 Q3 Q3 64 *)
-  0x0ee4e067;       (* arm_PMULL_VEC Q7 Q3 Q4 64 *)
-  0x6e211ea3;       (* arm_EOR_VEC Q3 Q21 Q1 128 *)
-  0x6e321cc1;       (* arm_EOR_VEC Q1 Q6 Q18 128 *)
-  0x6e271ca6;       (* arm_EOR_VEC Q6 Q5 Q7 128 *)
-  0x6e034065;       (* arm_EXT Q5 Q3 Q3 64 *)
-  0x4ee3e007;       (* arm_PMULL2_VEC Q7 Q0 Q3 64 *)
-  0x0ee3e051;       (* arm_PMULL_VEC Q17 Q2 Q3 64 *)
-  0x0ee3e012;       (* arm_PMULL_VEC Q18 Q0 Q3 64 *)
+  0x9e670083;       (* arm_FMOV_ItoF Q3 X4 0 *)
+  0x4f415404;       (* arm_SHL_VEC Q4 Q0 1 64 128 *)
   0x0ee3e060;       (* arm_PMULL_VEC Q0 Q3 Q3 64 *)
-  0x4ee3e073;       (* arm_PMULL2_VEC Q19 Q3 Q3 64 *)
-  0x4ee3e054;       (* arm_PMULL2_VEC Q20 Q2 Q3 64 *)
-  0x6e211cc2;       (* arm_EOR_VEC Q2 Q6 Q1 128 *)
-  0x6e321ce1;       (* arm_EOR_VEC Q1 Q7 Q18 128 *)
-  0x0ee4e226;       (* arm_PMULL_VEC Q6 Q17 Q4 64 *)
-  0x6e114227;       (* arm_EXT Q7 Q17 Q17 64 *)
-  0x0ee4e011;       (* arm_PMULL_VEC Q17 Q0 Q4 64 *)
-  0x6e331c12;       (* arm_EOR_VEC Q18 Q0 Q19 128 *)
-  0x4ee4e013;       (* arm_PMULL2_VEC Q19 Q0 Q4 64 *)
-  0x6e251c60;       (* arm_EOR_VEC Q0 Q3 Q5 128 *)
-  0x0ee2e075;       (* arm_PMULL_VEC Q21 Q3 Q2 64 *)
-  0x4ee2e0b6;       (* arm_PMULL2_VEC Q22 Q5 Q2 64 *)
-  0x0ee2e0b7;       (* arm_PMULL_VEC Q23 Q5 Q2 64 *)
-  0x0ee2e058;       (* arm_PMULL_VEC Q24 Q2 Q2 64 *)
-  0x4ee2e059;       (* arm_PMULL2_VEC Q25 Q2 Q2 64 *)
-  0x4ee2e07a;       (* arm_PMULL2_VEC Q26 Q3 Q2 64 *)
-  0x6e261c23;       (* arm_EOR_VEC Q3 Q1 Q6 128 *)
-  0x6e114221;       (* arm_EXT Q1 Q17 Q17 64 *)
-  0x0ee4e226;       (* arm_PMULL_VEC Q6 Q17 Q4 64 *)
-  0x6e024051;       (* arm_EXT Q17 Q2 Q2 64 *)
-  0x6e371edb;       (* arm_EOR_VEC Q27 Q22 Q23 128 *)
-  0x6e331e56;       (* arm_EOR_VEC Q22 Q18 Q19 128 *)
-  0x6e1542b2;       (* arm_EXT Q18 Q21 Q21 64 *)
-  0x0ee4e2b3;       (* arm_PMULL_VEC Q19 Q21 Q4 64 *)
-  0x0ee4e315;       (* arm_PMULL_VEC Q21 Q24 Q4 64 *)
-  0x6e391f17;       (* arm_EOR_VEC Q23 Q24 Q25 128 *)
-  0x4ee4e319;       (* arm_PMULL2_VEC Q25 Q24 Q4 64 *)
-  0x6e311c58;       (* arm_EOR_VEC Q24 Q2 Q17 128 *)
-  0xad014410;       (* arm_STP Q16 Q17 X0 (Immediate_Offset (iword (&32))) *)
-  0x6e271c62;       (* arm_EOR_VEC Q2 Q3 Q7 128 *)
-  0x6e261c23;       (* arm_EOR_VEC Q3 Q1 Q6 128 *)
-  0x6e331f61;       (* arm_EOR_VEC Q1 Q27 Q19 128 *)
-  0x6e1542a6;       (* arm_EXT Q6 Q21 Q21 64 *)
-  0x0ee4e2a7;       (* arm_PMULL_VEC Q7 Q21 Q4 64 *)
-  0x6e391ef0;       (* arm_EOR_VEC Q16 Q23 Q25 128 *)
-  0x6e004311;       (* arm_EXT Q17 Q24 Q0 64 *)
-  0x6e024040;       (* arm_EXT Q0 Q2 Q2 64 *)
-  0x0ee4e053;       (* arm_PMULL_VEC Q19 Q2 Q4 64 *)
-  0x6e231ec2;       (* arm_EOR_VEC Q2 Q22 Q3 128 *)
-  0x6e321c23;       (* arm_EOR_VEC Q3 Q1 Q18 128 *)
-  0x6e271cc1;       (* arm_EOR_VEC Q1 Q6 Q7 128 *)
-  0xad021411;       (* arm_STP Q17 Q5 X0 (Immediate_Offset (iword (&64))) *)
-  0x6e341c05;       (* arm_EOR_VEC Q5 Q0 Q20 128 *)
-  0x6e024040;       (* arm_EXT Q0 Q2 Q2 64 *)
-  0x6e034066;       (* arm_EXT Q6 Q3 Q3 64 *)
-  0x0ee4e067;       (* arm_PMULL_VEC Q7 Q3 Q4 64 *)
-  0x6e211e03;       (* arm_EOR_VEC Q3 Q16 Q1 128 *)
-  0x6e251e61;       (* arm_EOR_VEC Q1 Q19 Q5 128 *)
-  0x6e201c44;       (* arm_EOR_VEC Q4 Q2 Q0 128 *)
-  0x6e3a1cc2;       (* arm_EOR_VEC Q2 Q6 Q26 128 *)
-  0x6e034065;       (* arm_EXT Q5 Q3 Q3 64 *)
-  0x6e014026;       (* arm_EXT Q6 Q1 Q1 64 *)
-  0x6e221cf0;       (* arm_EOR_VEC Q16 Q7 Q2 128 *)
-  0x6e251c62;       (* arm_EOR_VEC Q2 Q3 Q5 128 *)
-  0x6e261c23;       (* arm_EOR_VEC Q3 Q1 Q6 128 *)
+  0x0ee4e083;       (* arm_PMULL_VEC Q3 Q4 Q4 64 *)
+  0x6e014025;       (* arm_EXT Q5 Q1 Q1 64 *)
+  0x4ee2e006;       (* arm_PMULL2_VEC Q6 Q0 Q2 64 *)
+  0x0ee2e007;       (* arm_PMULL_VEC Q7 Q0 Q2 64 *)
+  0x4ea51c90;       (* arm_ORR_VEC Q16 Q4 Q5 128 *)
+  0x6e0740e4;       (* arm_EXT Q4 Q7 Q7 64 *)
+  0x0ee2e0f1;       (* arm_PMULL_VEC Q17 Q7 Q2 64 *)
+  0x0ee2e027;       (* arm_PMULL_VEC Q7 Q1 Q2 64 *)
+  0x6e251c32;       (* arm_EOR_VEC Q18 Q1 Q5 128 *)
+  0x6e231c01;       (* arm_EOR_VEC Q1 Q0 Q3 128 *)
+  0x6e271e00;       (* arm_EOR_VEC Q0 Q16 Q7 128 *)
+  0x4ec72a43;       (* arm_TRN1 Q3 Q18 Q7 64 128 *)
+  0x6e211cc5;       (* arm_EOR_VEC Q5 Q6 Q1 128 *)
+  0x6e311c81;       (* arm_EOR_VEC Q1 Q4 Q17 128 *)
+  0x6e251c64;       (* arm_EOR_VEC Q4 Q3 Q5 128 *)
+  0x6e241c23;       (* arm_EOR_VEC Q3 Q1 Q4 128 *)
+  0x6e004001;       (* arm_EXT Q1 Q0 Q0 64 *)
+  0x0ee3e064;       (* arm_PMULL_VEC Q4 Q3 Q3 64 *)
+  0x0ee3e005;       (* arm_PMULL_VEC Q5 Q0 Q3 64 *)
+  0x4ee3e006;       (* arm_PMULL2_VEC Q6 Q0 Q3 64 *)
+  0x4ee3e067;       (* arm_PMULL2_VEC Q7 Q3 Q3 64 *)
+  0x6e034070;       (* arm_EXT Q16 Q3 Q3 64 *)
+  0x4ee3e031;       (* arm_PMULL2_VEC Q17 Q1 Q3 64 *)
+  0x0ee3e032;       (* arm_PMULL_VEC Q18 Q1 Q3 64 *)
+  0x0ee2e093;       (* arm_PMULL_VEC Q19 Q4 Q2 64 *)
+  0x6e251cd4;       (* arm_EOR_VEC Q20 Q6 Q5 128 *)
+  0x0ee2e265;       (* arm_PMULL_VEC Q5 Q19 Q2 64 *)
+  0x4ee2e086;       (* arm_PMULL2_VEC Q6 Q4 Q2 64 *)
+  0x6e271c95;       (* arm_EOR_VEC Q21 Q4 Q7 128 *)
+  0x6e124244;       (* arm_EXT Q4 Q18 Q18 64 *)
+  0x0ee2e247;       (* arm_PMULL_VEC Q7 Q18 Q2 64 *)
+  0x6e134272;       (* arm_EXT Q18 Q19 Q19 64 *)
+  0x6e144293;       (* arm_EXT Q19 Q20 Q20 64 *)
+  0x0ee2e296;       (* arm_PMULL_VEC Q22 Q20 Q2 64 *)
+  0x6e261eb4;       (* arm_EOR_VEC Q20 Q21 Q6 128 *)
+  0x4ec32806;       (* arm_TRN1 Q6 Q0 Q3 64 128 *)
+  0x4ec36815;       (* arm_TRN2 Q21 Q0 Q3 64 128 *)
+  0x6e351cc3;       (* arm_EOR_VEC Q3 Q6 Q21 128 *)
+  0x6e271c86;       (* arm_EOR_VEC Q6 Q4 Q7 128 *)
+  0x6e251e44;       (* arm_EOR_VEC Q4 Q18 Q5 128 *)
+  0x6e331ec5;       (* arm_EOR_VEC Q5 Q22 Q19 128 *)
+  0xad000c00;       (* arm_STP Q0 Q3 X0 (Immediate_Offset (iword (&0))) *)
+  0x6e0640c3;       (* arm_EXT Q3 Q6 Q6 64 *)
+  0x0ee2e0c7;       (* arm_PMULL_VEC Q7 Q6 Q2 64 *)
+  0x6e241e86;       (* arm_EOR_VEC Q6 Q20 Q4 128 *)
+  0x6e311ca4;       (* arm_EOR_VEC Q4 Q5 Q17 128 *)
+  0x6e271c65;       (* arm_EOR_VEC Q5 Q3 Q7 128 *)
+  0x6e0640c3;       (* arm_EXT Q3 Q6 Q6 64 *)
+  0x0ee6e007;       (* arm_PMULL_VEC Q7 Q0 Q6 64 *)
+  0x4ee6e011;       (* arm_PMULL2_VEC Q17 Q0 Q6 64 *)
+  0x0ee6e020;       (* arm_PMULL_VEC Q0 Q1 Q6 64 *)
+  0x0ee6e0d2;       (* arm_PMULL_VEC Q18 Q6 Q6 64 *)
+  0x4ee6e0d3;       (* arm_PMULL2_VEC Q19 Q6 Q6 64 *)
+  0x4ee6e034;       (* arm_PMULL2_VEC Q20 Q1 Q6 64 *)
+  0x6e241ca1;       (* arm_EOR_VEC Q1 Q5 Q4 128 *)
+  0x6e271e24;       (* arm_EOR_VEC Q4 Q17 Q7 128 *)
+  0x0ee2e005;       (* arm_PMULL_VEC Q5 Q0 Q2 64 *)
+  0x6e004007;       (* arm_EXT Q7 Q0 Q0 64 *)
+  0x0ee2e240;       (* arm_PMULL_VEC Q0 Q18 Q2 64 *)
+  0x6e331e51;       (* arm_EOR_VEC Q17 Q18 Q19 128 *)
+  0x4ee2e253;       (* arm_PMULL2_VEC Q19 Q18 Q2 64 *)
+  0x0ee1e0d2;       (* arm_PMULL_VEC Q18 Q6 Q1 64 *)
+  0x4ee1e075;       (* arm_PMULL2_VEC Q21 Q3 Q1 64 *)
+  0x0ee1e076;       (* arm_PMULL_VEC Q22 Q3 Q1 64 *)
+  0x0ee1e037;       (* arm_PMULL_VEC Q23 Q1 Q1 64 *)
+  0x4ee1e038;       (* arm_PMULL2_VEC Q24 Q1 Q1 64 *)
+  0x4ee1e0d9;       (* arm_PMULL2_VEC Q25 Q6 Q1 64 *)
+  0x6e251c9a;       (* arm_EOR_VEC Q26 Q4 Q5 128 *)
+  0x6e004004;       (* arm_EXT Q4 Q0 Q0 64 *)
+  0x0ee2e005;       (* arm_PMULL_VEC Q5 Q0 Q2 64 *)
+  0x6e014020;       (* arm_EXT Q0 Q1 Q1 64 *)
+  0x6e331e3b;       (* arm_EOR_VEC Q27 Q17 Q19 128 *)
+  0x6e124251;       (* arm_EXT Q17 Q18 Q18 64 *)
+  0x0ee2e253;       (* arm_PMULL_VEC Q19 Q18 Q2 64 *)
+  0x0ee2e2f2;       (* arm_PMULL_VEC Q18 Q23 Q2 64 *)
+  0x6e381efc;       (* arm_EOR_VEC Q28 Q23 Q24 128 *)
+  0x4ee2e2f8;       (* arm_PMULL2_VEC Q24 Q23 Q2 64 *)
+  0xad010010;       (* arm_STP Q16 Q0 X0 (Immediate_Offset (iword (&32))) *)
+  0x6e271f40;       (* arm_EOR_VEC Q0 Q26 Q7 128 *)
+  0x6e251c87;       (* arm_EOR_VEC Q7 Q4 Q5 128 *)
+  0x6e124244;       (* arm_EXT Q4 Q18 Q18 64 *)
+  0x0ee2e245;       (* arm_PMULL_VEC Q5 Q18 Q2 64 *)
+  0x6e381f90;       (* arm_EOR_VEC Q16 Q28 Q24 128 *)
+  0x4ec62832;       (* arm_TRN1 Q18 Q1 Q6 64 128 *)
+  0x4ec66837;       (* arm_TRN2 Q23 Q1 Q6 64 128 *)
+  0x6e371e41;       (* arm_EOR_VEC Q1 Q18 Q23 128 *)
+  0x6e004006;       (* arm_EXT Q6 Q0 Q0 64 *)
+  0x0ee2e012;       (* arm_PMULL_VEC Q18 Q0 Q2 64 *)
+  0x6e271f60;       (* arm_EOR_VEC Q0 Q27 Q7 128 *)
+  0x6e361ea7;       (* arm_EOR_VEC Q7 Q21 Q22 128 *)
+  0x6e331e35;       (* arm_EOR_VEC Q21 Q17 Q19 128 *)
+  0x6e351cf1;       (* arm_EOR_VEC Q17 Q7 Q21 128 *)
+  0x6e251c87;       (* arm_EOR_VEC Q7 Q4 Q5 128 *)
+  0xad020c01;       (* arm_STP Q1 Q3 X0 (Immediate_Offset (iword (&64))) *)
+  0x6e341cc1;       (* arm_EOR_VEC Q1 Q6 Q20 128 *)
+  0x6e004003;       (* arm_EXT Q3 Q0 Q0 64 *)
+  0x6e271e04;       (* arm_EOR_VEC Q4 Q16 Q7 128 *)
+  0x6e114225;       (* arm_EXT Q5 Q17 Q17 64 *)
+  0x0ee2e226;       (* arm_PMULL_VEC Q6 Q17 Q2 64 *)
+  0x6e211e42;       (* arm_EOR_VEC Q2 Q18 Q1 128 *)
+  0x6e391ca1;       (* arm_EOR_VEC Q1 Q5 Q25 128 *)
+  0x6e044085;       (* arm_EXT Q5 Q4 Q4 64 *)
+  0x6e024047;       (* arm_EXT Q7 Q2 Q2 64 *)
+  0x6e211cd0;       (* arm_EOR_VEC Q16 Q6 Q1 128 *)
   0x6e104201;       (* arm_EXT Q1 Q16 Q16 64 *)
-  0x6e024067;       (* arm_EXT Q7 Q3 Q2 64 *)
-  0x6e211e02;       (* arm_EOR_VEC Q2 Q16 Q1 128 *)
+  0x4ec42846;       (* arm_TRN1 Q6 Q2 Q4 64 128 *)
+  0x4ec46851;       (* arm_TRN2 Q17 Q2 Q4 64 128 *)
+  0x6e311cc2;       (* arm_EOR_VEC Q2 Q6 Q17 128 *)
   0xad040405;       (* arm_STP Q5 Q1 X0 (Immediate_Offset (iword (&128))) *)
-  0x6e044041;       (* arm_EXT Q1 Q2 Q4 64 *)
-  0xad031c06;       (* arm_STP Q6 Q7 X0 (Immediate_Offset (iword (&96))) *)
-  0xad050001;       (* arm_STP Q1 Q0 X0 (Immediate_Offset (iword (&160))) *)
+  0x4ec02a01;       (* arm_TRN1 Q1 Q16 Q0 64 128 *)
+  0x4ec06a04;       (* arm_TRN2 Q4 Q16 Q0 64 128 *)
+  0x6e241c20;       (* arm_EOR_VEC Q0 Q1 Q4 128 *)
+  0xad030807;       (* arm_STP Q7 Q2 X0 (Immediate_Offset (iword (&96))) *)
+  0xad050c00;       (* arm_STP Q0 Q3 X0 (Immediate_Offset (iword (&160))) *)
   0xd65f03c0        (* arm_RET X30 *)
 ];;
 
@@ -571,13 +564,18 @@ let SQUARE_TAC k a = GUERON_ATOMS_TAC k true a a;;       (* a . a *)
 (* are what let the spec's `p_lo`/`p_hi` be rewritten into that form.          *)
 (* ------------------------------------------------------------------------- *)
 
-(* The `and` that selects the conditional constant, split into its two lanes.  *)
-let FMASK = prove
- (`!m:int64. word_and (word_join m m:int128)
-                      (word 0xc2000000000000000000000000000001) =
-             word_join (word_and (word 0xc200000000000000) m)
-                       (word_and (word 1) m)`,
-  GEN_TAC THEN CONV_TAC WORD_BLAST);;
+(* (There used to be an FMASK lemma here, splitting the `and` that selected the  *)
+(* conditional constant into its two lanes.  The routine no longer HAS that       *)
+(* `and`: the masked modulus is `trn1(u ^ ext(u,u,8), pmull(u.d[0],w))`, so the    *)
+(* only fact the low lane needs is CARRY_BIT_USHR above.)                         *)
+
+(* The carry bit in the two forms the two sides produce: the spec's masked      *)
+(* `word_and (word 1) (word_ishr x 63)` (what TWIST_LANES / CARRY_PMULS leave)   *)
+(* is literally the hardware's `word_ushr x 63` -- the routine now reads the      *)
+(* carry straight out of `u = H >>u 63` instead of masking a broadcast `sshr`.    *)
+let CARRY_BIT_USHR = prove
+ (`!x:int64. word_and (word 1) (word_ishr x 63) = word_ushr x 63`,
+  GEN_TAC THEN BITBLAST_TAC);;
 
 (* ghash_twist's two 64-bit lanes as XORs of DISJOINT summands.  Lane 0 needs   *)
 (* only the shift and the other lane's top bit; lane 1 additionally carries the *)
@@ -646,7 +644,11 @@ let SPLIT_INPUT_TAC =
 (* the later power blocks do, which is what keeps their `word_or`-free algebra   *)
 (* usable here.  The raw term is read off the assumption for register `rname`     *)
 (* rather than transcribed, so a reschedule -- or a reallocation -- of the twist  *)
-(* does not invalidate this.                                                      *)
+(* does not invalidate this.  The twisted key's raw expression now contains a      *)
+(* `word_pmul` (the one-instruction conditional modulus), and BITBLAST cannot see   *)
+(* inside `word_pmul`, so the obligation is first normalized by LANE_CONV -- which  *)
+(* reduces the `word_subword`s around the carry lane -- and then collapsed by       *)
+(* CARRY_PMULS; only then is it a pure bit identity.                               *)
 let ATOMIZE_TWIST_TAC rname sname atom : tactic =
   fun (asl,w) ->
     let is_reg th = match concl th with
@@ -656,7 +658,8 @@ let ATOMIZE_TWIST_TAC rname sname atom : tactic =
     let th = snd(find (fun (_,t) -> is_reg t) asl) in
     let raw = rand(concl th) in
     (SUBGOAL_THEN (mk_eq(raw,atom)) SUBST_ALL_TAC THENL
-      [REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN BITBLAST_TAC;
+      [CONV_TAC LANE_CONV THEN REWRITE_TAC[CARRY_PMULS] THEN
+       REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN BITBLAST_TAC;
        ALL_TAC]) (asl,w);;
 
 (* Same idea for a POWER computed mid-block.  Once six powers share one block the  *)
@@ -691,17 +694,21 @@ let ATOMIZE_POWER_TAC rname sname atom tac : tactic =
 (* LANE_CONV's distribution of pmul-by-w is what exposes the next carry-only     *)
 (* product, and CARRY_PMULS' `word_join` results are what LANE_CONV then splits  *)
 (* into lanes.  Three rounds reach the fixpoint (the reduce is two deep).        *)
+(* CARRY_BIT_USHR rides along in every round: CARRY_PMULS states its results in   *)
+(* the masked `word_and (word 1) (word_ishr x 63)` form, while the routine now     *)
+(* reads the carry straight out of `u = H >>u 63`, so without normalizing the two  *)
+(* spellings the last lane does not close.                                        *)
 let CARRY_CLOSE_TAC =
   REPEAT CONJ_TAC THEN
   MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
   CONV_TAC LANE_CONV THEN
-  REWRITE_TAC[CARRY_PMULS] THEN CONV_TAC LANE_CONV THEN
-  REWRITE_TAC[CARRY_PMULS] THEN CONV_TAC LANE_CONV THEN
-  REWRITE_TAC[CARRY_PMULS] THEN CONV_TAC LANE_CONV THEN
+  REWRITE_TAC[CARRY_PMULS; CARRY_BIT_USHR] THEN CONV_TAC LANE_CONV THEN
+  REWRITE_TAC[CARRY_PMULS; CARRY_BIT_USHR] THEN CONV_TAC LANE_CONV THEN
+  REWRITE_TAC[CARRY_PMULS; CARRY_BIT_USHR] THEN CONV_TAC LANE_CONV THEN
   CONV_TAC WORD_BITWISE_RULE;;
 
 (* ========================================================================= *)
-(* Phase 1: the FUSED twist + H^2 block (PC 0x0 -> 0x80, 32 steps).           *)
+(* Phase 1: the FUSED twist + H^2 block (PC 0x0 -> 0x64, 25 steps).           *)
 (*                                                                            *)
 (* The routine never forms the twisted key's two carryless products.  Both the *)
 (* twist `T` and the Gueron reduce `L` are GF(2)-LINEAR and a carryless SQUARE  *)
@@ -717,7 +724,16 @@ let CARRY_CLOSE_TAC =
 (* and its interface is just three registers.                                  *)
 (*                                                                            *)
 (* The twisted key lands in Q0 (it is Q0 that ATOMIZE_TWIST_TAC folds), the      *)
-(* reduction constant w in Q4 and H^2 in Q1.                                   *)
+(* reduction constant w in Q2 and H^2 in Q3.                                   *)
+(*                                                                            *)
+(* The conditional constant is no longer BUILT.  `u = H >>u 63` (per lane)     *)
+(* already holds the carry as the INTEGER 0/1 in lane 0, so pmull(u.d[0], w)   *)
+(* IS {carry ? 0xc2..00 : 0, 0} bit for bit -- which is literally clause 2 of  *)
+(* CARRY_PMULS below -- and trn1(u ^ ext(u,u,8), that) is the masked POLYVAL   *)
+(* modulus with u.d[1] already xored into its low lane.  So the 0xff and 0x0   *)
+(* `movi`s, the {1,1}, the `ext` that assembled Q, the `sshr` mask, its `trn1` *)
+(* broadcast, the `and` and one `eor` are all gone -- and FMASK with them; the *)
+(* only new fact needed is CARRY_BIT_USHR for the low lane.                                   *)
 (* ========================================================================= *)
 
 let GCM_INIT_V8_TWIST_H2 = prove
@@ -730,11 +746,11 @@ let GCM_INIT_V8_TWIST_H2 = prove
               read PC s = word pc /\
               C_ARGUMENTS [Htable; H_ptr] s /\
               read (memory :> bytes128 H_ptr) s = H)
-         (\s. read PC s = word (pc + 0x80) /\
+         (\s. read PC s = word (pc + 0x64) /\
               read X0 s = Htable /\
-              read Q4 s = word 0xc200000000000000c200000000000000 /\
+              read Q2 s = word 0xc200000000000000c200000000000000 /\
               read Q0 s = byteswap128 h1 /\
-              read Q1 s = h_power h1 1)
+              read Q3 s = h_power h1 1)
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
   MAP_EVERY X_GEN_TAC
@@ -745,11 +761,10 @@ let GCM_INIT_V8_TWIST_H2 = prove
   REWRITE_TAC[SOME_FLAGS; MODIFIABLE_SIMD_REGS] THEN
   ENSURES_INIT_TAC "s0" THEN
   SPLIT_INPUT_TAC THEN
-  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--31) THEN
-  ATOMIZE_TWIST_TAC "Q0" "s31" `byteswap128(ghash_twist(byteswap128 H))` THEN
-  ARM_STEPS_TAC GCM_INIT_V8_EXEC (32--32) THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--20) THEN
+  ATOMIZE_TWIST_TAC "Q0" "s20" `byteswap128(ghash_twist(byteswap128 H))` THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (21--25) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[FMASK] THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
   SPEC_UNFOLD_TAC THEN
   REWRITE_TAC[TWIST_LANES] THEN
@@ -757,7 +772,7 @@ let GCM_INIT_V8_TWIST_H2 = prove
   CARRY_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 2: ALL SIX remaining powers in one block, PC 0x80 -> 0x1e4 (89 steps).*)
+(* Phase 2: ALL SIX remaining powers in one block, PC 0x64 -> 0x1c4 (88 steps).*)
 (*                                                                            *)
 (*   H^3 = h_power h1 2 = polyval_dot h1 H^2   (genuine)                       *)
 (*   H^4 = h_power h1 3 = polyval_dot H^2 H^2  (a SQUARE)                      *)
@@ -769,10 +784,9 @@ let GCM_INIT_V8_TWIST_H2 = prove
 (* One block for six powers is FORCED by the schedule, not chosen.  The stream  *)
 (* is the best topological order of the whole dependence graph that a hardware- *)
 (* scored search found, so the six reduction chains are completely interleaved   *)
-(* and PC 0x1e4 is the only place in 0x80..0x208 where every live value is a     *)
-(* named quantity.  (The one other candidate, PC 0x1e4-72 steps, would have to   *)
-(* export four raw 64x64 products and two cross products, i.e. six bespoke       *)
-(* conjuncts, to buy nothing.)  Nothing about the ALGEBRA changes: the block      *)
+(* and PC 0x1c4 is the first place in 0x64..0x1ec where every live value is a     *)
+(* named quantity; the other clean cuts (0x1c8, 0x1d4, 0x1d8, 0x1e4, 0x1e8) are   *)
+(* all inside the tail.  Nothing about the ALGEBRA changes: the block             *)
 (* just runs GUERON_ATOMS_TAC six times instead of two.                          *)
 (*                                                                            *)
 (* H^5 is stated as h1 . H^4 and H^7 as H^4 . H^3 because the cross products     *)
@@ -783,9 +797,13 @@ let GCM_INIT_V8_TWIST_H2 = prove
 (* Also finishes the first block's table work, which the schedule moved down     *)
 (* here because it has slack and H^3's four products do not: the algebraic-lane  *)
 (* copy of the key, byteswap128 H^2, the folds of H and H^2 and their pack.      *)
-(* Stores Htable[0..5].  Live out: H^5 (Q1), H^6 (Q3), H^7 (Q16), byteswap128    *)
-(* H^5 (Q6) and H^6 (Q5), byteswap128 H^8 (Q0) and H^8's fold (Q4) -- w dies     *)
-(* here, the last block has no products.                                        *)
+(* Stores Htable[0..5].  Live out: H^5 (Q2), H^6 (Q4), H^7 (Q16), H^8 (Q0),     *)
+(* byteswap128 H^5 (Q7), H^6 (Q5) and H^8 (Q3) -- w dies here, the last block    *)
+(* has no products.  H^8 ITSELF (not its fold) is in the interface now, because  *)
+(* the packed mids are built by trn1/trn2 straight off the two RAW powers        *)
+(* instead of from their folds: trn1(A,B) ^ trn2(A,B) = {mid A, mid B} is the    *)
+(* same three instructions but two cycles shallower, and LANE_CONV already knows *)
+(* TRN1/TRN2 (they unfold to a word_join of one lane from each operand).         *)
 (* ========================================================================= *)
 
 let GCM_INIT_V8_H345678 = prove
@@ -793,21 +811,20 @@ let GCM_INIT_V8_H345678 = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x80) /\
+              read PC s = word (pc + 0x64) /\
               read X0 s = Htable /\
-              read Q4 s = word 0xc200000000000000c200000000000000 /\
+              read Q2 s = word 0xc200000000000000c200000000000000 /\
               read Q0 s = byteswap128 h1 /\
-              read Q1 s = h_power h1 1)
-         (\s. read PC s = word (pc + 0x1e4) /\
+              read Q3 s = h_power h1 1)
+         (\s. read PC s = word (pc + 0x1c4) /\
               read X0 s = Htable /\
-              read Q1 s = h_power h1 4 /\
-              read Q3 s = h_power h1 5 /\
+              read Q2 s = h_power h1 4 /\
+              read Q4 s = h_power h1 5 /\
               read Q16 s = h_power h1 6 /\
-              read Q6 s = byteswap128 (h_power h1 4) /\
+              read Q0 s = h_power h1 7 /\
+              read Q7 s = byteswap128 (h_power h1 4) /\
               read Q5 s = byteswap128 (h_power h1 5) /\
-              read Q0 s = byteswap128 (h_power h1 7) /\
-              read Q4 s = word_join (karatsuba_mid (h_power h1 7))
-                                    (karatsuba_mid (h_power h1 7)) /\
+              read Q3 s = byteswap128 (h_power h1 7) /\
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (h_power h1 1)) (karatsuba_mid h1) /\
@@ -832,14 +849,14 @@ let GCM_INIT_V8_H345678 = prove
     `h4 = polyval_dot h2 h2`] THEN
   ENSURES_INIT_TAC "s0" THEN
   ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--29) THEN
-  ATOMIZE_POWER_TAC "Q3" "s29" `h4:int128`
+  ATOMIZE_POWER_TAC "Q6" "s29" `h4:int128`
    (EXPAND_TAC "h4" THEN SPEC_UNFOLD_TAC THEN
     SQUARE_TAC 4 `h2:int128` THEN LANE_CLOSE_TAC) THEN
   ARM_STEPS_TAC GCM_INIT_V8_EXEC (30--39) THEN
-  ATOMIZE_POWER_TAC "Q2" "s39" `h3:int128`
+  ATOMIZE_POWER_TAC "Q1" "s39" `h3:int128`
    (EXPAND_TAC "h3" THEN SPEC_UNFOLD_TAC THEN
     PRODUCT_TAC 3 `h1:int128` `h2:int128` THEN LANE_CLOSE_TAC) THEN
-  ARM_STEPS_TAC GCM_INIT_V8_EXEC (40--89) THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (40--88) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   SPEC_UNFOLD_TAC THEN
   PRODUCT_TAC 5 `h1:int128` `h4:int128` THEN
@@ -849,10 +866,10 @@ let GCM_INIT_V8_H345678 = prove
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 3: the closing block, PC 0x1e4 -> 0x208 (9 steps, ends at the ret).   *)
+(* Phase 3: the closing block, PC 0x1c4 -> 0x1ec (10 steps, ends at the ret).  *)
 (*                                                                            *)
-(* No products at all: byteswap128 H^7, the folds of H^5, H^6 and H^7, the two  *)
-(* remaining Karatsuba packs (each one `ext` of two broadcast folds) and the     *)
+(* No products at all: byteswap128 H^7, the two remaining Karatsuba packs (each *)
+(* a trn1/trn2 pair off the two RAW powers plus an `eor`) and the                *)
 (* last three `stp`s, Htable[6..11].  Every operand is an opaque power out of    *)
 (* the precondition, so the whole block closes on lane identities alone -- no    *)
 (* PMUL reasoning and no atoms, though SPEC_UNFOLD_TAC is still what turns the   *)
@@ -867,16 +884,15 @@ let GCM_INIT_V8_TAIL = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x1e4) /\
+              read PC s = word (pc + 0x1c4) /\
               read X0 s = Htable /\
-              read Q1 s = h_power h1 4 /\
-              read Q3 s = h_power h1 5 /\
+              read Q2 s = h_power h1 4 /\
+              read Q4 s = h_power h1 5 /\
               read Q16 s = h_power h1 6 /\
-              read Q6 s = byteswap128 (h_power h1 4) /\
+              read Q0 s = h_power h1 7 /\
+              read Q7 s = byteswap128 (h_power h1 4) /\
               read Q5 s = byteswap128 (h_power h1 5) /\
-              read Q0 s = byteswap128 (h_power h1 7) /\
-              read Q4 s = word_join (karatsuba_mid (h_power h1 7))
-                                    (karatsuba_mid (h_power h1 7)) /\
+              read Q3 s = byteswap128 (h_power h1 7) /\
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (h_power h1 1)) (karatsuba_mid h1) /\
@@ -888,7 +904,7 @@ let GCM_INIT_V8_TAIL = prove
                 word_join (karatsuba_mid (h_power h1 3)) (karatsuba_mid (h_power h1 2)) /\
               read (memory :> bytes128 (word_add Htable (word 80))) s =
                 byteswap128 (h_power h1 3))
-         (\s. read PC s = word (pc + 0x208) /\
+         (\s. read PC s = word (pc + 0x1ec) /\
               read X0 s = Htable /\
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
@@ -916,7 +932,7 @@ let GCM_INIT_V8_TAIL = prove
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
-  GCM_BLOCK_STEPS_TAC 9 THEN
+  GCM_BLOCK_STEPS_TAC 10 THEN
   SPEC_UNFOLD_TAC THEN
   LANE_CLOSE_TAC);;
 
@@ -924,7 +940,7 @@ let GCM_INIT_V8_TAIL = prove
 (* Phase 4: the core correctness theorem, GCM_INIT_V8_CORRECT.                *)
 (*                                                                            *)
 (* Compose the three blocks into one `ensures` from function entry (PC 0x0) to *)
-(* the `ret` (PC 0x208), establishing the full 12-slot htable_mem             *)
+(* the `ret` (PC 0x1ec), establishing the full 12-slot htable_mem             *)
 (* postcondition for the half-swapped algebraic key h1 = ghash_twist(         *)
 (* byteswap128 H).  Each block is applied as a single atomic transition with  *)
 (* ARM_BIGSTEP_TAC, so the raw pmull expansions never re-appear -- they were  *)
@@ -936,10 +952,10 @@ let GCM_INIT_V8_TAIL = prove
 (*                                                                            *)
 (* NONSELFMODIFYING NOTE (the one subtlety): ARM_BIGSTEP_TAC must show the     *)
 (* frame write  memory :> bytes(Htable,192)  is disjoint from the code region *)
-(* memory :> bytelist(word pc,524).  Its ORTHOGONAL_COMPONENTS_TAC scans the  *)
-(* assumptions for a RAW `nonoverlapping (word pc,524) (Htable,192)` driver    *)
-(* and needs the length CONCRETE (524).  Hence: reduce LENGTH gcm_init_v8_mc   *)
-(* to 524 via `fst GCM_INIT_V8_EXEC` in the setup rewrite, and do NOT rewrite  *)
+(* memory :> bytelist(word pc,496).  Its ORTHOGONAL_COMPONENTS_TAC scans the  *)
+(* assumptions for a RAW `nonoverlapping (word pc,496) (Htable,192)` driver    *)
+(* and needs the length CONCRETE (496).  Hence: reduce LENGTH gcm_init_v8_mc   *)
+(* to 496 via `fst GCM_INIT_V8_EXEC` in the setup rewrite, and do NOT rewrite  *)
 (* NONOVERLAPPING_CLAUSES on the initial assumptions (keep the driver form).   *)
 (* ========================================================================= *)
 
@@ -965,7 +981,7 @@ let GCM_INIT_V8_CORRECT = prove
               read PC s = word pc /\
               C_ARGUMENTS [Htable; H_ptr] s /\
               read (memory :> bytes128 H_ptr) s = H)
-         (\s. read PC s = word (pc + 0x208) /\
+         (\s. read PC s = word (pc + 0x1ec) /\
               htable_mem (ghash_twist(byteswap128 H)) Htable s)
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
@@ -989,7 +1005,7 @@ let GCM_INIT_V8_CORRECT = prove
 (* Phase 5: the standard-ABI subroutine wrapper (leaf, no stack frame).       *)
 (*                                                                            *)
 (* Wrap the core with the return via X30.  Two mechanical points:             *)
-(*  - Reduce LENGTH gcm_init_v8_mc to 524 (`fst GCM_INIT_V8_EXEC`) in the goal *)
+(*  - Reduce LENGTH gcm_init_v8_mc to 496 (`fst GCM_INIT_V8_EXEC`) in the goal *)
 (*    and in the core theorem so ARM_ADD_RETURN_NOSTACK_TAC's internal         *)
 (*    nonselfmodifying / NONOVERLAPPING checks see a concrete-length driver.   *)
 (*  - htable_mem is an opaque folded predicate that does NOT propagate through *)
