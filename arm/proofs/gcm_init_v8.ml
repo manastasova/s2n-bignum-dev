@@ -9,8 +9,9 @@
 (* common/polyval_ghash.ml.  X0 = Htable (192 bytes written), X1 = H.         *)
 (*                                                                            *)
 (* Layout: the routine is branch-free, so the proof is five straight-line     *)
-(* blocks tiling PC 0x0..0x1c4 -- the twist, then four power blocks computing  *)
-(* two of H^2..H^8 each -- composed by ARM_BIGSTEP_TAC into                    *)
+(* blocks tiling PC 0x0..0x1e4 -- the twist, then four power blocks covering   *)
+(* H^2..H^8 (two powers each, except that H^8 is hoisted forward so the third  *)
+(* holds three and the last holds one) -- composed by ARM_BIGSTEP_TAC into     *)
 (* GCM_INIT_V8_CORRECT.  The four power blocks differ only in which Q         *)
 (* registers and which powers they touch, so ALL their algebra lives once in   *)
 (* the two toolkit sections below and each block's script is the same six      *)
@@ -41,18 +42,19 @@ let gcm_init_v8_mc = define_assert_from_elf
   0x6e301e94;       (* arm_EOR_VEC Q20 Q20 Q16 128 *)
   0x6e144283;       (* arm_EXT Q3 Q20 Q20 64 *)
   0x4ef4e280;       (* arm_PMULL2_VEC Q0 Q20 Q20 64 *)
-  0x6e341c70;       (* arm_EOR_VEC Q16 Q3 Q20 128 *)
   0x0ef4e282;       (* arm_PMULL_VEC Q2 Q20 Q20 64 *)
-  0x6e004001;       (* arm_EXT Q1 Q0 Q0 64 *)
-  0x0ef3e012;       (* arm_PMULL_VEC Q18 Q0 Q19 64 *)
-  0x6e321c20;       (* arm_EOR_VEC Q0 Q1 Q18 128 *)
+  0x6e221c01;       (* arm_EOR_VEC Q1 Q0 Q2 128 *)
+  0x4ef3e012;       (* arm_PMULL2_VEC Q18 Q0 Q19 64 *)
+  0x0ef3e000;       (* arm_PMULL_VEC Q0 Q0 Q19 64 *)
+  0x6e321c21;       (* arm_EOR_VEC Q1 Q1 Q18 128 *)
   0x6e004012;       (* arm_EXT Q18 Q0 Q0 64 *)
   0x0ef3e000;       (* arm_PMULL_VEC Q0 Q0 Q19 64 *)
-  0x6e221e52;       (* arm_EOR_VEC Q18 Q18 Q2 128 *)
-  0x6e321c11;       (* arm_EOR_VEC Q17 Q0 Q18 128 *)
+  0x6e201e52;       (* arm_EOR_VEC Q18 Q18 Q0 128 *)
+  0x6e321c31;       (* arm_EOR_VEC Q17 Q1 Q18 128 *)
   0x6e114236;       (* arm_EXT Q22 Q17 Q17 64 *)
-  0x6e361e21;       (* arm_EOR_VEC Q1 Q17 Q22 128 *)
-  0x6e014215;       (* arm_EXT Q21 Q16 Q1 64 *)
+  0x4ed12a95;       (* arm_TRN1 Q21 Q20 Q17 64 128 *)
+  0x4ed16a81;       (* arm_TRN2 Q1 Q20 Q17 64 128 *)
+  0x6e211eb5;       (* arm_EOR_VEC Q21 Q21 Q1 128 *)
   0xad005414;       (* arm_STP Q20 Q21 X0 (Immediate_Offset (iword (&0))) *)
   0x0ef1e060;       (* arm_PMULL_VEC Q0 Q3 Q17 64 *)
   0x4ef1e062;       (* arm_PMULL2_VEC Q2 Q3 Q17 64 *)
@@ -63,26 +65,42 @@ let gcm_init_v8_mc = define_assert_from_elf
   0x6e301c21;       (* arm_EOR_VEC Q1 Q1 Q16 128 *)
   0x6e004010;       (* arm_EXT Q16 Q0 Q0 64 *)
   0x0ef3e012;       (* arm_PMULL_VEC Q18 Q0 Q19 64 *)
-  0x6e321c21;       (* arm_EOR_VEC Q1 Q1 Q18 128 *)
-  0x6e301c21;       (* arm_EOR_VEC Q1 Q1 Q16 128 *)
-  0x6e014032;       (* arm_EXT Q18 Q1 Q1 64 *)
+  0x6e321e00;       (* arm_EOR_VEC Q0 Q16 Q18 128 *)
+  0x6e014030;       (* arm_EXT Q16 Q1 Q1 64 *)
   0x0ef3e021;       (* arm_PMULL_VEC Q1 Q1 Q19 64 *)
-  0x6e221e52;       (* arm_EOR_VEC Q18 Q18 Q2 128 *)
-  0x6e321c35;       (* arm_EOR_VEC Q21 Q1 Q18 128 *)
-  0x6e0540a6;       (* arm_EXT Q6 Q5 Q5 64 *)
-  0x0ef3e0a4;       (* arm_PMULL_VEC Q4 Q5 Q19 64 *)
-  0x6e241cc5;       (* arm_EOR_VEC Q5 Q6 Q4 128 *)
+  0x6e004012;       (* arm_EXT Q18 Q0 Q0 64 *)
+  0x0ef3e000;       (* arm_PMULL_VEC Q0 Q0 Q19 64 *)
+  0x6e301c21;       (* arm_EOR_VEC Q1 Q1 Q16 128 *)
+  0x6e201e52;       (* arm_EOR_VEC Q18 Q18 Q0 128 *)
+  0x6e221c21;       (* arm_EOR_VEC Q1 Q1 Q2 128 *)
+  0x6e211e55;       (* arm_EOR_VEC Q21 Q18 Q1 128 *)
+  0x6e271ca6;       (* arm_EOR_VEC Q6 Q5 Q7 128 *)
+  0x4ef3e0a4;       (* arm_PMULL2_VEC Q4 Q5 Q19 64 *)
+  0x0ef3e0a5;       (* arm_PMULL_VEC Q5 Q5 Q19 64 *)
+  0x6e241cc6;       (* arm_EOR_VEC Q6 Q6 Q4 128 *)
   0x6e0540a4;       (* arm_EXT Q4 Q5 Q5 64 *)
   0x0ef3e0a5;       (* arm_PMULL_VEC Q5 Q5 Q19 64 *)
-  0x6e271c84;       (* arm_EOR_VEC Q4 Q4 Q7 128 *)
-  0x6e241cb4;       (* arm_EOR_VEC Q20 Q5 Q4 128 *)
+  0x6e251c84;       (* arm_EOR_VEC Q4 Q4 Q5 128 *)
+  0x6e241cd4;       (* arm_EOR_VEC Q20 Q6 Q4 128 *)
   0x6e1542b7;       (* arm_EXT Q23 Q21 Q21 64 *)
   0x6e144299;       (* arm_EXT Q25 Q20 Q20 64 *)
-  0x6e371eb0;       (* arm_EOR_VEC Q16 Q21 Q23 128 *)
-  0x6e391e92;       (* arm_EOR_VEC Q18 Q20 Q25 128 *)
-  0x6e124218;       (* arm_EXT Q24 Q16 Q18 64 *)
+  0x4ed42ab8;       (* arm_TRN1 Q24 Q21 Q20 64 128 *)
+  0x4ed46ab2;       (* arm_TRN2 Q18 Q21 Q20 64 128 *)
+  0x6e321f18;       (* arm_EOR_VEC Q24 Q24 Q18 128 *)
   0xad015c16;       (* arm_STP Q22 Q23 X0 (Immediate_Offset (iword (&32))) *)
   0xad026418;       (* arm_STP Q24 Q25 X0 (Immediate_Offset (iword (&64))) *)
+  0x0ef4e283;       (* arm_PMULL_VEC Q3 Q20 Q20 64 *)
+  0x4ef4e297;       (* arm_PMULL2_VEC Q23 Q20 Q20 64 *)
+  0x6e371c77;       (* arm_EOR_VEC Q23 Q3 Q23 128 *)
+  0x4ef3e078;       (* arm_PMULL2_VEC Q24 Q3 Q19 64 *)
+  0x0ef3e063;       (* arm_PMULL_VEC Q3 Q3 Q19 64 *)
+  0x6e381ef7;       (* arm_EOR_VEC Q23 Q23 Q24 128 *)
+  0x6e034078;       (* arm_EXT Q24 Q3 Q3 64 *)
+  0x0ef3e063;       (* arm_PMULL_VEC Q3 Q3 Q19 64 *)
+  0x6e231f18;       (* arm_EOR_VEC Q24 Q24 Q3 128 *)
+  0x6e381ef7;       (* arm_EOR_VEC Q23 Q23 Q24 128 *)
+  0x6e1742ff;       (* arm_EXT Q31 Q23 Q23 64 *)
+  0x6e3f1ef8;       (* arm_EOR_VEC Q24 Q23 Q31 128 *)
   0x0ef5e220;       (* arm_PMULL_VEC Q0 Q17 Q21 64 *)
   0x4ef5e222;       (* arm_PMULL2_VEC Q2 Q17 Q21 64 *)
   0x4ef5e2c1;       (* arm_PMULL2_VEC Q1 Q22 Q21 64 *)
@@ -98,25 +116,24 @@ let gcm_init_v8_mc = define_assert_from_elf
   0x0ef3e021;       (* arm_PMULL_VEC Q1 Q1 Q19 64 *)
   0x6e221e52;       (* arm_EOR_VEC Q18 Q18 Q2 128 *)
   0x6e321c30;       (* arm_EOR_VEC Q16 Q1 Q18 128 *)
-  0x6e0540a6;       (* arm_EXT Q6 Q5 Q5 64 *)
-  0x0ef3e0a4;       (* arm_PMULL_VEC Q4 Q5 Q19 64 *)
-  0x6e241cc5;       (* arm_EOR_VEC Q5 Q6 Q4 128 *)
+  0x6e271ca6;       (* arm_EOR_VEC Q6 Q5 Q7 128 *)
+  0x4ef3e0a4;       (* arm_PMULL2_VEC Q4 Q5 Q19 64 *)
+  0x0ef3e0a5;       (* arm_PMULL_VEC Q5 Q5 Q19 64 *)
+  0x6e241cc6;       (* arm_EOR_VEC Q6 Q6 Q4 128 *)
   0x6e0540a4;       (* arm_EXT Q4 Q5 Q5 64 *)
   0x0ef3e0a5;       (* arm_PMULL_VEC Q5 Q5 Q19 64 *)
-  0x6e271c84;       (* arm_EOR_VEC Q4 Q4 Q7 128 *)
-  0x6e241cb1;       (* arm_EOR_VEC Q17 Q5 Q4 128 *)
+  0x6e251c84;       (* arm_EOR_VEC Q4 Q4 Q5 128 *)
+  0x6e241cd1;       (* arm_EOR_VEC Q17 Q6 Q4 128 *)
   0x6e10421a;       (* arm_EXT Q26 Q16 Q16 64 *)
   0x6e11423c;       (* arm_EXT Q28 Q17 Q17 64 *)
-  0x6e3a1e10;       (* arm_EOR_VEC Q16 Q16 Q26 128 *)
-  0x6e3c1e31;       (* arm_EOR_VEC Q17 Q17 Q28 128 *)
-  0x6e11421b;       (* arm_EXT Q27 Q16 Q17 64 *)
+  0x4ed12a1b;       (* arm_TRN1 Q27 Q16 Q17 64 128 *)
+  0x4ed16a12;       (* arm_TRN2 Q18 Q16 Q17 64 128 *)
+  0x6e321f7b;       (* arm_EOR_VEC Q27 Q27 Q18 128 *)
   0xad036c1a;       (* arm_STP Q26 Q27 X0 (Immediate_Offset (iword (&96))) *)
   0x0ef5e280;       (* arm_PMULL_VEC Q0 Q20 Q21 64 *)
   0x4ef5e282;       (* arm_PMULL2_VEC Q2 Q20 Q21 64 *)
   0x4ef5e321;       (* arm_PMULL2_VEC Q1 Q25 Q21 64 *)
   0x0ef5e330;       (* arm_PMULL_VEC Q16 Q25 Q21 64 *)
-  0x0ef4e285;       (* arm_PMULL_VEC Q5 Q20 Q20 64 *)
-  0x4ef4e287;       (* arm_PMULL2_VEC Q7 Q20 Q20 64 *)
   0x6e301c21;       (* arm_EOR_VEC Q1 Q1 Q16 128 *)
   0x6e004010;       (* arm_EXT Q16 Q0 Q0 64 *)
   0x0ef3e012;       (* arm_PMULL_VEC Q18 Q0 Q19 64 *)
@@ -126,18 +143,9 @@ let gcm_init_v8_mc = define_assert_from_elf
   0x0ef3e021;       (* arm_PMULL_VEC Q1 Q1 Q19 64 *)
   0x6e221e52;       (* arm_EOR_VEC Q18 Q18 Q2 128 *)
   0x6e321c30;       (* arm_EOR_VEC Q16 Q1 Q18 128 *)
-  0x6e0540a6;       (* arm_EXT Q6 Q5 Q5 64 *)
-  0x0ef3e0a4;       (* arm_PMULL_VEC Q4 Q5 Q19 64 *)
-  0x6e241cc5;       (* arm_EOR_VEC Q5 Q6 Q4 128 *)
-  0x6e0540a4;       (* arm_EXT Q4 Q5 Q5 64 *)
-  0x0ef3e0a5;       (* arm_PMULL_VEC Q5 Q5 Q19 64 *)
-  0x6e271c84;       (* arm_EOR_VEC Q4 Q4 Q7 128 *)
-  0x6e241cb1;       (* arm_EOR_VEC Q17 Q5 Q4 128 *)
   0x6e10421d;       (* arm_EXT Q29 Q16 Q16 64 *)
-  0x6e11423f;       (* arm_EXT Q31 Q17 Q17 64 *)
-  0x6e3d1e10;       (* arm_EOR_VEC Q16 Q16 Q29 128 *)
-  0x6e3f1e31;       (* arm_EOR_VEC Q17 Q17 Q31 128 *)
-  0x6e11421e;       (* arm_EXT Q30 Q16 Q17 64 *)
+  0x6e3d1e12;       (* arm_EOR_VEC Q18 Q16 Q29 128 *)
+  0x6e18425e;       (* arm_EXT Q30 Q18 Q24 64 *)
   0xad04741c;       (* arm_STP Q28 Q29 X0 (Immediate_Offset (iword (&128))) *)
   0xad057c1e;       (* arm_STP Q30 Q31 X0 (Immediate_Offset (iword (&160))) *)
   0xd65f03c0        (* arm_RET X30 *)
@@ -373,6 +381,19 @@ let WORD_EQ_128_LANES = prove
 (* xor until only the opaque atoms remain, and drop the `word 0` lanes that    *)
 (* exposes -- including the ones a SQUARE's vanishing middle contributes.      *)
 (* One TOP_DEPTH_CONV over the whole rule set reaches the joint fixpoint.      *)
+(*                                                                            *)
+(* It ALSO fully distributes every pmul-by-w over its argument's xor chain     *)
+(* (WORD_PMUL_XOR, already in common/ghash.ml).  That is what makes the split  *)
+(* reductions provable.  The routine exploits that `\x. word_pmul x w` is      *)
+(* GF(2)-LINEAR to take Gueron's reduction apart (see the R-SPLIT note at      *)
+(* Phase 4): where the spec folds a whole xor chain through ONE pmul-by-w, the *)
+(* hardware multiplies the summands SEPARATELY and xors afterwards -- and for  *)
+(* the middle term, vice versa.  So the two sides' pmul-by-w terms are no      *)
+(* longer even permutations of each other and the old sort-based              *)
+(* canonicalization could not equate them.  Distributing instead pushes BOTH   *)
+(* sides down to the same multiset of `word_pmul <atomic lane> w`, which       *)
+(* WORD_BITWISE_RULE then closes as opaque atoms -- no new abbreviations and   *)
+(* no per-shape rewrite.                                                      *)
 let LANE_CONV =
   let shl_lanes = map WORD_BLAST
    [`(word_subword (word_shl (word_zx (x:128 word):256 word) 64) (0,64):64 word) = (word 0:64 word)`;
@@ -393,38 +414,23 @@ let LANE_CONV =
      (word_join (word_subword v (0,64):64 word) (word_subword x (0,64):64 word) :128 word)`]
   and xor_0 = CONJUNCTS(WORD_BLAST
    `(!x:64 word. word_xor x (word 0) = x) /\
-    (!x:64 word. word_xor (word 0) x = x)`) in
+    (!x:64 word. word_xor (word 0) x = x)`)
+  (* TRN1/TRN2 .2d (the packed-mid builders) are `word_interleave_lo/hi`, which  *)
+  (* is definitionally a `word_join` of one lane from each operand -- so once    *)
+  (* unfolded the existing join/subword machinery handles them with no new       *)
+  (* lane reasoning at all.                                                     *)
+  and trn_lanes = CONJUNCTS(prove
+   (`(!x y:128 word. word_interleave_lo x y =
+        word_join (word_subword y (0,64):64 word) (word_subword x (0,64):64 word)) /\
+     (!x y:128 word. word_interleave_hi x y =
+        word_join (word_subword y (64,64):64 word) (word_subword x (64,64):64 word))`,
+    REWRITE_TAC[word_interleave_lo; word_interleave_hi] THEN
+    CONV_TAC(DEPTH_CONV DIMINDEX_CONV) THEN REWRITE_TAC[])) in
   TOP_DEPTH_CONV
-   (FIRST_CONV (map REWR_CONV (shl_lanes @ zero_lanes @ ins_lanes @ xor_0) @
+   (FIRST_CONV (map REWR_CONV
+                  (shl_lanes @ zero_lanes @ ins_lanes @ xor_0 @ trn_lanes @
+                   [CONJUNCT1 WORD_PMUL_XOR] @ CONJUNCTS WORD_PMUL_0) @
                 [WORD_SIMPLE_SUBWORD_CONV; REWR_CONV WORD_SUBWORD_XOR]));;
-
-(* Both sides' Gueron pmul-by-w arguments are the SAME XOR of 64-bit lanes      *)
-(* written in different orders and associations (the hardware's order is the one *)
-(* the instruction schedule happens to produce, the spec's is the one            *)
-(* polyval_reduce_prop3 produces).  Rather than a directed rewrite per shape,    *)
-(* CANONICALIZE every `word_pmul <64-bit xor chain> w`: flatten the chain, sort  *)
-(* it, rebuild it, and justify the step with WORD_BITWISE_RULE.  After this the  *)
-(* two sides' pmul-by-w terms are LITERALLY EQUAL, so they are automatically the *)
-(* same opaque atom for the per-lane close and no atom has to be abbreviated for *)
-(* them at all.  It fails when already canonical, so it terminates under         *)
-(* ONCE_DEPTH_CONV.                                                             *)
-let PMUL_W_CANON_CONV =
-  let wtm = `(word 13979173243358019584):64 word`
-  and xor64 = `word_xor:(64)word->(64)word->(64)word`
-  and ty64 = `:(64)word` in
-  let rec flat tm =
-    match tm with
-      Comb(Comb(op,l),r) when op = xor64 -> flat l @ flat r
-    | _ -> [tm] in
-  let build l = end_itlist (fun a b -> mk_comb(mk_comb(xor64,a),b)) l in
-  fun tm ->
-    match tm with
-      Comb(Comb(Const("word_pmul",_),a),b) when b = wtm && type_of a = ty64 ->
-        let a' = build (sort (<) (flat a)) in
-        if a' = a then failwith "PMUL_W_CANON_CONV: already canonical"
-        else AP_THM (AP_TERM (rator (rator tm))
-                             (WORD_BITWISE_RULE (mk_eq(a,a')))) b
-    | _ -> failwith "PMUL_W_CANON_CONV";;
 
 (* ------------------------------------------------------------------------- *)
 (* The four tactics every block is built from.                               *)
@@ -464,7 +470,6 @@ let LANE_CLOSE_TAC =
   REPEAT CONJ_TAC THEN
   MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
   CONV_TAC LANE_CONV THEN
-  CONV_TAC(ONCE_DEPTH_CONV PMUL_W_CANON_CONV) THEN
   CONV_TAC WORD_BITWISE_RULE;;
 
 (* Name the opaque atoms of ONE of a block's two carryless products.  For       *)
@@ -474,11 +479,15 @@ let LANE_CLOSE_TAC =
 (*                 when the operands DIFFER, since for a square SQ_CROSS_0 has   *)
 (*                 already killed the whole middle,                             *)
 (*   QA<k>         the first-phase Gueron pmul-by-w result.                      *)
-(* The SECOND-phase pmul-by-w needs no atom: PMUL_W_CANON_CONV makes the         *)
-(* hardware's and the spec's copies of it literally the same term.  Once both    *)
-(* products have been through this the goal is PMUL-FREE over these atoms and    *)
-(* LANE_CLOSE_TAC finishes.  Everything power-specific about a block lives in    *)
-(* the two calls to PRODUCT_TAC / SQUARE_TAC below.                              *)
+(* Only the FIRST-phase pmul-by-w gets an atom.  Everything downstream of it is  *)
+(* handled by LANE_CONV's distribution step, which pushes both the hardware's    *)
+(* and the spec's pmul-by-w terms down to the same multiset of                   *)
+(* `word_pmul <atomic lane> w` -- so the two sides agree on those without any    *)
+(* naming, even though the routine's split reduction and the spec's nested one   *)
+(* group them completely differently.  Once every product of a block has been    *)
+(* through this the goal is PMUL-FREE over these atoms and LANE_CLOSE_TAC        *)
+(* finishes.  Everything power-specific about a block lives in its calls to      *)
+(* PRODUCT_TAC / SQUARE_TAC below.                                               *)
 let GUERON_ATOMS_TAC =
   let p_lo_tm = `word_pmul (word_subword (a:int128) (0,64):64 word)
                            (word_subword (b:int128) (0,64):64 word):128 word`
@@ -512,7 +521,7 @@ let SQUARE_TAC k a = GUERON_ATOMS_TAC k true a a;;       (* a . a *)
 (* compute the x-twist DIRECTLY IN STORE-LANE ORDER.  (The AWS-LC original    *)
 (* did the shift in algebraic lane order and paid an `ext` at each end; both   *)
 (* are gone -- the reduction constant is simply built with its two lanes       *)
-(* swapped, `ext v16,v19,v1,#8` instead of `ext v16,v1,v19,#8`.)  Nothing is   *)
+(* swapped, `ext v16,v19,v2,#8` instead of `ext v16,v2,v19,#8`.)  Nothing is   *)
 (* stored yet: Htable[0] goes out with Htable[1] in one `stp` at the end of    *)
 (* Phase 4, and X0 is never modified (all stores use immediate offsets).      *)
 (*                                                                            *)
@@ -533,7 +542,7 @@ let SQUARE_TAC k a = GUERON_ATOMS_TAC k true a a;;       (* a . a *)
 (*                                                                            *)
 (*   The carry bit that `ghash_twist` tests as `bit 127` is, in the internal  *)
 (*   representation, the top bit of `byteswap128 H` = `bit 63 H`; the routine *)
-(*   broadcasts exactly that bit via `dup v3.4s,v17.s[1]` + `sshr ...,#31`.    *)
+(*   broadcasts exactly that bit with one `sshr v3.2d,v17.2d,#63`.             *)
 (*                                                                            *)
 (* The whole equality is a fixed-width bit identity, closed by `BITBLAST_TAC` *)
 (* (the conditional in `ghash_twist` is left in place so the SAME carry bit   *)
@@ -562,7 +571,7 @@ let GCM_INIT_V8_TWIST = prove
   BITBLAST_TAC);;
 
 (* ========================================================================= *)
-(* Phase 4: the H^2 block, PC 0x30 -> 0x6c.                                   *)
+(* Phase 4: the H^2 block, PC 0x30 -> 0x70.                                   *)
 (*                                                                            *)
 (*   H^2 = h_power h1 1 = polyval_dot h1 h1   (a SQUARE)                       *)
 (*                                                                            *)
@@ -601,7 +610,7 @@ let GCM_INIT_V8_H2 = prove
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q20 s = byteswap128 h1)
-         (\s. read PC s = word (pc + 0x6c) /\
+         (\s. read PC s = word (pc + 0x70) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q3 s = h1 /\
@@ -614,14 +623,14 @@ let GCM_INIT_V8_H2 = prove
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
-  GCM_BLOCK_STEPS_TAC 15 THEN
+  GCM_BLOCK_STEPS_TAC 16 THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
   SPEC_UNFOLD_TAC THEN
   SQUARE_TAC 2 `h1:int128` THEN
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 5: the H^3 & H^4 block, PC 0x6c -> 0xe0.                             *)
+(* Phase 5: the H^3 & H^4 block, PC 0x70 -> 0xf4.                             *)
 (*                                                                            *)
 (*   H^3 = h_power h1 2 = polyval_dot h1 H^2   (genuine: 4 schoolbook products) *)
 (*   H^4 = h_power h1 3 = polyval_dot H^2 H^2  (a SQUARE: middle vanishes)      *)
@@ -646,7 +655,7 @@ let GCM_INIT_V8_H34 = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x6c) /\
+              read PC s = word (pc + 0x70) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q3 s = h1 /\
@@ -656,7 +665,7 @@ let GCM_INIT_V8_H34 = prove
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (h_power h1 1)) (karatsuba_mid h1))
-         (\s. read PC s = word (pc + 0xe0) /\
+         (\s. read PC s = word (pc + 0xf4) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q17 s = h_power h1 1 /\
@@ -678,7 +687,7 @@ let GCM_INIT_V8_H34 = prove
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
-  GCM_BLOCK_STEPS_TAC 29 THEN
+  GCM_BLOCK_STEPS_TAC 33 THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
   ABBREV_TAC `h2 = polyval_dot h1 h1` THEN
   SPEC_UNFOLD_TAC THEN
@@ -687,21 +696,34 @@ let GCM_INIT_V8_H34 = prove
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 6a: the H^5 & H^6 block, PC 0xe0 -> 0x150.                           *)
+(* Phase 6a: the H^8, H^5 & H^6 block, PC 0xf4 -> 0x198.                      *)
 (*                                                                            *)
+(*   H^8 = h_power h1 7 = polyval_dot H^4 H^4  (a SQUARE) -- computed FIRST     *)
 (*   H^5 = h_power h1 4 = polyval_dot H^2 H^3  (genuine)                       *)
 (*   H^6 = h_power h1 5 = polyval_dot H^3 H^3  (a SQUARE)                      *)
 (*                                                                            *)
+(* THREE powers, because H^8 has been HOISTED here out of the last block.  H^8  *)
+(* depends only on H^4, which Phase 5 already produced, so it is READY this     *)
+(* early; and the last block's issue slots are the scarcest in the routine      *)
+(* (measured: ~0.31 cycles per instruction added there versus ~0.17 here),      *)
+(* because everything downstream of it is just the two closing stores.  Moving  *)
+(* H^8's eleven instructions -- its two products, its whole split reduction,    *)
+(* its byteswap (Q31) and its Karatsuba fold (Q24) -- into this block's slack   *)
+(* is worth about 2 cycles.  Nothing about the ALGEBRA changes: the block just  *)
+(* runs GUERON_ATOMS_TAC three times instead of twice.                         *)
+(*                                                                            *)
 (* Stores Htable[6..7] (`stp q26,q27,[x0,#96]`); byteswap128 H^6 stays in Q28   *)
 (* and is written by the NEXT block's `stp q28,q29,[x0,#128]`, so Q28 is        *)
-(* carried in the postcondition.  0xe0..0x150 never writes below +96, so the    *)
-(* six lower slots thread through for free.                                    *)
+(* carried in the postcondition -- and so now are H^8's two outputs, Q31        *)
+(* (byteswap128 H^8, stored by the next block) and Q24 (its Karatsuba fold,     *)
+(* which the next block's single `ext` pairs with H^7's).  0xf4..0x198 never    *)
+(* writes below +96, so the six lower slots thread through for free.           *)
 (*                                                                            *)
 (* H^5 and H^6 are never multiplied by anything, so they may live in this       *)
 (* block's scratch registers; what MUST survive it are H^3 (Q21) and H^4        *)
-(* (Q20/Q25), because the depth-3 chain has the NEXT block build H^7 and H^8    *)
-(* out of those rather than out of this block's outputs -- which is exactly     *)
-(* what lets the two blocks overlap in the machine's out-of-order window.      *)
+(* (Q20/Q25), because the depth-3 chain has the LAST block build H^7 out of     *)
+(* those rather than out of this block's outputs -- which is exactly what lets  *)
+(* the two blocks overlap in the machine's out-of-order window.                *)
 (* ========================================================================= *)
 
 let GCM_INIT_V8_H56 = prove
@@ -709,7 +731,7 @@ let GCM_INIT_V8_H56 = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0xe0) /\
+              read PC s = word (pc + 0xf4) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q17 s = h_power h1 1 /\
@@ -728,13 +750,16 @@ let GCM_INIT_V8_H56 = prove
                 word_join (karatsuba_mid (h_power h1 3)) (karatsuba_mid (h_power h1 2)) /\
               read (memory :> bytes128 (word_add Htable (word 80))) s =
                 byteswap128 (h_power h1 3))
-         (\s. read PC s = word (pc + 0x150) /\
+         (\s. read PC s = word (pc + 0x198) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q21 s = h_power h1 2 /\
               read Q20 s = h_power h1 3 /\
               read Q25 s = byteswap128 (h_power h1 3) /\
               read Q28 s = byteswap128 (h_power h1 5) /\
+              read Q31 s = byteswap128 (h_power h1 7) /\
+              read Q24 s = word_join (karatsuba_mid (h_power h1 7))
+                                     (karatsuba_mid (h_power h1 7)) /\
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (h_power h1 1)) (karatsuba_mid h1) /\
@@ -753,29 +778,35 @@ let GCM_INIT_V8_H56 = prove
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
-  GCM_BLOCK_STEPS_TAC 28 THEN
+  GCM_BLOCK_STEPS_TAC 41 THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
   MAP_EVERY ABBREV_TAC
-   [`h2 = polyval_dot h1 h1`; `h3 = polyval_dot h1 h2`] THEN
+   [`h2 = polyval_dot h1 h1`; `h3 = polyval_dot h1 h2`;
+    `h4 = polyval_dot h2 h2`] THEN
   SPEC_UNFOLD_TAC THEN
+  SQUARE_TAC 8 `h4:int128` THEN
   PRODUCT_TAC 5 `h2:int128` `h3:int128` THEN
   SQUARE_TAC 6 `h3:int128` THEN
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 6b: the H^7 & H^8 block, PC 0x150 -> 0x1c4 (ends at the ret).        *)
+(* Phase 6b: the H^7 block, PC 0x198 -> 0x1e0 (ends at the ret).              *)
 (*                                                                            *)
 (*   H^7 = h_power h1 6 = polyval_dot H^4 H^3  (genuine)                      *)
-(*   H^8 = h_power h1 7 = polyval_dot H^4 H^4  (a SQUARE)                     *)
 (*                                                                            *)
-(* This is the DEPTH-3 form of the addition chain: both powers are built from   *)
-(* H^3/H^4 (Phase 5) rather than from H^5/H^6 (Phase 6a), so this block does    *)
-(* not depend on Phase 6a at all and the two overlap on the machine.  H^7 is    *)
-(* stated as H^4 . H^3 (not H^3 . H^4) because the FRESHER operand has to be    *)
-(* the one supplying the algebraic lanes: the cross products read the OTHER     *)
-(* operand's byteswapped copy, and only H^4's (Q25) is in the table.            *)
+(* ONE power: H^8 was hoisted into Phase 6a (see its header), so all this block *)
+(* still owns are H^7's four products, its reduction, and the two closing       *)
+(* stores.  It reads H^8's two finished outputs -- byteswap128 H^8 in Q31 and   *)
+(* its Karatsuba fold in Q24 -- out of the precondition.                       *)
+(*                                                                            *)
+(* This is the DEPTH-3 form of the addition chain: H^7 is built from H^3/H^4    *)
+(* (Phase 5) rather than from H^5/H^6 (Phase 6a), so this block does not depend *)
+(* on Phase 6a at all and the two overlap on the machine.  H^7 is stated as     *)
+(* H^4 . H^3 (not H^3 . H^4) because the FRESHER operand has to be the one      *)
+(* supplying the algebraic lanes: the cross products read the OTHER operand's   *)
+(* byteswapped copy, and only H^4's (Q25) is in the table.                      *)
 (* Stores Htable[8..11] with the last two `stp`s (+128, +160).  Symbolic        *)
-(* execution ends at the ret (0x1c4); the ret is handled by the Phase 8         *)
+(* execution ends at the ret (0x1e0); the ret is handled by the Phase 8         *)
 (* subroutine wrapper.                                                        *)
 (*                                                                            *)
 (* The postcondition carries ALL TWELVE slots, so Phase 7 reads the full        *)
@@ -787,13 +818,16 @@ let GCM_INIT_V8_H78 = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x150) /\
+              read PC s = word (pc + 0x198) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q21 s = h_power h1 2 /\
               read Q20 s = h_power h1 3 /\
               read Q25 s = byteswap128 (h_power h1 3) /\
               read Q28 s = byteswap128 (h_power h1 5) /\
+              read Q31 s = byteswap128 (h_power h1 7) /\
+              read Q24 s = word_join (karatsuba_mid (h_power h1 7))
+                                     (karatsuba_mid (h_power h1 7)) /\
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (h_power h1 1)) (karatsuba_mid h1) /\
@@ -809,7 +843,7 @@ let GCM_INIT_V8_H78 = prove
                 byteswap128 (h_power h1 4) /\
               read (memory :> bytes128 (word_add Htable (word 112))) s =
                 word_join (karatsuba_mid (h_power h1 5)) (karatsuba_mid (h_power h1 4)))
-         (\s. read PC s = word (pc + 0x1c4) /\
+         (\s. read PC s = word (pc + 0x1e0) /\
               read X0 s = Htable /\
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
@@ -837,21 +871,20 @@ let GCM_INIT_V8_H78 = prove
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
-  GCM_BLOCK_STEPS_TAC 29 THEN
+  GCM_BLOCK_STEPS_TAC 18 THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
   MAP_EVERY ABBREV_TAC
    [`h2 = polyval_dot h1 h1`; `h3 = polyval_dot h1 h2`;
     `h4 = polyval_dot h2 h2`] THEN
   SPEC_UNFOLD_TAC THEN
   PRODUCT_TAC 7 `h4:int128` `h3:int128` THEN
-  SQUARE_TAC 8 `h4:int128` THEN
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
 (* Phase 7: the core correctness theorem, GCM_INIT_V8_CORRECT.                *)
 (*                                                                            *)
 (* Compose the five blocks into one `ensures` from function entry (PC 0x0) to *)
-(* the `ret` (PC 0x1c4), establishing the full 12-slot htable_mem             *)
+(* the `ret` (PC 0x1e0), establishing the full 12-slot htable_mem             *)
 (* postcondition for the half-swapped algebraic key h1 = ghash_twist(         *)
 (* byteswap128 H).  Each block is applied as a single atomic transition with  *)
 (* ARM_BIGSTEP_TAC, so the raw pmull expansions never re-appear -- they were  *)
@@ -863,10 +896,10 @@ let GCM_INIT_V8_H78 = prove
 (*                                                                            *)
 (* NONSELFMODIFYING NOTE (the one subtlety): ARM_BIGSTEP_TAC must show the     *)
 (* frame write  memory :> bytes(Htable,192)  is disjoint from the code region *)
-(* memory :> bytelist(word pc,456).  Its ORTHOGONAL_COMPONENTS_TAC scans the  *)
-(* assumptions for a RAW `nonoverlapping (word pc,456) (Htable,192)` driver    *)
-(* and needs the length CONCRETE (456).  Hence: reduce LENGTH gcm_init_v8_mc   *)
-(* to 456 via `fst GCM_INIT_V8_EXEC` in the setup rewrite, and do NOT rewrite  *)
+(* memory :> bytelist(word pc,484).  Its ORTHOGONAL_COMPONENTS_TAC scans the  *)
+(* assumptions for a RAW `nonoverlapping (word pc,484) (Htable,192)` driver    *)
+(* and needs the length CONCRETE (484).  Hence: reduce LENGTH gcm_init_v8_mc   *)
+(* to 484 via `fst GCM_INIT_V8_EXEC` in the setup rewrite, and do NOT rewrite  *)
 (* NONOVERLAPPING_CLAUSES on the initial assumptions (keep the driver form).   *)
 (* ========================================================================= *)
 
@@ -892,7 +925,7 @@ let GCM_INIT_V8_CORRECT = prove
               read PC s = word pc /\
               C_ARGUMENTS [Htable; H_ptr] s /\
               read (memory :> bytes128 H_ptr) s = H)
-         (\s. read PC s = word (pc + 0x1c4) /\
+         (\s. read PC s = word (pc + 0x1e0) /\
               htable_mem (ghash_twist(byteswap128 H)) Htable s)
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
@@ -916,7 +949,7 @@ let GCM_INIT_V8_CORRECT = prove
 (* Phase 8: the standard-ABI subroutine wrapper (leaf, no stack frame).       *)
 (*                                                                            *)
 (* Wrap the core with the return via X30.  Two mechanical points:             *)
-(*  - Reduce LENGTH gcm_init_v8_mc to 456 (`fst GCM_INIT_V8_EXEC`) in the goal *)
+(*  - Reduce LENGTH gcm_init_v8_mc to 484 (`fst GCM_INIT_V8_EXEC`) in the goal *)
 (*    and in the core theorem so ARM_ADD_RETURN_NOSTACK_TAC's internal         *)
 (*    nonselfmodifying / NONOVERLAPPING checks see a concrete-length driver.   *)
 (*  - htable_mem is an opaque folded predicate that does NOT propagate through *)
