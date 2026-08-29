@@ -23,12 +23,13 @@
 // ghashv8-armx.S (itself generated from crypto/fipsmodule/modes/asm/
 // ghashv8-armx.pl, BoringSSL), imported verbatim at 152 instructions. It has
 // since been optimized IN TREE and the instruction stream is NO LONGER that of
-// AWS-LC: 152 -> 121 instructions, Karatsuba -> schoolbook cross products, a
+// AWS-LC: 152 -> 127 instructions, Karatsuba -> schoolbook cross products, a
 // depth-3 addition chain (H^7 = H^3.H^4, H^8 = H^4.H^4), Frobenius-free
 // squares, the two-phase Gueron reduction split by linearity rather than
-// iterated, a 12-instruction store-lane-order twist, `trn1`/`trn2` mid packing
-// and `stp`-based stores. See commits 6b6679a7, 6f1880d5, 605c9004, 7f845c62
-// and the session-016 commit. The symbol/ABI wrapper macros and CFI annotations
+// iterated, H^2's two products taken off the raw key in parallel with the
+// twist, a store-lane-order twist, `trn1`/`trn2` mid packing and `stp`-based
+// stores. See commits 6b6679a7, 6f1880d5, 605c9004, 7f845c62, 92d01dcc and the
+// session-016 follow-up. The symbol/ABI wrapper macros and CFI annotations
 // follow s2n-bignum house style, and the AArch64 BTI landing-pad macro
 // (AARCH64_VALID_CALL_TARGET) is dropped.
 //
@@ -56,19 +57,25 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	movi	v19.16b,#0xe1
 	movi	v2.16b,#0
 	shl	v19.2d,v19.2d,#57		//0xc2.0
-	ushr	v18.2d,v17.2d,#63
+	ushr	v18.2d,v17.2d,#63		//u = {bit63 w0, bit63 w1}
 	sshr	v3.2d,v17.2d,#63		//lane 0 = the carry bit, broadcast
 	ext	v16.16b,v19.16b,v2.16b,#8	//t0 = {0xc2....00, 0}
-	shl	v20.2d,v17.2d,#1
-	ext	v18.16b,v18.16b,v18.16b,#8	//lane 0 = carry, lane 1 = the 0x..01 bit
-	and	v16.16b,v16.16b,v3.16b
-	orr	v20.16b,v20.16b,v18.16b		//H<<<=1 AND the low lane's 0x..01
+	shl	v6.2d,v17.2d,#1			//S = {w0<<1, w1<<1}
+	pmull	v7.1q,v18.1d,v18.1d		//FROBENIUS BYPASS.  Each lane of the
+	pmull2	v0.1q,v6.2d,v6.2d		//twisted key is an XOR of 2-3 disjoint
+	pmull	v2.1q,v6.1d,v6.1d		//summands, and a carryless SQUARE kills
+	pmull2	v4.1q,v18.2d,v18.2d		//all cross terms, so H^2's two products
+	ext	v18.16b,v18.16b,v18.16b,#8	//are the XOR of the summands' own
+	and	v16.16b,v16.16b,v3.16b		//squares -- computable straight off the
+	eor	v0.16b,v0.16b,v7.16b		//RAW key, four cycles before the twist
+	pmull	v5.1q,v16.1d,v16.1d		//itself lands.  p_lo in Q0, p_hi in Q2.
+	eor	v2.16b,v2.16b,v4.16b
+	orr	v20.16b,v6.16b,v18.16b		//H<<<=1 AND the low lane's 0x..01
+	eor	v2.16b,v2.16b,v5.16b
 	eor	v20.16b,v20.16b,v16.16b		//twisted H, already store-lane order
 
-	//calculate H^2 = H.H (a square)
+	//calculate H^2 = H.H (a square); its products are already in Q0/Q2
 	ext	v3.16b,v20.16b,v20.16b,#8	//H in multiplicand (algebraic) lane order
-	pmull2	v0.1q,v20.2d,v20.2d		//p_lo
-	pmull	v2.1q,v20.1d,v20.1d		//p_hi
 	eor	v1.16b,v0.16b,v2.16b		//p_lo ^ p_hi   (see R-SPLIT note below)
 	pmull2	v18.1q,v0.2d,v19.2d		//p_lo.d[1] . w
 	pmull	v0.1q,v0.1d,v19.1d		//aw = p_lo.d[0] . w
