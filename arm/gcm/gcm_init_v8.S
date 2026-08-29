@@ -66,8 +66,6 @@
         .text
         .balign 4
 S2N_BN_SYMBOL(gcm_init_v8):
-
-S2N_BN_SYMBOL(gcm_init_v8):
     // AARCH64_VALID_CALL_TARGET
         CFI_START
 
