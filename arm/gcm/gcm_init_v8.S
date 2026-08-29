@@ -60,10 +60,18 @@
 // measured on Graviton 3 against benchmarks/benchmark.c, this order sits in a
 // SHARP local optimum.  Swapping the two adjacent, independent, register-safe
 // `ext`s near the end costs 4.8%; each of the 33 legal single-instruction moves
-// in the tail costs 2-5%; one `nop` inserted before the `ret` costs 1.9% (four
-// `nop`s in the MIDDLE cost 0.17%, so the cost of an instruction is strongly
-// positional, not uniform).  Freeing any single instruction's operands -- all
-// 124 probed -- gains at most 0.11%, so no one latency edge gates it either.
+// in the tail costs between 0.18% and 5%; one `nop` inserted before the `ret`
+// costs 1.9%, while four `nop`s inserted together at one particular mid-stream
+// point cost only 0.17% (at another mid-stream point they cost 5.9%) -- the cost
+// of an instruction here is strongly POSITIONAL, not uniform.  Freeing any
+// single instruction's operands -- all 124 probed -- gains at most 0.11%, so no
+// one latency edge gates it either.  The sensitivity is not even confined to
+// timing: changing ONE source register of ONE `pmull` to a register that holds
+// an equally-early value costs 4.7%, with the opcode, the position, the register
+// allocation and the dependence height all unchanged (session 021, reproduced by
+// full rebuild), while renaming every register, swapping a commutative operand
+// pair, or changing the VALUES a node computes are all free to within 0.15%.
+// So: re-search the whole order after any edit here; never hand-patch it.
 // (An earlier version of this comment claimed the routine was near a RESOURCE
 // floor derived from a dependency-free clone.  That was measured with a harness
 // later shown to be anti-correlated with the benchmark; re-measured properly the
@@ -83,6 +91,12 @@
 S2N_BN_SYMBOL(gcm_init_v8):
     // AARCH64_VALID_CALL_TARGET
         CFI_START
+
+	// ---BODY-BEGIN---   (markers for the benchmarking harnesses: everything
+	// between them is the routine body, with no prologue/epilogue and no `ret`.
+	// An extractor anchored on the first `ldr`/`ld1` instead silently drops the
+	// leading `movi`s whenever the schedule moves them, and then benchmarks the
+	// wrong code -- that cost session 019 a whole screening pass.)
 
 	// BLOCK 1 (PC 0x0 -> 0x80, 32 instructions): the FUSED twist + H^2.
 	// L o square o T distributes over the twist's disjoint summands, so
@@ -230,6 +244,7 @@ S2N_BN_SYMBOL(gcm_init_v8):
 	ext	v1.16b,v2.16b,v4.16b,#8		//Karatsuba pack {mid H^7, mid H^8}  == Htable[10]
 	stp	q6,q7,[x0,#96]		//store Htable[6..7]
 	stp	q1,q0,[x0,#160]		//store Htable[10..11]
+	// ---BODY-END---
         CFI_RET
 
 S2N_BN_SIZE_DIRECTIVE(gcm_init_v8)
