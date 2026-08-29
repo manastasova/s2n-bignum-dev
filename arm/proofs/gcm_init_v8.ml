@@ -28,35 +28,39 @@ needs "common/karatsuba_pmul.ml";;      (* PMUL_SCHOOLBOOK; ~0.5s on top of the 
 let gcm_init_v8_mc = define_assert_from_elf
  "gcm_init_v8_mc" "arm/gcm/gcm_init_v8.o"
 [
+  0xf9400423;       (* arm_LDR X3 X1 (Immediate_Offset (word 8)) *)
   0x4c407c31;       (* arm_LDR Q17 X1 No_Offset *)
   0x4f07e433;       (* arm_MOVI Q19 (word 16276538888567251425) *)
   0x4f00e402;       (* arm_MOVI Q2 (word 0) *)
+  0x4f07e7f6;       (* arm_MOVI Q22 (word 18446744073709551615) *)
+  0xd37ff863;       (* arm_LSL X3 X3 1 *)
   0x4f795673;       (* arm_SHL_VEC Q19 Q19 57 64 128 *)
+  0x9e670067;       (* arm_FMOV_ItoF Q7 X3 0 *)
   0x6f410632;       (* arm_USHR_VEC Q18 Q17 63 64 128 *)
   0x4f410623;       (* arm_SSHR_VEC Q3 Q17 63 64 128 *)
-  0x6e024270;       (* arm_EXT Q16 Q19 Q2 64 *)
+  0x6f4106d6;       (* arm_USHR_VEC Q22 Q22 63 64 128 *)
   0x4f415626;       (* arm_SHL_VEC Q6 Q17 1 64 128 *)
-  0x0ef2e247;       (* arm_PMULL_VEC Q7 Q18 Q18 64 *)
-  0x4ee6e0c0;       (* arm_PMULL2_VEC Q0 Q6 Q6 64 *)
-  0x0ee6e0c2;       (* arm_PMULL_VEC Q2 Q6 Q6 64 *)
+  0x6e1342d7;       (* arm_EXT Q23 Q22 Q19 64 *)
+  0x4ec32878;       (* arm_TRN1 Q24 Q3 Q3 64 128 *)
+  0x0ee7e0e0;       (* arm_PMULL_VEC Q0 Q7 Q7 64 *)
+  0x0ee6e0c5;       (* arm_PMULL_VEC Q5 Q6 Q6 64 *)
   0x4ef2e244;       (* arm_PMULL2_VEC Q4 Q18 Q18 64 *)
   0x6e124252;       (* arm_EXT Q18 Q18 Q18 64 *)
-  0x4e231e10;       (* arm_AND_VEC Q16 Q16 Q3 128 *)
-  0x6e271c00;       (* arm_EOR_VEC Q0 Q0 Q7 128 *)
-  0x0ef0e205;       (* arm_PMULL_VEC Q5 Q16 Q16 64 *)
-  0x6e241c42;       (* arm_EOR_VEC Q2 Q2 Q4 128 *)
+  0x4e381ef8;       (* arm_AND_VEC Q24 Q23 Q24 128 *)
+  0x6e241ca5;       (* arm_EOR_VEC Q5 Q5 Q4 128 *)
+  0x4ef3e019;       (* arm_PMULL2_VEC Q25 Q0 Q19 64 *)
+  0x0ef3e007;       (* arm_PMULL_VEC Q7 Q0 Q19 64 *)
+  0x6e391c00;       (* arm_EOR_VEC Q0 Q0 Q25 128 *)
+  0x6e381ca5;       (* arm_EOR_VEC Q5 Q5 Q24 128 *)
+  0x6e0740e1;       (* arm_EXT Q1 Q7 Q7 64 *)
+  0x0ef3e0e7;       (* arm_PMULL_VEC Q7 Q7 Q19 64 *)
+  0x6e211c00;       (* arm_EOR_VEC Q0 Q0 Q1 128 *)
+  0x6e271ca5;       (* arm_EOR_VEC Q5 Q5 Q7 128 *)
+  0x6e251c11;       (* arm_EOR_VEC Q17 Q0 Q5 128 *)
   0x4eb21cd4;       (* arm_ORR_VEC Q20 Q6 Q18 128 *)
-  0x6e251c42;       (* arm_EOR_VEC Q2 Q2 Q5 128 *)
+  0x6e024310;       (* arm_EXT Q16 Q24 Q2 64 *)
   0x6e301e94;       (* arm_EOR_VEC Q20 Q20 Q16 128 *)
   0x6e144283;       (* arm_EXT Q3 Q20 Q20 64 *)
-  0x6e221c01;       (* arm_EOR_VEC Q1 Q0 Q2 128 *)
-  0x4ef3e012;       (* arm_PMULL2_VEC Q18 Q0 Q19 64 *)
-  0x0ef3e000;       (* arm_PMULL_VEC Q0 Q0 Q19 64 *)
-  0x6e321c21;       (* arm_EOR_VEC Q1 Q1 Q18 128 *)
-  0x6e004012;       (* arm_EXT Q18 Q0 Q0 64 *)
-  0x0ef3e000;       (* arm_PMULL_VEC Q0 Q0 Q19 64 *)
-  0x6e201e52;       (* arm_EOR_VEC Q18 Q18 Q0 128 *)
-  0x6e321c31;       (* arm_EOR_VEC Q17 Q1 Q18 128 *)
   0x6e114236;       (* arm_EXT Q22 Q17 Q17 64 *)
   0x4ed12a95;       (* arm_TRN1 Q21 Q20 Q17 64 128 *)
   0x4ed16a81;       (* arm_TRN2 Q1 Q20 Q17 64 128 *)
@@ -540,44 +544,171 @@ let GUERON_ATOMS_TAC =
 let PRODUCT_TAC k a b = GUERON_ATOMS_TAC k false a b;;   (* operands differ *)
 let SQUARE_TAC k a = GUERON_ATOMS_TAC k true a a;;       (* a . a *)
 
+(* ------------------------------------------------------------------------- *)
+(* Extra machinery for the fused twist+H^2 block (Phase 3).                   *)
+(*                                                                            *)
+(* The routine no longer forms the twisted key's two carryless products at     *)
+(* all.  Both the twist `T` and the Gueron reduce `L` are GF(2)-LINEAR and a   *)
+(* carryless SQUARE is additive, so `L o square o T` distributes over the      *)
+(* twist's DISJOINT summands and H^2 is assembled straight off the RAW key:    *)
+(*                                                                            *)
+(*   H^2 = L(S.d[1]^2) ^ S.d[0]^2 ^ u.d[1] ^ (carry ? Q : 0)                   *)
+(*                                                                            *)
+(* with S = H<<1 per lane, u = H>>63 per lane, carry = bit 63 of H's low lane, *)
+(* and Q = 0xc2000000_00000000_00000000_00000001 -- the POLYVAL modulus, which *)
+(* is exactly L(1) ^ w^2 (w = 0xc2000000_00000000).  The three pieces below    *)
+(* are what let the spec's `p_lo`/`p_hi` be rewritten into that form.          *)
+(* ------------------------------------------------------------------------- *)
+
+(* The `and` that selects the conditional constant, split into its two lanes.  *)
+let FMASK = prove
+ (`!m:int64. word_and (word_join m m:int128)
+                      (word 0xc2000000000000000000000000000001) =
+             word_join (word_and (word 0xc200000000000000) m)
+                       (word_and (word 1) m)`,
+  GEN_TAC THEN CONV_TAC WORD_BLAST);;
+
+(* ghash_twist's two 64-bit lanes as XORs of DISJOINT summands.  Lane 0 needs   *)
+(* only the shift and the other lane's top bit; lane 1 additionally carries the *)
+(* conditional 0xc2.0, masked by the very bit ghash_twist tests.  Left in the   *)
+(* `if`-free masked form so the SAME carry bit governs both sides downstream.   *)
+let TWIST_LANES = prove
+ (`!k:int128.
+     word_subword (ghash_twist k) (0,64):int64 =
+       word_xor (word_shl (word_subword k (0,64)) 1)
+                (word_ushr (word_subword k (64,64)) 63) /\
+     word_subword (ghash_twist k) (64,64):int64 =
+       word_xor (word_xor (word_shl (word_subword k (64,64)) 1)
+                          (word_ushr (word_subword k (0,64)) 63))
+                (word_and (word 0xc200000000000000)
+                          (word_ishr (word_subword k (64,64)) 63))`,
+  GEN_TAC THEN REWRITE_TAC[ghash_twist; POLYVAL_TWIST_CONST] THEN BITBLAST_TAC);;
+
+(* Every carryless product whose operand depends ONLY on the carry bit is a    *)
+(* masked CONSTANT, and here they are, in the exact shapes the reduce produces: *)
+(* the carry squared, the carry times w, and (twice over) w times w.  Each is   *)
+(* stated as a `word_join` of its two lanes so that lane normalization needs no *)
+(* rule for pushing `word_subword` through `word_and`.  Proved by the only case *)
+(* split in the file -- on the carry bit -- after which WORD_PMUL_CONV just     *)
+(* evaluates the constants (1.1 = 1, 1.w = w, w.w = 0x5004..<<64, all carryless). *)
+let CARRY_PMULS = prove
+ (`(!x:int64. word_pmul (word_ushr x 63) (word_ushr x 63):int128 =
+              word_join (word 0:int64) (word_and (word 1) (word_ishr x 63))) /\
+   (!x:int64. word_pmul (word_ushr x 63) (word 0xc200000000000000:int64):int128 =
+              word_join (word 0:int64)
+                        (word_and (word 0xc200000000000000) (word_ishr x 63))) /\
+   (!x:int64. word_pmul (word_and (word 1) (word_ishr x 63))
+                        (word 0xc200000000000000:int64):int128 =
+              word_join (word 0:int64)
+                        (word_and (word 0xc200000000000000) (word_ishr x 63))) /\
+   (!x:int64. word_pmul (word_and (word 0xc200000000000000) (word_ishr x 63))
+                        (word 0xc200000000000000:int64):int128 =
+              word_join (word_and (word 0x5004000000000000) (word_ishr x 63))
+                        (word 0:int64)) /\
+   (!x:int64. word_pmul (word_and (word 0xc200000000000000) (word_ishr x 63))
+                        (word_and (word 0xc200000000000000) (word_ishr x 63)):int128 =
+              word_join (word_and (word 0x5004000000000000) (word_ishr x 63))
+                        (word 0:int64))`,
+  REWRITE_TAC[AND_FORALL_THM] THEN GEN_TAC THEN
+  SUBGOAL_THEN
+   `word_ushr (x:int64) 63 = (if bit 63 x then word 1 else word 0) /\
+    word_ishr (x:int64) 63 =
+      (if bit 63 x then word 18446744073709551615 else word 0)`
+   (CONJUNCTS_THEN SUBST1_TAC) THENL [BITBLAST_TAC; ALL_TAC] THEN
+  COND_CASES_TAC THEN
+  REWRITE_TAC[WORD_PMUL_0] THEN
+  CONV_TAC(DEPTH_CONV(WORD_PMUL_CONV ORELSEC WORD_RED_CONV)) THEN
+  CONV_TAC WORD_BLAST);;
+
+(* The routine reads the key's high 64 bits through the GP pipe (`ldr x3,[x1,#8]` *)
+(* + `lsl` + `fmov`, which lands its square two cycles before a vector `shl`      *)
+(* could), so the stepper needs the input as two `bytes64` reads as well as the   *)
+(* `bytes128` one the (frozen) precondition supplies.  Add them, keeping both.    *)
+let SPLIT_INPUT_TAC =
+  STRIP_ASSUME_TAC(GEN_REWRITE_RULE I
+    [el 1 (CONJUNCTS READ_MEMORY_BYTESIZED_UNSPLIT)]
+    (ASSUME `read (memory :> bytes128 H_ptr) s0 = H`));;
+
+(* Fold the twisted key's raw bit expression into the spec atom the moment the  *)
+(* routine finishes computing it, so the rest of the block (its byteswap, the   *)
+(* packed-mid `trn1`/`trn2` and the store) sees an OPAQUE operand -- exactly as  *)
+(* the later power blocks do, which is what keeps their `word_or`-free algebra   *)
+(* usable here.  The raw term is read off the Q20 assumption rather than         *)
+(* transcribed, so a reschedule of the twist does not invalidate this.           *)
+let ATOMIZE_TWIST_TAC sname atom : tactic =
+  fun (asl,w) ->
+    let is_q20 th = match concl th with
+        Comb(Comb(Const("=",_),Comb(Comb(Const("read",_),c),st)),_) ->
+          string_of_term c = "Q20" && string_of_term st = sname
+      | _ -> false in
+    let th = snd(find (fun (_,t) -> is_q20 t) asl) in
+    let raw = rand(concl th) in
+    (SUBGOAL_THEN (mk_eq(raw,atom)) SUBST_ALL_TAC THENL
+      [REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN BITBLAST_TAC;
+       ALL_TAC]) (asl,w);;
+
+(* LANE_CLOSE_TAC plus the carry-constant collapse.  The two must ALTERNATE:     *)
+(* LANE_CONV's distribution of pmul-by-w is what exposes the next carry-only     *)
+(* product, and CARRY_PMULS' `word_join` results are what LANE_CONV then splits  *)
+(* into lanes.  Three rounds reach the fixpoint (the reduce is two deep).        *)
+let CARRY_CLOSE_TAC =
+  REPEAT CONJ_TAC THEN
+  MATCH_MP_TAC WORD_EQ_128_LANES THEN CONJ_TAC THEN
+  CONV_TAC LANE_CONV THEN
+  REWRITE_TAC[CARRY_PMULS] THEN CONV_TAC LANE_CONV THEN
+  REWRITE_TAC[CARRY_PMULS] THEN CONV_TAC LANE_CONV THEN
+  REWRITE_TAC[CARRY_PMULS] THEN CONV_TAC LANE_CONV THEN
+  CONV_TAC WORD_BITWISE_RULE;;
+
 (* ========================================================================= *)
-(* Phase 3: the twist + H^2's products (PC 0x0 -> 0x50).                                       *)
+(* Phase 3: the FUSED twist + H^2 block (PC 0x0 -> 0x98).                     *)
 (*                                                                            *)
-(* The first 20 instructions load the raw 128-bit hash key H from [X1] and    *)
-(* compute the x-twist DIRECTLY IN STORE-LANE ORDER.  (The AWS-LC original    *)
-(* did the shift in algebraic lane order and paid an `ext` at each end; both   *)
-(* are gone -- the reduction constant is simply built with its two lanes       *)
-(* swapped, `ext v16,v19,v2,#8` instead of `ext v16,v2,v19,#8`.)  Nothing is   *)
-(* stored yet: Htable[0] goes out with Htable[1] in one `stp` at the end of    *)
-(* Phase 4, and X0 is never modified (all stores use immediate offsets).      *)
+(* The first 38 instructions load the raw 128-bit hash key H from [X1],        *)
+(* compute the x-twist DIRECTLY IN STORE-LANE ORDER, compute H^2, and store    *)
+(* Htable[0..1].  X0 is never modified (all stores use immediate offsets).     *)
 (*                                                                            *)
-(* HALF-SWAP BYTE-ORDER CONVENTION (the linchpin of the whole proof):         *)
+(* WHY THESE ARE ONE BLOCK.  H^2 no longer waits for the twisted key: the      *)
+(* twist T is GF(2)-linear, a carryless square is additive, and the Gueron     *)
+(* reduce L is linear, so L o square o T DISTRIBUTES over the twist's disjoint *)
+(* summands and H^2 is assembled off the RAW key (see the LINEAR SPLIT note in *)
+(* arm/gcm/gcm_init_v8.S).  The two 64x64 products the twisted key would have  *)
+(* fed are therefore never formed, so there is no register state at which the  *)
+(* old Phase-3/Phase-4 interface ("Q0 = p_lo, Q2 = p_hi") exists to be stated. *)
+(* The twist finishes AFTER H^2, in the H^2 tree's issue shadow.               *)
 (*                                                                            *)
-(*   Let  H  = read (memory :> bytes128 H_ptr) s   be the raw little-endian   *)
-(*   128-bit value in memory.  `byteswap128` swaps the two 64-bit halves      *)
+(* HALF-SWAP BYTE-ORDER CONVENTION (the linchpin of the whole proof):          *)
+(*                                                                            *)
+(*   Let  H  = read (memory :> bytes128 H_ptr) s   be the raw little-endian    *)
+(*   128-bit value in memory.  `byteswap128` swaps the two 64-bit halves       *)
 (*   (word0 <-> word1).  Then                                                 *)
 (*                                                                            *)
-(*        Htable[0]  =  byteswap128 (ghash_twist (byteswap128 H)).            *)
+(*        Htable[0]  =  byteswap128 (ghash_twist (byteswap128 H)).             *)
 (*                                                                            *)
-(*   Equivalently: the algebraic ("polynomial-basis") GHASH key that the      *)
-(*   spec calls H is  byteswap128 H_mem, i.e. the memory value with its two   *)
-(*   64-bit halves swapped.  All the internal PMULL math (Phases 4-7) runs    *)
-(*   on that half-swapped representation, and every stored entry is the       *)
-(*   byteswap128 of the corresponding internal power (see `htable_mem`,       *)
+(*   Equivalently: the algebraic ("polynomial-basis") GHASH key that the       *)
+(*   spec calls H is  byteswap128 H_mem, i.e. the memory value with its two    *)
+(*   64-bit halves swapped.  All the internal PMULL math (Phases 4-6) runs     *)
+(*   on that half-swapped representation, and every stored entry is the        *)
+(*   byteswap128 of the corresponding internal power (see `htable_mem`,        *)
 (*   whose first slot is `byteswap128 (h_power h 0) = byteswap128 h`).         *)
 (*                                                                            *)
-(*   The carry bit that `ghash_twist` tests as `bit 127` is, in the internal  *)
-(*   representation, the top bit of `byteswap128 H` = `bit 63 H`; the routine *)
-(*   broadcasts exactly that bit with one `sshr v3.2d,v17.2d,#63`.             *)
+(*   The carry bit that `ghash_twist` tests as `bit 127` is, in the internal   *)
+(*   representation, the top bit of `byteswap128 H` = `bit 63 H`; the routine  *)
+(*   broadcasts exactly that bit with one `sshr v3.2d,v17.2d,#63` + `trn1`.     *)
 (*                                                                            *)
-(* The whole equality is a fixed-width bit identity, closed by `BITBLAST_TAC` *)
-(* (the conditional in `ghash_twist` is left in place so the SAME carry bit   *)
-(* governs both sides; do NOT `COND_CASES_TAC` first, or the bit-blaster      *)
-(* loses the shared assumption and the two branches no longer line up).       *)
+(* PROOF SHAPE.  Step to the instruction that completes the twist, fold its    *)
+(* raw bit expression into the spec atom (ATOMIZE_TWIST_TAC -- one BITBLAST,   *)
+(* the same fixed-width identity the old Phase 3 proved), step the rest, then  *)
+(* rewrite the SPEC side's two squares through TWIST_LANES + PMUL_SQ_XOR2/3    *)
+(* and close with CARRY_CLOSE_TAC.  All four powers-of-w products of the       *)
+(* carry-only summand collapse to masked constants (CARRY_PMULS), and the      *)
+(* leftover pair -- L(1) and w^2 -- xor to exactly the POLYVAL modulus Q that  *)
+(* the routine's single `and` selects.  The other three power blocks are       *)
+(* untouched by any of this.                                                   *)
 (* ========================================================================= *)
 
-let GCM_INIT_V8_TWIST = prove
- (`!Htable H_ptr H pc.
+let GCM_INIT_V8_TWIST_H2 = prove
+ (`!Htable H_ptr H h1 pc.
+    h1 = ghash_twist(byteswap128 H) /\
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192) /\
     nonoverlapping (Htable, 192) (H_ptr, 16)
     ==> ensures arm
@@ -585,80 +716,7 @@ let GCM_INIT_V8_TWIST = prove
               read PC s = word pc /\
               C_ARGUMENTS [Htable; H_ptr] s /\
               read (memory :> bytes128 H_ptr) s = H)
-         (\s. read PC s = word (pc + 0x50) /\
-              read X0 s = Htable /\
-              read Q19 s = word 0xc200000000000000c200000000000000 /\
-              read Q20 s = byteswap128(ghash_twist(byteswap128 H)) /\
-              read Q0 s =
-                word_pmul (word_subword (ghash_twist(byteswap128 H)) (0,64):64 word)
-                          (word_subword (ghash_twist(byteswap128 H)) (0,64):64 word) /\
-              read Q2 s =
-                word_pmul (word_subword (ghash_twist(byteswap128 H)) (64,64):64 word)
-                          (word_subword (ghash_twist(byteswap128 H)) (64,64):64 word))
-         (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
-          MAYCHANGE [memory :> bytes(Htable, 192)])`,
-  MAP_EVERY X_GEN_TAC [`Htable:int64`; `H_ptr:int64`; `H:int128`; `pc:num`] THEN
-  GCM_BLOCK_STEPS_TAC 20 THEN
-  (* Q19/Q20 are the same fixed-width bit identities as before.  For the two
-     product conjuncts, run PMUL_SQ_XOR2 BACKWARDS on the HARDWARE side: it
-     collapses the XOR of the summands' squares back into ONE square, so each
-     conjunct becomes `word_pmul X X = word_pmul Y Y` and all that is left is the
-     bit identity X = Y between the summand-XOR the routine squared and the
-     twisted key's lane -- which BITBLAST_TAC closes exactly as it closes Q20.
-     (Leave `ghash_twist`'s conditional in place, as before, so the SAME carry bit
-     governs both sides.)                                                        *)
-  REWRITE_TAC[GSYM PMUL_SQ_XOR2] THEN
-  REWRITE_TAC[byteswap128; ghash_twist; POLYVAL_TWIST_CONST] THEN
-  REPEAT CONJ_TAC THEN
-  TRY(MATCH_MP_TAC(MESON[]
-        `!x y:64 word. x = y ==> word_pmul x x:128 word = word_pmul y y`)) THEN
-  BITBLAST_TAC);;
-
-(* ========================================================================= *)
-(* Phase 4: the H^2 reduction, PC 0x50 -> 0x88.                                   *)
-(*                                                                            *)
-(*   H^2 = h_power h1 1 = polyval_dot h1 h1   (a SQUARE)                       *)
-(*                                                                            *)
-(* SQUARING IS FROBENIUS, so this block has NO middle product at all.  In       *)
-(* GF(2)[x] the two schoolbook cross products of a . a are equal, so their XOR  *)
-(* -- the whole middle 128 bits -- is ZERO (SQ_CROSS_0) and the 256-bit square  *)
-(* is exactly p_lo + p_hi*x^128.  The routine therefore takes the product's low *)
-(* half to be p_lo (its word-swap is a single `ext v1,v0,v0,#8`) and its high    *)
-(* half to be p_hi untouched, and emits only the two `pmull`s by w (Gueron's    *)
-(* two reduction phases).                                                      *)
-(*                                                                            *)
-(* Stores Htable[0..1] with one `stp q20,q21,[x0]`; X0 is not modified.  Q19    *)
-(* holds Gueron's reduction constant w = 0xC2000000_00000000; h1 is the         *)
-(* internal (half-swapped) algebraic key of Phase 3.                           *)
-(*                                                                            *)
-(* THE TWO REPRESENTATIONS.  From here on every power is kept in BOTH forms:    *)
-(* the ALGEBRAIC one (Q3 = h1, Q17 = H^2, ...), which is what the reduction     *)
-(* naturally produces and what the next multiply's `pmull`/`pmull2` read, and   *)
-(* the BYTESWAPPED one (Q20, Q22, ...), which is what the table stores and what *)
-(* the next multiply's CROSS products read.  Keeping both is what removes the   *)
-(* `ext`+`eor` Karatsuba fold from the multiply's dependency path.              *)
-(*                                                                            *)
-(* NOTE ON THE PACKED-MID ORDER: the routine writes                            *)
-(*   word_join (karatsuba_mid H^2) (karatsuba_mid H^1),                        *)
-(* i.e. the LOWER power's mid in the LOW 64 bits.  `htable_mem`'s packed-mid   *)
-(* slots were corrected to that orientation on 2026-08-26; see                 *)
-(* HTABLE_MEM_MID_LANES / HTABLE_MEM_KAT_FIRST3 above, which machine-check it. *)
-(* ========================================================================= *)
-
-let GCM_INIT_V8_H2 = prove
- (`!Htable h1 pc.
-    nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
-    ==> ensures arm
-         (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x50) /\
-              read X0 s = Htable /\
-              read Q19 s = word 0xc200000000000000c200000000000000 /\
-              read Q20 s = byteswap128 h1 /\
-              read Q0 s = word_pmul (word_subword h1 (0,64):64 word)
-                                    (word_subword h1 (0,64):64 word) /\
-              read Q2 s = word_pmul (word_subword h1 (64,64):64 word)
-                                    (word_subword h1 (64,64):64 word))
-         (\s. read PC s = word (pc + 0x88) /\
+         (\s. read PC s = word (pc + 0x98) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q3 s = h1 /\
@@ -670,15 +728,27 @@ let GCM_INIT_V8_H2 = prove
                 word_join (karatsuba_mid (h_power h1 1)) (karatsuba_mid h1))
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
-  MAP_EVERY X_GEN_TAC [`Htable:int64`; `h1:int128`; `pc:num`] THEN
-  GCM_BLOCK_STEPS_TAC 14 THEN
+  MAP_EVERY X_GEN_TAC
+    [`Htable:int64`; `H_ptr:int64`; `H:int128`; `h1:int128`; `pc:num`] THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; C_ARGUMENTS;
+              NONOVERLAPPING_CLAUSES; ALL; fst GCM_INIT_V8_EXEC] THEN
+  DISCH_THEN(REPEAT_TCL CONJUNCTS_THEN ASSUME_TAC) THEN
+  REWRITE_TAC[SOME_FLAGS; MODIFIABLE_SIMD_REGS] THEN
+  ENSURES_INIT_TAC "s0" THEN
+  SPLIT_INPUT_TAC THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--32) THEN
+  ATOMIZE_TWIST_TAC "s32" `byteswap128(ghash_twist(byteswap128 H))` THEN
+  ARM_STEPS_TAC GCM_INIT_V8_EXEC (33--38) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  REWRITE_TAC[FMASK] THEN
   REWRITE_TAC[HPOWER_OPERANDS] THEN
   SPEC_UNFOLD_TAC THEN
-  SQUARE_TAC 2 `h1:int128` THEN
-  LANE_CLOSE_TAC);;
+  REWRITE_TAC[TWIST_LANES] THEN
+  REWRITE_TAC[PMUL_SQ_XOR2; PMUL_SQ_XOR3] THEN
+  CARRY_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 5: the H^3 & H^4 block, PC 0x88 -> 0x10c.                             *)
+(* Phase 5: the H^3 & H^4 block, PC 0x98 -> 0x11c.                             *)
 (*                                                                            *)
 (*   H^3 = h_power h1 2 = polyval_dot h1 H^2   (genuine: 4 schoolbook products) *)
 (*   H^4 = h_power h1 3 = polyval_dot H^2 H^2  (a SQUARE: middle vanishes)      *)
@@ -703,7 +773,7 @@ let GCM_INIT_V8_H34 = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x88) /\
+              read PC s = word (pc + 0x98) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q3 s = h1 /\
@@ -713,7 +783,7 @@ let GCM_INIT_V8_H34 = prove
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
                 word_join (karatsuba_mid (h_power h1 1)) (karatsuba_mid h1))
-         (\s. read PC s = word (pc + 0x10c) /\
+         (\s. read PC s = word (pc + 0x11c) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q17 s = h_power h1 1 /\
@@ -744,7 +814,7 @@ let GCM_INIT_V8_H34 = prove
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 6a: the H^8, H^5 & H^6 block, PC 0x10c -> 0x1b0.                      *)
+(* Phase 6a: the H^8, H^5 & H^6 block, PC 0x11c -> 0x1c0.                      *)
 (*                                                                            *)
 (*   H^8 = h_power h1 7 = polyval_dot H^4 H^4  (a SQUARE) -- computed FIRST     *)
 (*   H^5 = h_power h1 4 = polyval_dot H^2 H^3  (genuine)                       *)
@@ -764,7 +834,7 @@ let GCM_INIT_V8_H34 = prove
 (* and is written by the NEXT block's `stp q28,q29,[x0,#128]`, so Q28 is        *)
 (* carried in the postcondition -- and so now are H^8's two outputs, Q31        *)
 (* (byteswap128 H^8, stored by the next block) and Q24 (its Karatsuba fold,     *)
-(* which the next block's single `ext` pairs with H^7's).  0x10c..0x1b0 never    *)
+(* which the next block's single `ext` pairs with H^7's).  0x11c..0x1c0 never    *)
 (* writes below +96, so the six lower slots thread through for free.           *)
 (*                                                                            *)
 (* H^5 and H^6 are never multiplied by anything, so they may live in this       *)
@@ -779,7 +849,7 @@ let GCM_INIT_V8_H56 = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x10c) /\
+              read PC s = word (pc + 0x11c) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q17 s = h_power h1 1 /\
@@ -798,7 +868,7 @@ let GCM_INIT_V8_H56 = prove
                 word_join (karatsuba_mid (h_power h1 3)) (karatsuba_mid (h_power h1 2)) /\
               read (memory :> bytes128 (word_add Htable (word 80))) s =
                 byteswap128 (h_power h1 3))
-         (\s. read PC s = word (pc + 0x1b0) /\
+         (\s. read PC s = word (pc + 0x1c0) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q21 s = h_power h1 2 /\
@@ -838,7 +908,7 @@ let GCM_INIT_V8_H56 = prove
   LANE_CLOSE_TAC);;
 
 (* ========================================================================= *)
-(* Phase 6b: the H^7 block, PC 0x1b0 -> 0x1f8 (ends at the ret).              *)
+(* Phase 6b: the H^7 block, PC 0x1c0 -> 0x208 (ends at the ret).              *)
 (*                                                                            *)
 (*   H^7 = h_power h1 6 = polyval_dot H^4 H^3  (genuine)                      *)
 (*                                                                            *)
@@ -854,7 +924,7 @@ let GCM_INIT_V8_H56 = prove
 (* supplying the algebraic lanes: the cross products read the OTHER operand's   *)
 (* byteswapped copy, and only H^4's (Q25) is in the table.                      *)
 (* Stores Htable[8..11] with the last two `stp`s (+128, +160).  Symbolic        *)
-(* execution ends at the ret (0x1f8); the ret is handled by the Phase 8         *)
+(* execution ends at the ret (0x208); the ret is handled by the Phase 8         *)
 (* subroutine wrapper.                                                        *)
 (*                                                                            *)
 (* The postcondition carries ALL TWELVE slots, so Phase 7 reads the full        *)
@@ -866,7 +936,7 @@ let GCM_INIT_V8_H78 = prove
     nonoverlapping (word pc, LENGTH gcm_init_v8_mc) (Htable, 192)
     ==> ensures arm
          (\s. aligned_bytes_loaded s (word pc) gcm_init_v8_mc /\
-              read PC s = word (pc + 0x1b0) /\
+              read PC s = word (pc + 0x1c0) /\
               read X0 s = Htable /\
               read Q19 s = word 0xc200000000000000c200000000000000 /\
               read Q21 s = h_power h1 2 /\
@@ -891,7 +961,7 @@ let GCM_INIT_V8_H78 = prove
                 byteswap128 (h_power h1 4) /\
               read (memory :> bytes128 (word_add Htable (word 112))) s =
                 word_join (karatsuba_mid (h_power h1 5)) (karatsuba_mid (h_power h1 4)))
-         (\s. read PC s = word (pc + 0x1f8) /\
+         (\s. read PC s = word (pc + 0x208) /\
               read X0 s = Htable /\
               read (memory :> bytes128 Htable) s = byteswap128 h1 /\
               read (memory :> bytes128 (word_add Htable (word 16))) s =
@@ -932,7 +1002,7 @@ let GCM_INIT_V8_H78 = prove
 (* Phase 7: the core correctness theorem, GCM_INIT_V8_CORRECT.                *)
 (*                                                                            *)
 (* Compose the five blocks into one `ensures` from function entry (PC 0x0) to *)
-(* the `ret` (PC 0x1f8), establishing the full 12-slot htable_mem             *)
+(* the `ret` (PC 0x208), establishing the full 12-slot htable_mem             *)
 (* postcondition for the half-swapped algebraic key h1 = ghash_twist(         *)
 (* byteswap128 H).  Each block is applied as a single atomic transition with  *)
 (* ARM_BIGSTEP_TAC, so the raw pmull expansions never re-appear -- they were  *)
@@ -944,9 +1014,9 @@ let GCM_INIT_V8_H78 = prove
 (*                                                                            *)
 (* NONSELFMODIFYING NOTE (the one subtlety): ARM_BIGSTEP_TAC must show the     *)
 (* frame write  memory :> bytes(Htable,192)  is disjoint from the code region *)
-(* memory :> bytelist(word pc,508).  Its ORTHOGONAL_COMPONENTS_TAC scans the  *)
-(* assumptions for a RAW `nonoverlapping (word pc,508) (Htable,192)` driver    *)
-(* and needs the length CONCRETE (508).  Hence: reduce LENGTH gcm_init_v8_mc   *)
+(* memory :> bytelist(word pc,524).  Its ORTHOGONAL_COMPONENTS_TAC scans the  *)
+(* assumptions for a RAW `nonoverlapping (word pc,524) (Htable,192)` driver    *)
+(* and needs the length CONCRETE (524).  Hence: reduce LENGTH gcm_init_v8_mc   *)
 (* to 508 via `fst GCM_INIT_V8_EXEC` in the setup rewrite, and do NOT rewrite  *)
 (* NONOVERLAPPING_CLAUSES on the initial assumptions (keep the driver form).   *)
 (* ========================================================================= *)
@@ -973,23 +1043,24 @@ let GCM_INIT_V8_CORRECT = prove
               read PC s = word pc /\
               C_ARGUMENTS [Htable; H_ptr] s /\
               read (memory :> bytes128 H_ptr) s = H)
-         (\s. read PC s = word (pc + 0x1f8) /\
+         (\s. read PC s = word (pc + 0x208) /\
               htable_mem (ghash_twist(byteswap128 H)) Htable s)
          (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
           MAYCHANGE [memory :> bytes(Htable, 192)])`,
   MAP_EVERY X_GEN_TAC [`Htable:int64`; `H_ptr:int64`; `H:int128`; `pc:num`] THEN
   MAYCHANGE_EXPAND_TAC THEN
   STRIP_TAC THEN
-  MP_TAC(SPECL[`Htable:int64`;`H_ptr:int64`;`H:int128`;`pc:num`]
-              GCM_INIT_V8_TWIST) THEN
+  MP_TAC(SPECL[`Htable:int64`;`H_ptr:int64`;`H:int128`;
+               `ghash_twist(byteswap128 H)`;`pc:num`]
+              GCM_INIT_V8_TWIST_H2) THEN
+  REWRITE_TAC[] THEN
   MAYCHANGE_EXPAND_TAC THEN ASM_REWRITE_TAC[] THEN
   DISCH_THEN(fun th -> REWRITE_TAC(!simulation_precanon_thms) THEN
                        ENSURES_INIT_TAC "s0" THEN MP_TAC th) THEN
   ARM_BIGSTEP_TAC GCM_INIT_V8_EXEC "s1" THEN
-  GCM_BLOCK_STEP_TAC "s2" GCM_INIT_V8_H2 THEN
-  GCM_BLOCK_STEP_TAC "s3" GCM_INIT_V8_H34 THEN
-  GCM_BLOCK_STEP_TAC "s4" GCM_INIT_V8_H56 THEN
-  GCM_BLOCK_STEP_TAC "s5" GCM_INIT_V8_H78 THEN
+  GCM_BLOCK_STEP_TAC "s2" GCM_INIT_V8_H34 THEN
+  GCM_BLOCK_STEP_TAC "s3" GCM_INIT_V8_H56 THEN
+  GCM_BLOCK_STEP_TAC "s4" GCM_INIT_V8_H78 THEN
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[htable_mem; CONJUNCT1 h_power]);;
 
@@ -997,7 +1068,7 @@ let GCM_INIT_V8_CORRECT = prove
 (* Phase 8: the standard-ABI subroutine wrapper (leaf, no stack frame).       *)
 (*                                                                            *)
 (* Wrap the core with the return via X30.  Two mechanical points:             *)
-(*  - Reduce LENGTH gcm_init_v8_mc to 508 (`fst GCM_INIT_V8_EXEC`) in the goal *)
+(*  - Reduce LENGTH gcm_init_v8_mc to 524 (`fst GCM_INIT_V8_EXEC`) in the goal *)
 (*    and in the core theorem so ARM_ADD_RETURN_NOSTACK_TAC's internal         *)
 (*    nonselfmodifying / NONOVERLAPPING checks see a concrete-length driver.   *)
 (*  - htable_mem is an opaque folded predicate that does NOT propagate through *)

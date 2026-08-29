@@ -23,15 +23,17 @@
 // ghashv8-armx.S (itself generated from crypto/fipsmodule/modes/asm/
 // ghashv8-armx.pl, BoringSSL), imported verbatim at 152 instructions. It has
 // since been optimized IN TREE and the instruction stream is NO LONGER that of
-// AWS-LC: 152 -> 127 instructions, Karatsuba -> schoolbook cross products, a
-// depth-3 addition chain (H^7 = H^3.H^4, H^8 = H^4.H^4), Frobenius-free
-// squares, the two-phase Gueron reduction split by linearity rather than
-// iterated, H^2's two products taken off the raw key in parallel with the
-// twist, a store-lane-order twist, `trn1`/`trn2` mid packing and `stp`-based
-// stores. See commits 6b6679a7, 6f1880d5, 605c9004, 7f845c62, 92d01dcc and the
-// session-016 follow-up. The symbol/ABI wrapper macros and CFI annotations
-// follow s2n-bignum house style, and the AArch64 BTI landing-pad macro
-// (AARCH64_VALID_CALL_TARGET) is dropped.
+// AWS-LC: Karatsuba -> schoolbook cross products, a depth-3 addition chain
+// (H^7 = H^3.H^4, H^8 = H^4.H^4), Frobenius-free squares, the two-phase
+// Gueron reduction expanded by linearity rather than iterated (for H^2 all the
+// way through the twist, so that H^2 needs neither of the two products the
+// twisted key would have fed), a store-lane-order twist, `trn1`/`trn2` mid
+// packing and `stp`-based stores.  For the current size, shape and the exact
+// sequence of optimizations, read the code below and
+// `git log arm/gcm/gcm_init_v8.S` -- do not trust a count quoted here.
+// The symbol/ABI wrapper macros and CFI annotations follow s2n-bignum house
+// style, and the AArch64 BTI landing-pad macro (AARCH64_VALID_CALL_TARGET) is
+// dropped.
 //
 // The FUNCTION computed is unchanged, and that is checked two ways: the
 // verbatim AWS-LC C reference is retained as the differential-test oracle in
@@ -53,37 +55,63 @@ S2N_BN_SYMBOL(gcm_init_v8):
     // AARCH64_VALID_CALL_TARGET
         CFI_START
 
+	// TWIST AND SQUARE, FUSED.  With S = H<<1 (per lane), u = H>>63 (per lane)
+	// and w = 0xc2000000_00000000, the twisted key's two 64-bit lanes are XORs
+	// of DISJOINT summands
+	//     h.d[1] = S.d[1] ^ u.d[0]                            (the low  factor)
+	//     h.d[0] = S.d[0] ^ u.d[1] ^ (u.d[0] ? w : 0)         (the high factor)
+	// and H^2 = L(h.d[1] (*) h.d[1]) ^ (h.d[0] (*) h.d[0]) where the Gueron
+	// two-phase reduce
+	//     L(x) = x ^ (x.d[1] (*) w) ^ ext(x.d[0] (*) w) ^ (((x.d[0] (*) w).d[0]) (*) w)
+	// is GF(2)-LINEAR.  A carryless SQUARE is additive (cross terms cancel), so
+	// both squares distribute over those summands and every u-term squares to
+	// itself; collecting the u.d[0]-conditional pieces gives L(1) ^ w^2 = Q,
+	// the POLYVAL modulus 0xc2000000_00000000_00000000_00000001.  Hence
+	//     H^2 = L(S.d[1]^2) ^ S.d[0]^2 ^ u.d[1] ^ (u.d[0] ? Q : 0)
+	// -- neither of the twisted key's own products is ever formed, and the
+	// whole XOR tree hangs off the RAW key.  S.d[1] comes through the GP pipe
+	// (4-cycle load + 1-cycle shift + 2-cycle fmov) so its square issues two
+	// cycles before the vector shl could have delivered it.
+	ldr	x3,[x1,#8]		//w1, through the GP pipe
 	ld1	{v17.2d},[x1]		//load input H = {w0,w1}
 	movi	v19.16b,#0xe1
 	movi	v2.16b,#0
-	shl	v19.2d,v19.2d,#57		//0xc2.0
+	movi	v22.16b,#0xff
+	lsl	x3,x3,#1			//S.d[1]
+	shl	v19.2d,v19.2d,#57		//w = {0xc2.0, 0xc2.0}
+	fmov	d7,x3
 	ushr	v18.2d,v17.2d,#63		//u = {bit63 w0, bit63 w1}
-	sshr	v3.2d,v17.2d,#63		//lane 0 = the carry bit, broadcast
-	ext	v16.16b,v19.16b,v2.16b,#8	//t0 = {0xc2....00, 0}
+	sshr	v3.2d,v17.2d,#63		//lane 0 = the carry bit's mask
+	ushr	v22.2d,v22.2d,#63		//{1,1}
 	shl	v6.2d,v17.2d,#1			//S = {w0<<1, w1<<1}
-	pmull	v7.1q,v18.1d,v18.1d		//FROBENIUS BYPASS.  Each lane of the
-	pmull2	v0.1q,v6.2d,v6.2d		//twisted key is an XOR of 2-3 disjoint
-	pmull	v2.1q,v6.1d,v6.1d		//summands, and a carryless SQUARE kills
-	pmull2	v4.1q,v18.2d,v18.2d		//all cross terms, so H^2's two products
-	ext	v18.16b,v18.16b,v18.16b,#8	//are the XOR of the summands' own
-	and	v16.16b,v16.16b,v3.16b		//squares -- computable straight off the
-	eor	v0.16b,v0.16b,v7.16b		//RAW key, four cycles before the twist
-	pmull	v5.1q,v16.1d,v16.1d		//itself lands.  p_lo in Q0, p_hi in Q2.
-	eor	v2.16b,v2.16b,v4.16b
-	orr	v20.16b,v6.16b,v18.16b		//H<<<=1 AND the low lane's 0x..01
-	eor	v2.16b,v2.16b,v5.16b
-	eor	v20.16b,v20.16b,v16.16b		//twisted H, already store-lane order
+	ext	v23.16b,v22.16b,v19.16b,#8	//Q = {1, 0xc2....00}, the modulus
+	trn1	v24.2d,v3.2d,v3.2d		//carry bit's mask in BOTH lanes
+	pmull	v0.1q,v7.1d,v7.1d		//A  = S.d[1]^2
+	pmull	v5.1q,v6.1d,v6.1d		//     S.d[0]^2
+	pmull2	v4.1q,v18.2d,v18.2d		//     u.d[1]^2 = u.d[1]
+	ext	v18.16b,v18.16b,v18.16b,#8	//{bit63 w1, bit63 w0}
+	and	v24.16b,v23.16b,v24.16b		//F  = carry ? Q : 0
+	eor	v5.16b,v5.16b,v4.16b		//E  = S.d[0]^2 ^ u.d[1]
+	pmull2	v25.1q,v0.2d,v19.2d		//B  = A.d[1] . w
+	pmull	v7.1q,v0.1d,v19.1d		//aw = A.d[0] . w
 
-	//calculate H^2 = H.H (a square); its products are already in Q0/Q2
+	//L(A) ^ E ^ F: the five leaves A/B/ext(aw)/aw.d[0].w and E/F land two
+	//cycles apart, and this tree roots one level earlier than iterating the
+	//reduction would.
+	eor	v0.16b,v0.16b,v25.16b		//A ^ B
+	eor	v5.16b,v5.16b,v24.16b		//E ^ F
+	ext	v1.16b,v7.16b,v7.16b,#8		//ext(aw)
+	pmull	v7.1q,v7.1d,v19.1d		//aw.d[0] . w
+	eor	v0.16b,v0.16b,v1.16b
+	eor	v5.16b,v5.16b,v7.16b
+	eor	v17.16b,v0.16b,v5.16b		//H^2
+	//the twisted key itself is only needed from here on, so it is finished
+	//here, out of the head's crowded issue slots; its conditional constant is
+	//F's own high lane, so no separate mask-and is needed
+	orr	v20.16b,v6.16b,v18.16b		//H<<<=1 AND the low lane's 0x..01
+	ext	v16.16b,v24.16b,v2.16b,#8	//C = {carry ? 0xc2.0 : 0, 0} = {F.d[1],0}
+	eor	v20.16b,v20.16b,v16.16b		//twisted H, already store-lane order
 	ext	v3.16b,v20.16b,v20.16b,#8	//H in multiplicand (algebraic) lane order
-	eor	v1.16b,v0.16b,v2.16b		//p_lo ^ p_hi   (see R-SPLIT note below)
-	pmull2	v18.1q,v0.2d,v19.2d		//p_lo.d[1] . w
-	pmull	v0.1q,v0.1d,v19.1d		//aw = p_lo.d[0] . w
-	eor	v1.16b,v1.16b,v18.16b
-	ext	v18.16b,v0.16b,v0.16b,#8
-	pmull	v0.1q,v0.1d,v19.1d		//aw.d[0] . w
-	eor	v18.16b,v18.16b,v0.16b
-	eor	v17.16b,v1.16b,v18.16b		//H^2
 	ext	v22.16b,v17.16b,v17.16b,#8	//store Htable[2]
 	trn1	v21.2d,v20.2d,v17.2d		//{H.d[0], H^2.d[0]}
 	trn2	v1.2d,v20.2d,v17.2d		//{H.d[1], H^2.d[1]}
