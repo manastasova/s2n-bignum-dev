@@ -85,11 +85,27 @@
 // full rebuild), while renaming every register, swapping a commutative operand
 // pair, or changing the VALUES a node computes are all free to within 0.15%.
 // So: re-search the whole order after any edit here; never hand-patch it.
+//
+// And do not assume a re-search will get the speed back.  Sampling INDEPENDENT
+// topological orders of a graph (one official benchmark evaluation each) finds
+// this ~42.3-cycle steady state for about 0.3% of the orders of THIS graph -- 20
+// hits in 6000 draws, best -0.13% -- so it is findable, and it is a plateau, not
+// a continuum: nothing faster exists for this graph.  But the same sampler, run
+// on fifteen correct algebraic variants (including every one that lowers the
+// dependence height to the Kraft floor of 48), does not reach it even once in
+// ~55000 draws; the best order of the best variant is +4%.  Deleting three
+// instructions while keeping every survivor in its exact relative order here is
+// +10.2%.  The fast steady state is a property of this exact instruction
+// sequence, not of a lucky permutation, so measure a candidate graph by sampling
+// ~500 orders of it (with this one as a control in the same batch) before
+// spending hours of search on it.
 // (An earlier version of this comment claimed the routine was near a RESOURCE
 // floor derived from a dependency-free clone.  That was measured with a harness
-// later shown to be anti-correlated with the benchmark; re-measured properly the
-// clone is 11% SLOWER than this code, because stripping the dependences also
-// strips operand forwarding, so it is not a floor at all.)
+// later shown to be anti-correlated with the benchmark, and the clone itself was
+// built wrong: rewiring every source to a register the function never writes
+// caps issue at exactly 2.00 ops/cycle -- against 3.9 for the same ops reading
+// values produced in the same call -- so such a clone measures ~36% SLOWER than
+// this code and bounds nothing.  A clone must source from in-body registers.)
 //
 // Standard ARM ABI: X0 = Htable, X1 = H
 // ----------------------------------------------------------------------------
