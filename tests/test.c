@@ -17044,7 +17044,11 @@ int test_aes_xts_roundtrip(void)
 // the known-answer vectors live in known_value_tests_gcm_init_v8.h.
 // ****************************************************************************
 
+// Not on x86: the glue calls the ARM-only gcm_init_v8, and at -O0 gcc emits an
+// unreferenced static anyway, so that call would survive to link time.
+#ifndef __x86_64__
 #include "ref_gcm_nohw.c"
+#endif
 
 int test_gcm_init_v8(void)
 {
