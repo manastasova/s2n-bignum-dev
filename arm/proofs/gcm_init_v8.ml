@@ -220,7 +220,30 @@ let HTABLE_MEM_MID_LANES = prove
 (* swap in either would fail this proof.  Numerals below decompose as          *)
 (* out[2i+1]*2^64 + out[2i], out[] = ref_gcm_init_v8(H_mem):                    *)
 (*   slot0 = byteswap128(H^1),  slot1 = pack(kmid H^2, kmid H^1),  slot2 = bsw(H^2). *)
-let HTABLE_MEM_KAT_FIRST3 = prove
+(*                                                                            *)
+(* The evaluation is STAGED, and the staging is the whole cost of the lemma:   *)
+(* the twisted key and H^2 are each reduced to a NUMERAL before byteswap128 /   *)
+(* karatsuba_mid / polyval_reduce_prop3 are unfolded.  Unfolding first and      *)
+(* reducing afterwards (the obvious one-pass `TOP_DEPTH_CONV let_CONV THENC     *)
+(* WORD_REDUCE_CONV`) flattens prop3's 13-`let` DAG into a tree, and            *)
+(* DEPTH_CONV does not memoise, so WORD_PMUL_CONV recomputes the 128x128        *)
+(* carry-less product (1.3s each) once per duplicated occurrence -- ~20 times.  *)
+(* CBV_LET_CONV keeps that sharing INSIDE prop3 by reducing each binding to a   *)
+(* numeral before substituting it, so `word_pmul a w` is done once, not four    *)
+(* times.  Identical statement, identical numerals; load 52s -> 1.8s.           *)
+let HTABLE_MEM_KAT_FIRST3 =
+  let CBV_LET_CONV =
+    REPEATC(CHANGED_CONV(WORD_REDUCE_CONV THENC ONCE_DEPTH_CONV let_CONV)) THENC
+    WORD_REDUCE_CONV in
+  let HKEY =
+    (REWRITE_CONV[ghash_twist; POLYVAL_TWIST_CONST; byteswap128] THENC
+     WORD_REDUCE_CONV)
+    `ghash_twist(byteswap128 (word 0x08070605040302010102030405060708:int128))` in
+  let HSQ =
+    (REWRITE_CONV[num_CONV `1`; h_power; polyval_dot] THENC WORD_REDUCE_CONV THENC
+     REWR_CONV polyval_reduce_prop3 THENC CBV_LET_CONV)
+    (list_mk_comb(`h_power`,[rand(concl HKEY); `1`])) in
+  prove
  (`byteswap128
      (h_power
        (ghash_twist(byteswap128 (word 0x08070605040302010102030405060708:int128))) 0) =
@@ -239,10 +262,8 @@ let HTABLE_MEM_KAT_FIRST3 = prove
      (h_power
        (ghash_twist(byteswap128 (word 0x08070605040302010102030405060708:int128))) 1) =
      word 181047608966400424755469230121728647223`,
-  CONV_TAC(REWRITE_CONV[num_CONV `1`; h_power] THENC
-    REWRITE_CONV[polyval_dot; polyval_reduce_prop3; byteswap128; karatsuba_mid;
-                 ghash_twist; POLYVAL_TWIST_CONST] THENC
-    TOP_DEPTH_CONV let_CONV THENC DEPTH_CONV WORD_RED_CONV THENC WORD_REDUCE_CONV));;
+  CONV_TAC(REWRITE_CONV[HKEY] THENC REWRITE_CONV[HSQ; h_power] THENC
+           REWRITE_CONV[byteswap128; karatsuba_mid] THENC WORD_REDUCE_CONV));;
 
 (* ========================================================================= *)
 (* SPEC-SIDE ALGEBRA: nested `polyval_dot` operands  <->  `h_power`.          *)
