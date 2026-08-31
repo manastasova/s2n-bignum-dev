@@ -37,36 +37,36 @@ S2N_BN_SYMBOL(gcm_init_v8):
         ld1     {v17.2d},[x1]           //load input H
         movi    v19.16b,#0xe1
         shl     v19.2d,v19.2d,#57               //0xc2.0
-        ext     v3.16b,v17.16b,v17.16b,#8
-        ushr    v18.2d,v19.2d,#63
-        dup     v17.4s,v17.s[1]
-        ext     v16.16b,v18.16b,v19.16b,#8              //t0=0xc2....01
-        ushr    v18.2d,v3.2d,#63
-        sshr    v17.4s,v17.4s,#31               //broadcast carry bit
-        and     v18.16b,v18.16b,v16.16b
-        shl     v3.2d,v3.2d,#1
-        ext     v18.16b,v18.16b,v18.16b,#8
-        and     v16.16b,v16.16b,v17.16b
-        orr     v3.16b,v3.16b,v18.16b           //H<<<=1
-        eor     v20.16b,v3.16b,v16.16b          //twisted H
-        ext     v20.16b, v20.16b, v20.16b, #8
-        st1     {v20.2d},[x0],#16               //store Htable[0]
+        movi    v1.16b,#0		// A0b: zero (off the critical path)
+        ext     v16.16b,v19.16b,v1.16b,#8		// A0b: swap(t0) lane1 cleared = {0xc2<<56, 0}
+        ext     v18.16b,v17.16b,v17.16b,#8		// A0b: swap(H) feeds sri
+        sshr    v20.2d,v17.2d,#63		// A0b: per-lane sign masks
+        shl     v3.2d,v17.2d,#1		// A0b: lanewise H<<1
+        nop		// A0b
+        sri     v3.2d,v18.2d,#63		// A0b: cross-lane carry AND the masked 0x..01 bit
+        nop		// A0b
+        nop		// A0b
+        and     v16.16b,v16.16b,v20.16b		// A0b: 0xc2<<56 masked by sign(H.d0)
+        nop		// A0b
+        eor     v3.16b,v3.16b,v16.16b		// A0b: S = swap(twisted H), computed directly
+        ext     v20.16b,v3.16b,v3.16b,#8		// A0b: T = swap(S)
+        nop                                             //CSE: ppH computed at :56 directly
 
         //calculate H^2
-        ext     v16.16b,v20.16b,v20.16b,#8              //Karatsuba pre-processing
-        pmull2  v0.1q,v20.2d,v20.2d
-        eor     v16.16b,v16.16b,v20.16b
-        pmull   v2.1q,v20.1d,v20.1d
-        pmull   v1.1q,v16.1d,v16.1d
+        eor     v16.16b,v20.16b,v3.16b                  //ppH = T ^ S (CSE double-swap)
+        pmull2  v0.1q,v3.2d,v3.2d
+        nop                                     //SQ: mid pmull(ppH,ppH) is vacuous for a square
+        pmull   v2.1q,v3.1d,v3.1d
+        nop                                     //SQ: Karatsuba post-processing all cancels
 
-        ext     v17.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
-        eor     v18.16b,v0.16b,v2.16b
-        eor     v1.16b,v1.16b,v17.16b
-        eor     v1.16b,v1.16b,v18.16b
+        nop                                     //SQ:   (a0^a1)^2 == a0^2 ^ a1^2 in GF(2)[x],
+        nop                                     //SQ:   so mid ^ (hi^lo) == 0 and
+        nop                                     //SQ:   v1 collapses to ext(hi,lo,8)
+        nop                                     //SQ: ins v2.d[0],v1.d[1] wrote lo.d[0] over itself
         pmull   v18.1q,v0.1d,v19.1d             //1st phase
 
-        ins     v2.d[0],v1.d[1]
-        ins     v1.d[1],v0.d[0]
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
+        ext     v1.16b,v0.16b,v0.16b,#8         //SQ: v1 = ext(hi,hi,8), was two ins
         eor     v0.16b,v1.16b,v18.16b
 
         ext     v18.16b,v0.16b,v0.16b,#8                //2nd phase
@@ -75,34 +75,34 @@ S2N_BN_SYMBOL(gcm_init_v8):
         eor     v17.16b,v0.16b,v18.16b
 
         ext     v22.16b,v17.16b,v17.16b,#8              //Karatsuba pre-processing
-        eor     v17.16b,v17.16b,v22.16b
-        ext     v21.16b,v16.16b,v17.16b,#8              //pack Karatsuba pre-processed
-        st1     {v21.2d},[x0],#16       //store Htable[1..2]
-        st1     {v22.2d},[x0],#16       //store Htable[1..2]
+        eor     v20.16b,v17.16b,v22.16b                 //ppH2 into freed v20 (full CSE)
+        ext     v21.16b,v16.16b,v20.16b,#8              //pack Karatsuba pre-processed
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
+        st1     {v3.2d},[x0],#16                //store Htable[0]
 
         //calculate H^3 and H^4
-        pmull2  v0.1q,v20.2d, v22.2d
+        pmull2  v0.1q,v3.2d, v22.2d
         pmull2  v5.1q,v22.2d,v22.2d
-        pmull   v2.1q,v20.1d, v22.1d
+        pmull   v2.1q,v3.1d, v22.1d
         pmull   v7.1q,v22.1d,v22.1d
-        pmull   v1.1q,v16.1d,v17.1d
-        pmull   v6.1q,v17.1d,v17.1d
+        pmull   v1.1q,v16.1d,v20.1d
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
 
         ext     v16.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
-        ext     v17.16b,v5.16b,v7.16b,#8
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v18.16b,v0.16b,v2.16b
         eor     v1.16b,v1.16b,v16.16b
-        eor     v4.16b,v5.16b,v7.16b
-        eor     v6.16b,v6.16b,v17.16b
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v1.16b,v1.16b,v18.16b
         pmull   v18.1q,v0.1d,v19.1d             //1st phase
-        eor     v6.16b,v6.16b,v4.16b
+        st1     {v21.2d},[x0],#16       //store Htable[1..2]
         pmull   v4.1q,v5.1d,v19.1d
 
         ins     v2.d[0],v1.d[1]
-        ins     v7.d[0],v6.d[1]
+        st1     {v22.2d},[x0],#16       //store Htable[1..2]
         ins     v1.d[1],v0.d[0]
-        ins     v6.d[1],v5.d[0]
+        ext     v6.16b,v5.16b,v5.16b,#8		// SQ: folded mid collapses to ext(hi,hi,8)
         eor     v0.16b,v1.16b,v18.16b
         eor     v5.16b,v6.16b,v4.16b
 
@@ -118,36 +118,36 @@ S2N_BN_SYMBOL(gcm_init_v8):
 
         ext     v23.16b,v16.16b,v16.16b,#8              //Karatsuba pre-processing
         ext     v25.16b,v17.16b,v17.16b,#8
-        ext     v18.16b,v22.16b,v22.16b,#8
-        eor     v16.16b,v16.16b,v23.16b
-        eor     v17.16b,v17.16b,v25.16b
-        eor     v18.16b,v18.16b,v22.16b
-        ext     v24.16b,v16.16b,v17.16b,#8      //pack Karatsuba pre-processed
-        st1     {v23.2d,v24.2d,v25.2d},[x0],#48 //store Htable[3..5]
+        nop                                     //CSE: ppH2 carried in v20 from :78
+        eor     v3.16b,v16.16b,v23.16b          //E1: ppH3 into v3 (S dead after :86)
+        eor     v21.16b,v17.16b,v25.16b         //E1: ppH4 into v21 (dead after :80 store)
+        nop
+        ext     v24.16b,v3.16b,v21.16b,#8       //pack Karatsuba pre-processed
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
 
         //calculate H^5 and H^6
         pmull2  v0.1q,v22.2d, v23.2d
         pmull2  v5.1q,v23.2d,v23.2d
         pmull   v2.1q,v22.1d, v23.1d
         pmull   v7.1q,v23.1d,v23.1d
-        pmull   v1.1q,v16.1d,v18.1d
-        pmull   v6.1q,v16.1d,v16.1d
+        pmull   v1.1q,v3.1d,v20.1d              //E1: ppH3 now in v3
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
 
         ext     v16.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
-        ext     v17.16b,v5.16b,v7.16b,#8
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v18.16b,v0.16b,v2.16b
         eor     v1.16b,v1.16b,v16.16b
-        eor     v4.16b,v5.16b,v7.16b
-        eor     v6.16b,v6.16b,v17.16b
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v1.16b,v1.16b,v18.16b
         pmull   v18.1q,v0.1d,v19.1d             //1st phase
-        eor     v6.16b,v6.16b,v4.16b
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         pmull   v4.1q,v5.1d,v19.1d
 
         ins     v2.d[0],v1.d[1]
-        ins     v7.d[0],v6.d[1]
+        st1     {v23.2d,v24.2d,v25.2d},[x0],#48 //store Htable[3..5]
         ins     v1.d[1],v0.d[0]
-        ins     v6.d[1],v5.d[0]
+        ext     v6.16b,v5.16b,v5.16b,#8		// SQ: folded mid collapses to ext(hi,hi,8)
         eor     v0.16b,v1.16b,v18.16b
         eor     v5.16b,v6.16b,v4.16b
 
@@ -163,36 +163,36 @@ S2N_BN_SYMBOL(gcm_init_v8):
 
         ext     v26.16b, v16.16b, v16.16b,#8            //Karatsuba pre-processing
         ext     v28.16b, v17.16b, v17.16b,#8
-        ext     v18.16b,v22.16b,v22.16b,#8
+        nop                                     //CSE: ppH2 carried in v20 from :78
         eor     v16.16b,v16.16b,v26.16b
         eor     v17.16b,v17.16b,v28.16b
-        eor     v18.16b,v18.16b,v22.16b
+        nop
         ext     v27.16b,v16.16b,v17.16b,#8      //pack Karatsuba pre-processed
-        st1     {v26.2d,v27.2d,v28.2d},[x0],#48 //store Htable[6..8]
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
 
         //calculate H^7 and H^8
-        pmull2  v0.1q,v22.2d,v26.2d
-        pmull2  v5.1q,v22.2d,v28.2d
-        pmull   v2.1q,v22.1d,v26.1d
-        pmull   v7.1q,v22.1d,v28.1d
-        pmull   v1.1q,v16.1d,v18.1d
-        pmull   v6.1q,v17.1d,v18.1d
+        pmull2  v0.1q,v23.2d,v25.2d             //E1: H^7 = H^3*H^4 (was H^2*H^5)
+        pmull2  v5.1q,v25.2d,v25.2d             //E1: H^8 = H^4*H^4 (was H^2*H^6)
+        pmull   v2.1q,v23.1d,v25.1d
+        pmull   v7.1q,v25.1d,v25.1d
+        pmull   v1.1q,v3.1d,v21.1d              //E1: mid = ppH3*ppH4
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
 
         ext     v16.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
-        ext     v17.16b,v5.16b,v7.16b,#8
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v18.16b,v0.16b,v2.16b
         eor     v1.16b,v1.16b,v16.16b
-        eor     v4.16b,v5.16b,v7.16b
-        eor     v6.16b,v6.16b,v17.16b
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v1.16b,v1.16b,v18.16b
         pmull   v18.1q,v0.1d,v19.1d             //1st phase
-        eor     v6.16b,v6.16b,v4.16b
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         pmull   v4.1q,v5.1d,v19.1d
 
         ins     v2.d[0],v1.d[1]
-        ins     v7.d[0],v6.d[1]
+        st1     {v26.2d,v27.2d,v28.2d},[x0],#48 //store Htable[6..8]
         ins     v1.d[1],v0.d[0]
-        ins     v6.d[1],v5.d[0]
+        ext     v6.16b,v5.16b,v5.16b,#8		// SQ: folded mid collapses to ext(hi,hi,8)
         eor     v0.16b,v1.16b,v18.16b
         eor     v5.16b,v6.16b,v4.16b
 
