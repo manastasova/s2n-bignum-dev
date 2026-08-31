@@ -17044,7 +17044,11 @@ int test_aes_xts_roundtrip(void)
 // the known-answer vectors live in known_value_tests_gcm_init_v8.h.
 // ****************************************************************************
 
+// Not on x86: the glue calls the ARM-only gcm_init_v8, and at -O0 gcc emits an
+// unreferenced static anyway, so that call would survive to link time.
+#ifndef __x86_64__
 #include "ref_gcm_nohw.c"
+#endif
 
 int test_gcm_init_v8(void)
 {
@@ -17058,7 +17062,7 @@ int test_gcm_init_v8(void)
   printf("Testing gcm_init_v8 with %d cases\n",tests);
   for (t = 0; t < tests; ++t)
    { random_bignum(2,H);                     // random 128-bit GHASH key H
-     memset(Htable,0,sizeof(Htable));
+     memset(Htable,GCM_V8_POISON,sizeof(Htable));   // poison all 16 slots
      gcm_init_v8(Htable,H);                   // implementation under test
      gcm_init_v8_powers_ref(powers_ref,H);    // aws-lc reference: powers H^1..H^8
      for (i = 0; i < 8; ++i)
@@ -17072,6 +17076,9 @@ int test_gcm_init_v8(void)
            return 1;
          }
       }
+     // The four packed Karatsuba middles are the XOR-folds of the powers just
+     // checked, and slots 12..15 must be left as poison; see ref_gcm_nohw.c.
+     if (gcm_init_v8_check_mids_and_poison(Htable,H)) return 1;
    }
   printf("All OK\n");
   return 0;

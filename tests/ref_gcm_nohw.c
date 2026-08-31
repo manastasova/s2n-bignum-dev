@@ -15,8 +15,11 @@
 // the powers computed here. gcm_init_nohw gives slot 0 (the twisted H); the
 // remaining powers are obtained by repeated GHASH-field multiplication with
 // gcm_polyval_nohw, exactly as gcm_gmult_nohw / gcm_ghash_nohw in gcm_nohw.c
-// compose that same primitive. The packed-Karatsuba slots (1,4,7,10) have no
-// independent C reference and are left to the formal proof.
+// compose that same primitive. The packed-Karatsuba slots (1,4,7,10) need no
+// independent C reference: each is the XOR-fold of the two 64-bit halves of two
+// power slots that are already pinned above, so it is derived from them here
+// (gcm_init_v8_check_mids_and_poison). The same function checks that the four
+// slots gcm_init_v8 must NOT write (12..15) still hold the caller's poison.
 //
 // Provenance (all VERBATIM from aws-lc @ 2df1601d7 unless marked TEST GLUE):
 //   u128              : crypto/fipsmodule/modes/internal.h:89
@@ -185,6 +188,74 @@ void gcm_init_nohw(u128 Htable[16], const uint64_t Xi[2]) {
 // Word offsets of H^1..H^8 within gcm_init_v8's 32-word (16x u128) table.
 static const int gcm_v8_power_offsets[8] = {0, 4, 6, 10, 12, 16, 18, 22};
 
+// 128-bit slot indices of the four packed Karatsuba middles, and of the two
+// power slots each middle is built from. gcm_init_v8 writes 12 of the table's
+// 16 slots: the eight powers above in slots {0,2,3,5,6,8,9,11} and these four
+// middles in slots {1,4,7,10}.
+static const int gcm_v8_mid_slots[4]    = {1, 4,  7, 10};
+static const int gcm_v8_mid_lo_slots[4] = {0, 3,  6,  9};   // the LOWER  power
+static const int gcm_v8_mid_hi_slots[4] = {2, 5,  8, 11};   // the HIGHER power
+
+// The byte the tests pre-fill the whole table with, so that a slot gcm_init_v8
+// must not write can be told apart from one it legitimately wrote as zero.
+#define GCM_V8_POISON 0xAA
+
+// TEST GLUE: check the four packed Karatsuba middle slots of a table already
+// filled by gcm_init_v8, and check that the four slots it must not write are
+// still poison. Needs no reference implementation: a middle is the XOR-fold of
+// a power's two 64-bit halves, so it is derived from the very power slots that
+// gcm_init_v8_powers_ref (and the known-answer vectors) pin against aws-lc.
+//
+// Lane assignment, from arm/aes_gcm/gcm_init_v8.S: the middles are produced by
+// ext v21,v16,v20,#8 (:79), ext v24,v3,v21,#8 (:125), ext v27,v16,v17,#8 (:170)
+// and ext v30,v16,v17,#8 (:212), where ext with #8 sets d[0] from the first
+// operand's d[1] and d[1] from the second operand's d[0], and each operand is a
+// ppH^k = H^k ^ swap(H^k) whose two lanes are both the fold of H^k. So the LOWER
+// power folds into the middle's low lane and the HIGHER power into its high lane
+// -- as the consumer confirms in aws-lc ghashv8-armx.pl .Loop_mod2x_v8, where
+// vpmull.p64 takes $Hhl's low lane alongside $H and vpmull2.p64 takes its high
+// lane alongside $H2, commented "(H^2.lo+H^2.hi)". The fold is invariant under
+// the lane swap, so folding the stored (swapped) power gives the same word.
+//
+// The folds are taken from Htable's own power slots rather than from the
+// reference's, which is not circular: both callers run this only after those
+// power slots have compared equal to the reference (gcm_init_v8_powers_ref) or
+// to a fixed known-answer vector, returning early otherwise, so at this point
+// the two are word-for-word the same. What remains unchecked by the power
+// comparison, and is checked here, is the fold-and-pack relation itself.
+//
+// Returns 1 (printing the divergence) on mismatch, else 0.
+static int gcm_init_v8_check_mids_and_poison(const uint64_t Htable[32],
+                                             const uint64_t H[2]) {
+  uint64_t poison;
+  memset(&poison, GCM_V8_POISON, sizeof(poison));
+  for (int k = 0; k < 4; k++) {
+    uint64_t got_lo  = Htable[2 * gcm_v8_mid_slots[k]];
+    uint64_t got_hi  = Htable[2 * gcm_v8_mid_slots[k] + 1];
+    uint64_t want_lo = Htable[2 * gcm_v8_mid_lo_slots[k]] ^
+                       Htable[2 * gcm_v8_mid_lo_slots[k] + 1];
+    uint64_t want_hi = Htable[2 * gcm_v8_mid_hi_slots[k]] ^
+                       Htable[2 * gcm_v8_mid_hi_slots[k] + 1];
+    if (got_lo != want_lo || got_hi != want_hi) {
+      printf("### Disparity: H=0x%016" PRIx64 ":%016" PRIx64
+             " Karatsuba middle slot %d = 0x%016" PRIx64 ":%016" PRIx64
+             " not 0x%016" PRIx64 ":%016" PRIx64 "\n",
+             H[0], H[1], gcm_v8_mid_slots[k], got_lo, got_hi, want_lo, want_hi);
+      return 1;
+    }
+  }
+  for (int i = 2 * 12; i < 2 * 16; i++) {
+    if (Htable[i] != poison) {
+      printf("### Disparity: H=0x%016" PRIx64 ":%016" PRIx64
+             " table word %d beyond the 12 written slots = 0x%016" PRIx64
+             " not 0x%016" PRIx64 "\n",
+             H[0], H[1], i, Htable[i], poison);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 // Write powers[2*n], powers[2*n+1] = H^(n+1) (n=0..7) in gcm_init_v8 word order.
 static void gcm_init_v8_powers_ref(uint64_t powers[16], const uint64_t H[2]) {
   u128 Htable[16];
@@ -202,12 +273,14 @@ static void gcm_init_v8_powers_ref(uint64_t powers[16], const uint64_t H[2]) {
 
 // TEST GLUE: run one gcm_init_v8 known-answer vector. Runs gcm_init_v8 on the
 // fixed key Hin and compares its 8 power slots against the fixed expected words
-// exp[16] (H^1..H^8). Returns 1 (printing the divergence) on mismatch, else 0.
+// exp[16] (H^1..H^8), then its four middle slots and the table bounds against
+// those same (now pinned) powers. Returns 1 (printing the divergence) on
+// mismatch, else 0.
 static int gcm_init_v8_kat_check(int idx, const uint64_t Hin[2],
                                  const uint64_t exp[16]) {
   uint64_t H[2] = { Hin[0], Hin[1] };
   uint64_t Htable[32];
-  memset(Htable, 0, sizeof(Htable));
+  memset(Htable, GCM_V8_POISON, sizeof(Htable));
   gcm_init_v8(Htable, H);
   for (int i = 0; i < 8; i++) {
     uint64_t g0 = Htable[gcm_v8_power_offsets[i]];
@@ -219,6 +292,10 @@ static int gcm_init_v8_kat_check(int idx, const uint64_t Hin[2],
              idx, Hin[0], Hin[1], i + 1, g0, g1, exp[2 * i], exp[2 * i + 1]);
       return 1;
     }
+  }
+  if (gcm_init_v8_check_mids_and_poison(Htable, Hin)) {
+    printf("Failed known value test %d: Karatsuba middles / table bounds\n", idx);
+    return 1;
   }
   return 0;
 }
