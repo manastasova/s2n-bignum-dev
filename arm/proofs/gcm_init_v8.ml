@@ -108,21 +108,21 @@ let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_in
   0x0ef6e062;       (* pmull v2.1q, v3.1d, v22.1d *)
   0x0ef6e2c7;       (* pmull v7.1q, v22.1d, v22.1d *)
   0x0ef4e201;       (* pmull v1.1q, v16.1d, v20.1d *)
-  0x0ef4e286;       (* pmull v6.1q, v20.1d, v20.1d *)
+  0xd503201f;       (* nop *)
   0x6e024010;       (* ext v16.16b, v0.16b, v2.16b, #8 *)
-  0x6e0740b1;       (* ext v17.16b, v5.16b, v7.16b, #8 *)
+  0xd503201f;       (* nop *)
   0x6e221c12;       (* eor v18.16b, v0.16b, v2.16b *)
   0x6e301c21;       (* eor v1.16b, v1.16b, v16.16b *)
-  0x6e271ca4;       (* eor v4.16b, v5.16b, v7.16b *)
-  0x6e311cc6;       (* eor v6.16b, v6.16b, v17.16b *)
+  0xd503201f;       (* nop *)
+  0xd503201f;       (* nop *)
   0x6e321c21;       (* eor v1.16b, v1.16b, v18.16b *)
   0x0ef3e012;       (* pmull v18.1q, v0.1d, v19.1d *)
-  0x6e241cc6;       (* eor v6.16b, v6.16b, v4.16b *)
+  0xd503201f;       (* nop *)
   0x0ef3e0a4;       (* pmull v4.1q, v5.1d, v19.1d *)
   0x6e084422;       (* mov v2.d[0], v1.d[1] *)
-  0x6e0844c7;       (* mov v7.d[0], v6.d[1] *)
+  0xd503201f;       (* nop *)
   0x6e180401;       (* mov v1.d[1], v0.d[0] *)
-  0x6e1804a6;       (* mov v6.d[1], v5.d[0] *)
+  0x6e0540a6;       (* ext v6.16b, v5.16b, v5.16b, #8 *)
   0x6e321c20;       (* eor v0.16b, v1.16b, v18.16b *)
   0x6e241cc5;       (* eor v5.16b, v6.16b, v4.16b *)
   0x6e004012;       (* ext v18.16b, v0.16b, v0.16b, #8 *)
@@ -147,21 +147,21 @@ let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_in
   0x0ef7e2c2;       (* pmull v2.1q, v22.1d, v23.1d *)
   0x0ef7e2e7;       (* pmull v7.1q, v23.1d, v23.1d *)
   0x0ef4e061;       (* pmull v1.1q, v3.1d, v20.1d *)
-  0x0ee3e066;       (* pmull v6.1q, v3.1d, v3.1d *)
+  0xd503201f;       (* nop *)
   0x6e024010;       (* ext v16.16b, v0.16b, v2.16b, #8 *)
-  0x6e0740b1;       (* ext v17.16b, v5.16b, v7.16b, #8 *)
+  0xd503201f;       (* nop *)
   0x6e221c12;       (* eor v18.16b, v0.16b, v2.16b *)
   0x6e301c21;       (* eor v1.16b, v1.16b, v16.16b *)
-  0x6e271ca4;       (* eor v4.16b, v5.16b, v7.16b *)
-  0x6e311cc6;       (* eor v6.16b, v6.16b, v17.16b *)
+  0xd503201f;       (* nop *)
+  0xd503201f;       (* nop *)
   0x6e321c21;       (* eor v1.16b, v1.16b, v18.16b *)
   0x0ef3e012;       (* pmull v18.1q, v0.1d, v19.1d *)
-  0x6e241cc6;       (* eor v6.16b, v6.16b, v4.16b *)
+  0xd503201f;       (* nop *)
   0x0ef3e0a4;       (* pmull v4.1q, v5.1d, v19.1d *)
   0x6e084422;       (* mov v2.d[0], v1.d[1] *)
-  0x6e0844c7;       (* mov v7.d[0], v6.d[1] *)
+  0xd503201f;       (* nop *)
   0x6e180401;       (* mov v1.d[1], v0.d[0] *)
-  0x6e1804a6;       (* mov v6.d[1], v5.d[0] *)
+  0x6e0540a6;       (* ext v6.16b, v5.16b, v5.16b, #8 *)
   0x6e321c20;       (* eor v0.16b, v1.16b, v18.16b *)
   0x6e241cc5;       (* eor v5.16b, v6.16b, v4.16b *)
   0x6e004012;       (* ext v18.16b, v0.16b, v0.16b, #8 *)
@@ -985,6 +985,9 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
   CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
   REWRITE_TAC[PMUL_W_64_128] THEN
   REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
+  (* SQ: the H^4 stream squares, so its mid collapses to pbb_hi ^ pbb_lo and    *)
+  (* the .S no longer computes it -- no pbb_mid product left to abbreviate.     *)
+  REWRITE_TAC[PMUL_SQ_XOR] THEN
   ABBREV_TAC `(pab_hi:128 word) =
      word_pmul (word_subword (a:int128) (64,64):64 word)
                (word_subword (b:int128) (64,64):64 word)` THEN
@@ -1002,11 +1005,6 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
   ABBREV_TAC `(pbb_lo:128 word) =
      word_pmul (word_subword (b:int128) (0,64):64 word)
                (word_subword (b:int128) (0,64):64 word)` THEN
-  ABBREV_TAC `(pbb_mid:128 word) =
-     word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))
-               (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))` THEN
   REWRITE_TAC[byteswap128] THEN
   REPEAT CONJ_TAC THEN GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN
   BITBLAST_TAC);;
@@ -1064,6 +1062,42 @@ let GCM_INIT_V8_KARA_TAC =
   (* it serves the a*b + b*b pair of all three paired blocks with no hardcoded    *)
   (* a/b names (and served block E's pre-E1 a*b1 + a*b2 triple unchanged);        *)
   (* BITBLAST then sees only opaque vars.                                         *)
+  REPEAT(W(fun (_,w) ->
+    let t = find_term
+      (fun u -> match u with
+                  Comb(Comb(Const("word_pmul",_),x),_) -> type_of x = `:(64)word`
+                | _ -> false) w in
+    ABBREV_TAC(mk_eq(genvar(type_of t),t)))) THEN
+  REWRITE_TAC[byteswap128] THEN
+  REPEAT CONJ_TAC THEN
+  CACHED_LANE_BLAST;;
+
+(* ------------------------------------------------------------------------- *)
+(* SQ: the squaring-stream sibling of GCM_INIT_V8_KARA_TAC, for the paired     *)
+(* blocks whose SECOND stream squares (C: H^4 = (H^2)^2, D: H^6 = (H^3)^2).    *)
+(* The optimized .S drops those streams' mid pmull and its two folding XORs    *)
+(* (in-place nops) because the Karatsuba middle is vacuous for a squaring, so   *)
+(* the spec's mid must be collapsed by PMUL_SQ_XOR BEFORE the product          *)
+(* abstraction runs -- otherwise the loop abstracts a mid product the code no   *)
+(* longer computes, the goal becomes FALSE, and the BDD explores the whole      *)
+(* 640-bit space instead of failing (measured: 21 GB / >19 min, session 032).   *)
+(* With the collapse first, the loop abstracts exactly the FIVE products the    *)
+(* shortened code does compute and the residual is again GF(2)-linear over      *)
+(* opaque vars: block C's leg closes in ~59 s at 1.7 GB.                        *)
+(*                                                                            *)
+(* This is a SIBLING, not an edit of GCM_INIT_V8_KARA_TAC: block E's H^8 stream *)
+(* still goes through the unmodified tactic, and applying the collapse to a      *)
+(* block whose code still computes its mid is exactly the failure above.        *)
+(* ------------------------------------------------------------------------- *)
+let GCM_INIT_V8_KARA_SQ_TAC =
+  REWRITE_TAC[polyval_dot; karatsuba_mid] THEN
+  REWRITE_TAC[KARA_EQ] THEN
+  REWRITE_TAC[polyval_reduce_prop3] THEN
+  CONV_TAC(TOP_DEPTH_CONV let_CONV) THEN
+  REWRITE_TAC[PMUL_W_64_128] THEN
+  REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
+  REWRITE_TAC[AB_MID_COMM] THEN
+  REWRITE_TAC[PMUL_SQ_XOR] THEN   (* SQ: mid of the squaring stream = hi ^ lo *)
   REPEAT(W(fun (_,w) ->
     let t = find_term
       (fun u -> match u with
@@ -1164,7 +1198,7 @@ let GCM_INIT_V8_H34 = prove
   ENSURES_INIT_TAC "s0" THEN
   ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--38) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-  GCM_INIT_V8_KARA_TAC);;
+  GCM_INIT_V8_KARA_SQ_TAC);;   (* SQ: H^4 = (H^2)^2 -- vacuous mid *)
 
 (* ========================================================================= *)
 (* Phase 8 -- H^3/H^4 sub-table with memory (entry -> pc+0x134, slots 0-5).    *)
@@ -1428,6 +1462,9 @@ let GCM_INIT_V8_D_REGBRIDGE = prove
   REWRITE_TAC[PMUL_W_64_128] THEN
   REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
   REWRITE_TAC[AB_MID_COMM] THEN   (* flip block D's (mid b, mid a) product *)
+  (* SQ: the H^6 stream squares, so its mid collapses to pbb_hi ^ pbb_lo and    *)
+  (* the .S no longer computes it -- no pbb_mid product left to abbreviate.     *)
+  REWRITE_TAC[PMUL_SQ_XOR] THEN
   ABBREV_TAC `(pab_hi:128 word) =
      word_pmul (word_subword (a:int128) (64,64):64 word)
                (word_subword (b:int128) (64,64):64 word)` THEN
@@ -1445,11 +1482,6 @@ let GCM_INIT_V8_D_REGBRIDGE = prove
   ABBREV_TAC `(pbb_lo:128 word) =
      word_pmul (word_subword (b:int128) (0,64):64 word)
                (word_subword (b:int128) (0,64):64 word)` THEN
-  ABBREV_TAC `(pbb_mid:128 word) =
-     word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))
-               (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))` THEN
   REWRITE_TAC[byteswap128] THEN
   REPEAT CONJ_TAC THEN GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN
   BITBLAST_TAC);;
@@ -1526,7 +1558,7 @@ let GCM_INIT_V8_H56 = prove
   ENSURES_INIT_TAC "s0" THEN
   ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--38) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-  GCM_INIT_V8_KARA_TAC);;
+  GCM_INIT_V8_KARA_SQ_TAC);;   (* SQ: H^6 = (H^3)^2 -- vacuous mid *)
 
 (* ========================================================================= *)
 (* Phase 9 -- H^5/H^6 sub-table with memory (entry -> pc+0x1cc, slots 0-8).    *)
