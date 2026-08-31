@@ -176,23 +176,23 @@ S2N_BN_SYMBOL(gcm_init_v8):
         pmull   v2.1q,v23.1d,v25.1d
         pmull   v7.1q,v25.1d,v25.1d
         pmull   v1.1q,v3.1d,v21.1d              //E1: mid = ppH3*ppH4
-        pmull   v6.1q,v21.1d,v21.1d             //E1: mid = ppH4*ppH4
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
 
         ext     v16.16b,v0.16b,v2.16b,#8                //Karatsuba post-processing
-        ext     v17.16b,v5.16b,v7.16b,#8
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v18.16b,v0.16b,v2.16b
         eor     v1.16b,v1.16b,v16.16b
-        eor     v4.16b,v5.16b,v7.16b
-        eor     v6.16b,v6.16b,v17.16b
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         eor     v1.16b,v1.16b,v18.16b
         pmull   v18.1q,v0.1d,v19.1d             //1st phase
-        eor     v6.16b,v6.16b,v4.16b
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         pmull   v4.1q,v5.1d,v19.1d
 
         ins     v2.d[0],v1.d[1]
-        ins     v7.d[0],v6.d[1]
+        nop		// SQ: dead for a squaring (mid == hi^lo in GF(2)[x])
         ins     v1.d[1],v0.d[0]
-        ins     v6.d[1],v5.d[0]
+        ext     v6.16b,v5.16b,v5.16b,#8		// SQ: folded mid collapses to ext(hi,hi,8)
         eor     v0.16b,v1.16b,v18.16b
         eor     v5.16b,v6.16b,v4.16b
 

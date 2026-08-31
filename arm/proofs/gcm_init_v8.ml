@@ -186,21 +186,21 @@ let gcm_init_v8_mc = define_assert_from_elf "gcm_init_v8_mc" "arm/aes_gcm/gcm_in
   0x0ef9e2e2;       (* pmull v2.1q, v23.1d, v25.1d *)
   0x0ef9e327;       (* pmull v7.1q, v25.1d, v25.1d *)
   0x0ef5e061;       (* pmull v1.1q, v3.1d, v21.1d *)
-  0x0ef5e2a6;       (* pmull v6.1q, v21.1d, v21.1d *)
+  0xd503201f;       (* nop *)
   0x6e024010;       (* ext v16.16b, v0.16b, v2.16b, #8 *)
-  0x6e0740b1;       (* ext v17.16b, v5.16b, v7.16b, #8 *)
+  0xd503201f;       (* nop *)
   0x6e221c12;       (* eor v18.16b, v0.16b, v2.16b *)
   0x6e301c21;       (* eor v1.16b, v1.16b, v16.16b *)
-  0x6e271ca4;       (* eor v4.16b, v5.16b, v7.16b *)
-  0x6e311cc6;       (* eor v6.16b, v6.16b, v17.16b *)
+  0xd503201f;       (* nop *)
+  0xd503201f;       (* nop *)
   0x6e321c21;       (* eor v1.16b, v1.16b, v18.16b *)
   0x0ef3e012;       (* pmull v18.1q, v0.1d, v19.1d *)
-  0x6e241cc6;       (* eor v6.16b, v6.16b, v4.16b *)
+  0xd503201f;       (* nop *)
   0x0ef3e0a4;       (* pmull v4.1q, v5.1d, v19.1d *)
   0x6e084422;       (* mov v2.d[0], v1.d[1] *)
-  0x6e0844c7;       (* mov v7.d[0], v6.d[1] *)
+  0xd503201f;       (* nop *)
   0x6e180401;       (* mov v1.d[1], v0.d[0] *)
-  0x6e1804a6;       (* mov v6.d[1], v5.d[0] *)
+  0x6e0540a6;       (* ext v6.16b, v5.16b, v5.16b, #8 *)
   0x6e321c20;       (* eor v0.16b, v1.16b, v18.16b *)
   0x6e241cc5;       (* eor v5.16b, v6.16b, v4.16b *)
   0x6e004012;       (* ext v18.16b, v0.16b, v0.16b, #8 *)
@@ -1012,7 +1012,8 @@ let GCM_INIT_V8_C_REGBRIDGE = prove
 (* ------------------------------------------------------------------------- *)
 (* AB_MID_COMM and the shared "Karatsuba-abstract + lane-blast" tail, defined  *)
 (* here just above their first consumer GCM_INIT_V8_H34 so every block-C/D/E   *)
-(* slot proof (H34, H56, H78) can call GCM_INIT_V8_KARA_TAC.                    *)
+(* slot proof (H34, H56, H78) can call GCM_INIT_V8_KARA_TAC -- or, since each   *)
+(* squares its second stream in the optimized .S, its sibling KARA_SQ_TAC below.*)
 (*                                                                            *)
 (* After ENSURES_FINAL_STATE_TAC + ASM_REWRITE_TAC[] the residual goal of each *)
 (* such block is a conjunction of 128-bit slot / register equalities in        *)
@@ -1085,9 +1086,11 @@ let GCM_INIT_V8_KARA_TAC =
 (* shortened code does compute and the residual is again GF(2)-linear over      *)
 (* opaque vars: block C's leg closes in ~59 s at 1.7 GB.                        *)
 (*                                                                            *)
-(* This is a SIBLING, not an edit of GCM_INIT_V8_KARA_TAC: block E's H^8 stream *)
-(* still goes through the unmodified tactic, and applying the collapse to a      *)
-(* block whose code still computes its mid is exactly the failure above.        *)
+(* This is a SIBLING, not an edit of GCM_INIT_V8_KARA_TAC: applying the collapse *)
+(* to a block whose code still computes its mid is exactly the failure above.    *)
+(* All three paired blocks now square their second stream, so KARA_TAC itself is *)
+(* currently uncalled -- it is KEPT because it is the correct tactic for an       *)
+(* unshortened stream, and reverting any one block's squaring shortcut needs it.  *)
 (* ------------------------------------------------------------------------- *)
 let GCM_INIT_V8_KARA_SQ_TAC =
   REWRITE_TAC[polyval_dot; karatsuba_mid] THEN
@@ -1823,6 +1826,9 @@ let GCM_INIT_V8_E_REGBRIDGE = prove
   REWRITE_TAC[PMUL_W_64_128] THEN
   REWRITE_TAC[SBW_XOR; SBW_BS; SBW_JOIN] THEN
   REWRITE_TAC[AB_MID_COMM] THEN   (* inert on block E's post-E1 (mid a, mid b) *)
+  (* SQ: E1 made H^8 = H^4*H^4 a SQUARING, so this stream's mid collapses to    *)
+  (* pbb_hi ^ pbb_lo and the .S no longer computes it -- no pbb_mid to abbrev.  *)
+  REWRITE_TAC[PMUL_SQ_XOR] THEN
   ABBREV_TAC `(pab_hi:128 word) =
      word_pmul (word_subword (a:int128) (64,64):64 word)
                (word_subword (b:int128) (64,64):64 word)` THEN
@@ -1840,11 +1846,6 @@ let GCM_INIT_V8_E_REGBRIDGE = prove
   ABBREV_TAC `(pbb_lo:128 word) =
      word_pmul (word_subword (b:int128) (0,64):64 word)
                (word_subword (b:int128) (0,64):64 word)` THEN
-  ABBREV_TAC `(pbb_mid:128 word) =
-     word_pmul (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))
-               (word_xor (word_subword (b:int128) (64,64):64 word)
-                         (word_subword (b:int128) (0,64):64 word))` THEN
   REWRITE_TAC[byteswap128] THEN
   REPEAT CONJ_TAC THEN GEN_REWRITE_TAC I [LANE128] THEN CONJ_TAC THEN
   BITBLAST_TAC);;
@@ -1927,7 +1928,7 @@ let GCM_INIT_V8_H78 = prove
   ENSURES_INIT_TAC "s0" THEN
   ARM_STEPS_TAC GCM_INIT_V8_EXEC (1--36) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
-  GCM_INIT_V8_KARA_TAC);;
+  GCM_INIT_V8_KARA_SQ_TAC);;   (* SQ: H^8 = (H^4)^2 -- vacuous mid *)
 
 (* ========================================================================= *)
 (* Phase 9/10 -- H^7/H^8 sub-table with memory (entry -> pc+0x25c, ALL 12      *)
