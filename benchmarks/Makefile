@@ -34,7 +34,10 @@ endif
 REF_SRC = $(wildcard reference/*.S)
 REF_OBJ = $(REF_SRC:.S=.o)
 
-reference/%.o: reference/%.S ; $(CC) -c -o $@ $<
+# Two reference kernels come from hanno-becker/aws-lc and #include openssl headers,
+# so AWSLC_INC must point at an aws-lc checkout for those two to build.
+AWSLC_INC ?= /home/ubuntu/aws-lc-all/aws-lc/include
+reference/%.o: reference/%.S ; $(CC) -c -I../include -I$(AWSLC_INC) -o $@ $<
 
 benchmark: benchmark.c ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a $(REF_OBJ); $(CC) -O3 -o benchmark benchmark.c $(REF_OBJ) -L../$(ARCH) -ls2nbignum -lm
 

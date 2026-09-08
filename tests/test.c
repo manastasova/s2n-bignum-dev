@@ -16794,6 +16794,16 @@ static void gcm_k_4x(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
                      uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
  { aes_gcm_enc_kernel_4x(in, bl, out, Xi, iv, k, Ht); }
 
+// AES-256 kernel derived from the jargh gcm-branch AES-128 clean x4 kernel by
+// raising the round count 10 -> 14 (see benchmarks/reference/). Same 7-argument
+// order; returns bytes processed. AES-256, so directly comparable to ours.
+extern uint64_t aes_gcm_enc_kernel_x4_scalar_iv_mem_late_tag_scalar_rk_256(const uint8_t *in, uint64_t len_bits, uint8_t *out,
+        uint64_t *tag, const uint8_t *ivec, const AES_KEY *key,
+        const uint64_t *Htable);
+static void gcm_k_x4_256(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
+                         uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
+ { aes_gcm_enc_kernel_x4_scalar_iv_mem_late_tag_scalar_rk_256(in, bl, out, (uint64_t*)Xi, iv, k, Ht); }
+
 // Every length benchmarks/benchmark.c measures.
 static const size_t gcm_bench_lens[] =
  { 16, 32, 48, 64, 80, 96, 112, 128, 192, 256, 512, 1024, 4096 };
@@ -16897,6 +16907,66 @@ int test_gcm_kernel_4x(void)
   return gcm_kernel_difftest("aes_gcm_enc_kernel_4x", gcm_k_4x);
 #endif
 }
+
+// AES-256 expanded from the AES-128 SLOTHY software-pipelined champion (round
+// count 10 -> 14, schedule kept). See benchmarks/reference/.
+extern uint64_t aes_gcm_enc_kernel_x4_scalar_iv_mem_late_tag_scalar_rk_swp_256(const uint8_t *in, uint64_t len_bits, uint8_t *out,
+        uint64_t *tag, const uint8_t *ivec, const AES_KEY *key, const uint64_t *Htable);
+extern uint64_t aes_gcm_enc_kernel_slothy_base_256_base256(const uint8_t *in, uint64_t len_bits, uint8_t *out,
+        uint64_t *tag, const uint8_t *ivec, const AES_KEY *key, const uint64_t *Htable);
+static void gcm_k_hanno_base(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
+                 uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
+ { aes_gcm_enc_kernel_slothy_base_256_base256(in, bl, out, (uint64_t*)Xi, iv, k, Ht); }
+extern uint64_t aes_gcm_enc_kernel_slothy_base_256_opt256(const uint8_t *in, uint64_t len_bits, uint8_t *out,
+        uint64_t *tag, const uint8_t *ivec, const AES_KEY *key, const uint64_t *Htable);
+static void gcm_k_hanno_opt(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
+                 uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
+ { aes_gcm_enc_kernel_slothy_base_256_opt256(in, bl, out, (uint64_t*)Xi, iv, k, Ht); }
+
+static void gcm_k_x4_swp256(const uint8_t *in, size_t bl, uint8_t *out, uint8_t *Xi,
+                            uint8_t *iv, const AES_KEY *k, const uint64_t *Ht)
+ { aes_gcm_enc_kernel_x4_scalar_iv_mem_late_tag_scalar_rk_swp_256(in, bl, out, (uint64_t*)Xi, iv, k, Ht); }
+
+int test_gcm_kernel_x4_256(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  printf("Testing %s (AES-256 derived from the AES-128 x4 clean kernel) against reference\n",
+         "gcm_x4_scalar_rk_256");
+  return gcm_kernel_difftest("gcm_x4_scalar_rk_256", gcm_k_x4_256);
+#endif
+}
+int test_gcm_kernel_x4_swp256(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  printf("Testing gcm_x4_swp_256 (AES-256 expanded from the SWP champion) against reference\n");
+  return gcm_kernel_difftest("gcm_x4_swp_256", gcm_k_x4_swp256);
+#endif
+}
+int test_hanno_base_256(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  printf("Testing hanno_base_256 (hanno-becker aws-lc AES-256) against reference\n");
+  return gcm_kernel_difftest("hanno_base_256", gcm_k_hanno_base);
+#endif
+}
+
+int test_hanno_opt_256(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  printf("Testing hanno_opt_256 (hanno-becker aws-lc AES-256) against reference\n");
+  return gcm_kernel_difftest("hanno_opt_256", gcm_k_hanno_opt);
+#endif
+}
+
+
 
 int test_aesv8_gcm_8x_enc_256(void)
 {
@@ -18045,6 +18115,10 @@ int main(int argc, char *argv[])
     functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256_allsizes",test_gcm_kernel_ours_allsizes);
     functionaltest(aes&&sha3,"aesv8_gcm_8x_enc_256_org",test_gcm_kernel_org);
     functionaltest(aes&&sha3,"aes_gcm_enc_kernel_4x",test_gcm_kernel_4x);
+    functionaltest(aes&&sha3,"gcm_x4_scalar_rk_256",test_gcm_kernel_x4_256);
+    functionaltest(aes&&sha3,"gcm_x4_swp_256",test_gcm_kernel_x4_swp256);
+    functionaltest(aes&&sha3,"hanno_base_256",test_hanno_base_256);
+    functionaltest(aes&&sha3,"hanno_opt_256",test_hanno_opt_256);
   }
 
   if (extrastrigger) function_to_test = "_";

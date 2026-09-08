@@ -51,7 +51,8 @@ complete: test ctCheck; $(VALGRIND) ./test +500
 REF_SRC = $(wildcard ../benchmarks/reference/*.S)
 REF_OBJ = $(REF_SRC:.S=.o)
 
-../benchmarks/reference/%.o: ../benchmarks/reference/%.S ; $(CC) -c -o $@ $<
+AWSLC_INC ?= /home/ubuntu/aws-lc-all/aws-lc/include
+../benchmarks/reference/%.o: ../benchmarks/reference/%.S ; $(CC) -c -I../include -I$(AWSLC_INC) -o $@ $<
 
 test: test.c known_value_tests_p384.h tweetnacl_excerpt.c ../include/s2n-bignum.h ../$(ARCH)/libs2nbignum.a $(REF_OBJ); $(CC) -Wall -std=gnu99 -o test test.c $(REF_OBJ) -L../$(ARCH) -ls2nbignum -lm
 
