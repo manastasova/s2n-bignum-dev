@@ -1845,8 +1845,7 @@ L256_enc_small:  //[s142] fused nb<=4 short path (single entry test cmp x9,#64/b
 	add	v28.4s, v31.4s, v31.4s	//+2
 	add	v10.4s, v28.4s, v31.4s	//+3
 	add	v11.4s, v28.4s, v28.4s	//+4
-	add	v30.4s, v29.4s, v11.4s
-	add	v30.4s, v30.4s, v11.4s	//base+8
+	// [s146 (c)] base+8 build removed; each body builds its final counter directly
 	add	v8.4s, v29.4s, v31.4s
 	rev32	v1.16b, v8.16b
 	add	v9.4s, v29.4s, v28.4s
@@ -1860,6 +1859,7 @@ L256_enc_small:  //[s142] fused nb<=4 short path (single entry test cmp x9,#64/b
 	cmp	x9, #48
 	b.eq	L256_enc_small_3
 L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (tbl v12)
+	add	v30.4s, v29.4s, v11.4s	//[s146 (c)] final counter = base+4 = ctr(nb+2), direct
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -1988,10 +1988,6 @@ L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (t
 	ldr	q8, [x0], #16			//block0 PT (x0 -> block1 PT)
 	ext	v16.16b, v19.16b, v19.16b, #8	//partial tag
 	mov	v29.16b, v28.16b		//v29 = rk14
-	sub	v30.4s, v30.4s, v31.4s		//counter base+8 -> +7 (mirror cascade: 4 decrements to +4)
-	sub	v30.4s, v30.4s, v31.4s		//+6
-	sub	v30.4s, v30.4s, v31.4s		//+5
-	sub	v30.4s, v30.4s, v31.4s		//+4 (= nb+2 counter to store)
 	// [s122 A1] dropped mov v5/6/7 <- v1/2/3; fast4_drain reads v1/v2/v3 directly
 	movi	v17.8b, #0
 	movi	v18.8b, #0
@@ -2050,6 +2046,7 @@ L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (t
 	.inst	0xce103e52	//eor3 v18,v18,v16,v15	//fused mid (pair-2)
 	b	L256_enc_small_reduce
 L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
+	add	v30.4s, v29.4s, v10.4s	//[s146 (c)] final counter = base+3 = ctr(nb+2), direct
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -2153,11 +2150,6 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	ldr	q8, [x0], #16			//block0 PT (x0 -> block1 PT)
 	ext	v16.16b, v19.16b, v19.16b, #8	//partial tag
 	mov	v29.16b, v28.16b		//v29 = rk14
-	sub	v30.4s, v30.4s, v31.4s		//5 subs roll base+8 (=ctr(8g+10)) -> base+3 = ctr(nb+2)
-	sub	v30.4s, v30.4s, v31.4s
-	sub	v30.4s, v30.4s, v31.4s
-	sub	v30.4s, v30.4s, v31.4s
-	sub	v30.4s, v30.4s, v31.4s
 	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block0 ct)
 	// --- block0 (A): H^3, feed tag, products -> v13(hi)/v14(lo)/v15(mid) ---
 	st1	{ v9.16b}, [x2], #16		//block0 ct
@@ -2204,6 +2196,7 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	eor	v18.16b, v18.16b, v16.16b	//accumulate mid
 	b	L256_enc_small_reduce
 L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain (tbl v12)
+	add	v30.4s, v29.4s, v28.4s	//[s146 (c)] final counter = base+2 = ctr(nb+2), direct
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -2279,17 +2272,11 @@ L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain 
 	ext	v16.16b, v19.16b, v19.16b, #8	//tag prep
 	mov	v29.16b, v28.16b		//v29 = rk14
 	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block1 ct)
-	sub	v30.4s, v30.4s, v31.4s
 	ldr	q22, [x6, #32]			//h2l|h2h
-	sub	v30.4s, v30.4s, v31.4s
 	ldr	q21, [x6, #16]			//h2k|h1k
-	sub	v30.4s, v30.4s, v31.4s
 	ldr	q20, [x6]			//h1l|h1h
-	sub	v30.4s, v30.4s, v31.4s
 	st1	{ v9.16b}, [x2], #16		//block1 ct
-	sub	v30.4s, v30.4s, v31.4s
 	rev64	v8.16b, v9.16b
-	sub	v30.4s, v30.4s, v31.4s
 	eor	v8.16b, v8.16b, v16.16b		//feed tag
 	ldr	q9, [x0], #16			//block2 PT
 	ext	v27.16b, v8.16b, v8.16b, #8
@@ -2313,6 +2300,7 @@ L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain 
 	str	q30, [x16]			//ivec store
 	b	L256_enc_small_reduce
 L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v12)
+	add	v30.4s, v29.4s, v31.4s	//[s146 (c)] final counter = base+1 = ctr(nb+2), direct
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -2364,19 +2352,12 @@ L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v
 	mov	v29.16b, v28.16b		//v29 = rk14
 	.inst	0xce007509	//eor3 v9,v8,v0,v29  (block0 ct)
 	// 7 subs roll v30 base+8 (=ctr(8g+10)) -> base+1 = ctr(nb+2), interleaved w/ loads
-	sub	v30.4s, v30.4s, v31.4s
 	ldr	q20, [x6]			//h1l | h1h
-	sub	v30.4s, v30.4s, v31.4s
 	ldr	q21, [x6, #16]			//h2k | h1k
-	sub	v30.4s, v30.4s, v31.4s
 	rev64	v8.16b, v9.16b			//GHASH block
-	sub	v30.4s, v30.4s, v31.4s
 	eor	v8.16b, v8.16b, v16.16b		//feed in tag
-	sub	v30.4s, v30.4s, v31.4s
 	st1	{ v9.16b}, [x2]			//store all 16B
-	sub	v30.4s, v30.4s, v31.4s
 	ins	v16.d[0], v8.d[1]		//mid prep
-	sub	v30.4s, v30.4s, v31.4s		//7th sub -> base+1
 	pmull2	v17.1q, v8.2d, v20.2d		//high -> v17
 	pmull	v19.1q, v8.1d, v20.1d		//low -> v19
 	eor	v16.8b, v16.8b, v8.8b		//mid

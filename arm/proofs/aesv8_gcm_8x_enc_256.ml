@@ -1413,542 +1413,522 @@ let aesv8_gcm_8x_enc_256_mc =
   0x4ebf87fc;   (* 1580 add v28.4s, v31.4s, v31.4s *)
   0x4ebf878a;   (* 1584 add v10.4s, v28.4s, v31.4s *)
   0x4ebc878b;   (* 1588 add v11.4s, v28.4s, v28.4s *)
-  0x4eab87be;   (* 158c add v30.4s, v29.4s, v11.4s *)
-  0x4eab87de;   (* 1590 add v30.4s, v30.4s, v11.4s *)
-  0x4ebf87a8;   (* 1594 add v8.4s, v29.4s, v31.4s *)
-  0x6e200901;   (* 1598 rev32 v1.16b, v8.16b *)
-  0x4ebc87a9;   (* 159c add v9.4s, v29.4s, v28.4s *)
-  0x6e200922;   (* 15a0 rev32 v2.16b, v9.16b *)
-  0x4eaa87af;   (* 15a4 add v15.4s, v29.4s, v10.4s *)
-  0x6e2009e3;   (* 15a8 rev32 v3.16b, v15.16b *)
-  0xf100413f;   (* 15ac cmp x9, #0x10 *)
-  0x54003820;   (* 15b0 b.eq 1cb4 <L256_enc_small_1>  // b.none *)
-  0xf100813f;   (* 15b4 cmp x9, #0x20 *)
-  0x54002a60;   (* 15b8 b.eq 1b04 <L256_enc_small_2>  // b.none *)
-  0xf100c13f;   (* 15bc cmp x9, #0x30 *)
-  0x540017a0;   (* 15c0 b.eq 18b4 <L256_enc_small_3>  // b.none *)
-  0xd281c1e7;   (* 15c4 mov x7, #0xe0f                  // #3599 *)
-  0xf2a181a7;   (* 15c8 movk x7, #0xc0d, lsl #16 *)
-  0xf2c14167;   (* 15cc movk x7, #0xa0b, lsl #32 *)
-  0xf2e10127;   (* 15d0 movk x7, #0x809, lsl #48 *)
-  0xd280c0e8;   (* 15d4 mov x8, #0x607                  // #1543 *)
-  0xf2a080a8;   (* 15d8 movk x8, #0x405, lsl #16 *)
-  0xf2c04068;   (* 15dc movk x8, #0x203, lsl #32 *)
-  0xf2e00028;   (* 15e0 movk x8, #0x1, lsl #48 *)
-  0x9e6700ec;   (* 15e4 fmov d12, x7 *)
-  0x4e181d0c;   (* 15e8 mov v12.d[1], x8 *)
-  0x4e284b40;   (* 15ec aese v0.16b, v26.16b *)
-  0x4e286800;   (* 15f0 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 15f4 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 15f8 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 15fc aese v2.16b, v26.16b *)
-  0x4e286842;   (* 1600 aesmc v2.16b, v2.16b *)
-  0x4e284b43;   (* 1604 aese v3.16b, v26.16b *)
-  0x4e286863;   (* 1608 aesmc v3.16b, v3.16b *)
-  0xad41697c;   (* 160c ldp q28, q26, [x11, #32] *)
-  0x4e284b60;   (* 1610 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1614 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 1618 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 161c aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 1620 aese v2.16b, v27.16b *)
-  0x4e286842;   (* 1624 aesmc v2.16b, v2.16b *)
-  0x4e284b63;   (* 1628 aese v3.16b, v27.16b *)
-  0x4e286863;   (* 162c aesmc v3.16b, v3.16b *)
-  0x4e284b80;   (* 1630 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1634 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1638 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 163c aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 1640 aese v2.16b, v28.16b *)
-  0x4e286842;   (* 1644 aesmc v2.16b, v2.16b *)
-  0x4e284b83;   (* 1648 aese v3.16b, v28.16b *)
-  0x4e286863;   (* 164c aesmc v3.16b, v3.16b *)
-  0xad42717b;   (* 1650 ldp q27, q28, [x11, #64] *)
-  0x4e284b40;   (* 1654 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1658 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 165c aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1660 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 1664 aese v2.16b, v26.16b *)
-  0x4e286842;   (* 1668 aesmc v2.16b, v2.16b *)
-  0x4e284b43;   (* 166c aese v3.16b, v26.16b *)
-  0x4e286863;   (* 1670 aesmc v3.16b, v3.16b *)
-  0x4e284b60;   (* 1674 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1678 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 167c aese v1.16b, v27.16b *)
-  0x4e286821;   (* 1680 aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 1684 aese v2.16b, v27.16b *)
-  0x4e286842;   (* 1688 aesmc v2.16b, v2.16b *)
-  0x4e284b63;   (* 168c aese v3.16b, v27.16b *)
-  0x4e286863;   (* 1690 aesmc v3.16b, v3.16b *)
-  0xad436d7a;   (* 1694 ldp q26, q27, [x11, #96] *)
-  0x4e284b80;   (* 1698 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 169c aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 16a0 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 16a4 aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 16a8 aese v2.16b, v28.16b *)
-  0x4e286842;   (* 16ac aesmc v2.16b, v2.16b *)
-  0x4e284b83;   (* 16b0 aese v3.16b, v28.16b *)
-  0x4e286863;   (* 16b4 aesmc v3.16b, v3.16b *)
-  0x4e284b40;   (* 16b8 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 16bc aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 16c0 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 16c4 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 16c8 aese v2.16b, v26.16b *)
-  0x4e286842;   (* 16cc aesmc v2.16b, v2.16b *)
-  0x4e284b43;   (* 16d0 aese v3.16b, v26.16b *)
-  0x4e286863;   (* 16d4 aesmc v3.16b, v3.16b *)
-  0xad44697c;   (* 16d8 ldp q28, q26, [x11, #128] *)
-  0x4e284b60;   (* 16dc aese v0.16b, v27.16b *)
-  0x4e286800;   (* 16e0 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 16e4 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 16e8 aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 16ec aese v2.16b, v27.16b *)
-  0x4e286842;   (* 16f0 aesmc v2.16b, v2.16b *)
-  0x4e284b63;   (* 16f4 aese v3.16b, v27.16b *)
-  0x4e286863;   (* 16f8 aesmc v3.16b, v3.16b *)
-  0x4e284b80;   (* 16fc aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1700 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1704 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 1708 aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 170c aese v2.16b, v28.16b *)
-  0x4e286842;   (* 1710 aesmc v2.16b, v2.16b *)
-  0x4e284b83;   (* 1714 aese v3.16b, v28.16b *)
-  0x4e286863;   (* 1718 aesmc v3.16b, v3.16b *)
-  0xad45717b;   (* 171c ldp q27, q28, [x11, #160] *)
-  0x4e284b40;   (* 1720 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1724 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1728 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 172c aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 1730 aese v2.16b, v26.16b *)
-  0x4e286842;   (* 1734 aesmc v2.16b, v2.16b *)
-  0x4e284b43;   (* 1738 aese v3.16b, v26.16b *)
-  0x4e286863;   (* 173c aesmc v3.16b, v3.16b *)
-  0x4e284b60;   (* 1740 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1744 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 1748 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 174c aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 1750 aese v2.16b, v27.16b *)
-  0x4e286842;   (* 1754 aesmc v2.16b, v2.16b *)
-  0x4e284b63;   (* 1758 aese v3.16b, v27.16b *)
-  0x4e286863;   (* 175c aesmc v3.16b, v3.16b *)
-  0xad466d7a;   (* 1760 ldp q26, q27, [x11, #192] *)
-  0x4e284b80;   (* 1764 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1768 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 176c aese v1.16b, v28.16b *)
-  0x4e286821;   (* 1770 aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 1774 aese v2.16b, v28.16b *)
-  0x4e286842;   (* 1778 aesmc v2.16b, v2.16b *)
-  0x4e284b83;   (* 177c aese v3.16b, v28.16b *)
-  0x4e286863;   (* 1780 aesmc v3.16b, v3.16b *)
-  0x3dc0397c;   (* 1784 ldr q28, [x11, #224] *)
-  0x4e284b40;   (* 1788 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 178c aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1790 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1794 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 1798 aese v2.16b, v26.16b *)
-  0x4e286842;   (* 179c aesmc v2.16b, v2.16b *)
-  0x4e284b43;   (* 17a0 aese v3.16b, v26.16b *)
-  0x4e286863;   (* 17a4 aesmc v3.16b, v3.16b *)
-  0x4e284b60;   (* 17a8 aese v0.16b, v27.16b *)
-  0x4e284b61;   (* 17ac aese v1.16b, v27.16b *)
-  0x4e284b62;   (* 17b0 aese v2.16b, v27.16b *)
-  0x4e284b63;   (* 17b4 aese v3.16b, v27.16b *)
-  0x3cc10408;   (* 17b8 ldr q8, [x0], #16 *)
-  0x6e134270;   (* 17bc ext v16.16b, v19.16b, v19.16b, #8 *)
-  0x4ebc1f9d;   (* 17c0 mov v29.16b, v28.16b *)
-  0x6ebf87de;   (* 17c4 sub v30.4s, v30.4s, v31.4s *)
-  0x6ebf87de;   (* 17c8 sub v30.4s, v30.4s, v31.4s *)
-  0x6ebf87de;   (* 17cc sub v30.4s, v30.4s, v31.4s *)
-  0x6ebf87de;   (* 17d0 sub v30.4s, v30.4s, v31.4s *)
-  0x0f00e411;   (* 17d4 movi v17.8b, #0x0 *)
-  0x0f00e412;   (* 17d8 movi v18.8b, #0x0 *)
-  0x0f00e413;   (* 17dc movi v19.8b, #0x0 *)
-  0xce007509;   (* 17e0 eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
-  0x4c9f7049;   (* 17e4 st1 {v9.16b}, [x2], #16 *)
-  0x3dc014d9;   (* 17e8 ldr q25, [x6, #80] *)
-  0x4e200928;   (* 17ec rev64 v8.16b, v9.16b *)
-  0x6e301d08;   (* 17f0 eor v8.16b, v8.16b, v16.16b *)
-  0x6e08411b;   (* 17f4 ext v27.16b, v8.16b, v8.16b, #8 *)
-  0x4ef9e10d;   (* 17f8 pmull2 v13.1q, v8.2d, v25.2d *)
-  0x3dc010d8;   (* 17fc ldr q24, [x6, #64] *)
-  0x6e18430b;   (* 1800 ext v11.16b, v24.16b, v24.16b, #8 *)
-  0x2e281f7b;   (* 1804 eor v27.8b, v27.8b, v8.8b *)
-  0x3cc10409;   (* 1808 ldr q9, [x0], #16 *)
-  0x0eebe36f;   (* 180c pmull v15.1q, v27.1d, v11.1d *)
-  0x0ef9e10e;   (* 1810 pmull v14.1q, v8.1d, v25.1d *)
-  0xce017529;   (* 1814 eor3 v9.16b, v9.16b, v1.16b, v29.16b *)
-  0x4c9f7049;   (* 1818 st1 {v9.16b}, [x2], #16 *)
-  0x3dc00cd7;   (* 181c ldr q23, [x6, #48] *)
-  0x4e200928;   (* 1820 rev64 v8.16b, v9.16b *)
-  0x3cc10409;   (* 1824 ldr q9, [x0], #16 *)
-  0x6e08411b;   (* 1828 ext v27.16b, v8.16b, v8.16b, #8 *)
-  0x4ef7e11c;   (* 182c pmull2 v28.1q, v8.2d, v23.2d *)
-  0xce027529;   (* 1830 eor3 v9.16b, v9.16b, v2.16b, v29.16b *)
-  0x2e281f7b;   (* 1834 eor v27.8b, v27.8b, v8.8b *)
-  0x0ef7e11a;   (* 1838 pmull v26.1q, v8.1d, v23.1d *)
-  0x0ef8e37b;   (* 183c pmull v27.1q, v27.1d, v24.1d *)
-  0xce1c3631;   (* 1840 eor3 v17.16b, v17.16b, v28.16b, v13.16b *)
-  0xce1a3a73;   (* 1844 eor3 v19.16b, v19.16b, v26.16b, v14.16b *)
-  0xce1b3e52;   (* 1848 eor3 v18.16b, v18.16b, v27.16b, v15.16b *)
-  0x4c9f7049;   (* 184c st1 {v9.16b}, [x2], #16 *)
-  0x3dc008d6;   (* 1850 ldr q22, [x6, #32] *)
-  0x4e200928;   (* 1854 rev64 v8.16b, v9.16b *)
-  0x3cc10409;   (* 1858 ldr q9, [x0], #16 *)
-  0x6e08411b;   (* 185c ext v27.16b, v8.16b, v8.16b, #8 *)
-  0x4ef6e10d;   (* 1860 pmull2 v13.1q, v8.2d, v22.2d *)
-  0xce037529;   (* 1864 eor3 v9.16b, v9.16b, v3.16b, v29.16b *)
-  0x0ef6e10e;   (* 1868 pmull v14.1q, v8.1d, v22.1d *)
-  0x2e281f7b;   (* 186c eor v27.8b, v27.8b, v8.8b *)
-  0x3dc004d5;   (* 1870 ldr q21, [x6, #16] *)
-  0x6e1542aa;   (* 1874 ext v10.16b, v21.16b, v21.16b, #8 *)
-  0x0eeae36f;   (* 1878 pmull v15.1q, v27.1d, v10.1d *)
-  0x3dc000d4;   (* 187c ldr q20, [x6] *)
-  0x4e200928;   (* 1880 rev64 v8.16b, v9.16b *)
-  0x6e200bde;   (* 1884 rev32 v30.16b, v30.16b *)
-  0x3d80021e;   (* 1888 str q30, [x16] *)
-  0x4c007049;   (* 188c st1 {v9.16b}, [x2] *)
-  0x6e084510;   (* 1890 mov v16.d[0], v8.d[1] *)
-  0x4ef4e11c;   (* 1894 pmull2 v28.1q, v8.2d, v20.2d *)
-  0x0ef4e11a;   (* 1898 pmull v26.1q, v8.1d, v20.1d *)
-  0x2e281e10;   (* 189c eor v16.8b, v16.8b, v8.8b *)
-  0x0ef5e210;   (* 18a0 pmull v16.1q, v16.1d, v21.1d *)
-  0xce1c3631;   (* 18a4 eor3 v17.16b, v17.16b, v28.16b, v13.16b *)
-  0xce1a3a73;   (* 18a8 eor3 v19.16b, v19.16b, v26.16b, v14.16b *)
-  0xce103e52;   (* 18ac eor3 v18.16b, v18.16b, v16.16b, v15.16b *)
-  0x14000144;   (* 18b0 b 1dc0 <L256_enc_small_reduce> *)
-  0xd281c1e7;   (* 18b4 mov x7, #0xe0f                  // #3599 *)
-  0xf2a181a7;   (* 18b8 movk x7, #0xc0d, lsl #16 *)
-  0xf2c14167;   (* 18bc movk x7, #0xa0b, lsl #32 *)
-  0xf2e10127;   (* 18c0 movk x7, #0x809, lsl #48 *)
-  0xd280c0e8;   (* 18c4 mov x8, #0x607                  // #1543 *)
-  0xf2a080a8;   (* 18c8 movk x8, #0x405, lsl #16 *)
-  0xf2c04068;   (* 18cc movk x8, #0x203, lsl #32 *)
-  0xf2e00028;   (* 18d0 movk x8, #0x1, lsl #48 *)
-  0x9e6700ec;   (* 18d4 fmov d12, x7 *)
-  0x4e181d0c;   (* 18d8 mov v12.d[1], x8 *)
-  0x4e284b40;   (* 18dc aese v0.16b, v26.16b *)
-  0x4e286800;   (* 18e0 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 18e4 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 18e8 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 18ec aese v2.16b, v26.16b *)
-  0x4e286842;   (* 18f0 aesmc v2.16b, v2.16b *)
-  0xad41697c;   (* 18f4 ldp q28, q26, [x11, #32] *)
-  0x4e284b60;   (* 18f8 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 18fc aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 1900 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 1904 aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 1908 aese v2.16b, v27.16b *)
-  0x4e286842;   (* 190c aesmc v2.16b, v2.16b *)
-  0x4e284b80;   (* 1910 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1914 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1918 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 191c aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 1920 aese v2.16b, v28.16b *)
-  0x4e286842;   (* 1924 aesmc v2.16b, v2.16b *)
-  0xad42717b;   (* 1928 ldp q27, q28, [x11, #64] *)
-  0x4e284b40;   (* 192c aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1930 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1934 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1938 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 193c aese v2.16b, v26.16b *)
-  0x4e286842;   (* 1940 aesmc v2.16b, v2.16b *)
-  0x4e284b60;   (* 1944 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1948 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 194c aese v1.16b, v27.16b *)
-  0x4e286821;   (* 1950 aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 1954 aese v2.16b, v27.16b *)
-  0x4e286842;   (* 1958 aesmc v2.16b, v2.16b *)
-  0xad436d7a;   (* 195c ldp q26, q27, [x11, #96] *)
-  0x4e284b80;   (* 1960 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1964 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1968 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 196c aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 1970 aese v2.16b, v28.16b *)
-  0x4e286842;   (* 1974 aesmc v2.16b, v2.16b *)
-  0x4e284b40;   (* 1978 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 197c aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1980 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1984 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 1988 aese v2.16b, v26.16b *)
-  0x4e286842;   (* 198c aesmc v2.16b, v2.16b *)
-  0xad44697c;   (* 1990 ldp q28, q26, [x11, #128] *)
-  0x4e284b60;   (* 1994 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1998 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 199c aese v1.16b, v27.16b *)
-  0x4e286821;   (* 19a0 aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 19a4 aese v2.16b, v27.16b *)
-  0x4e286842;   (* 19a8 aesmc v2.16b, v2.16b *)
-  0x4e284b80;   (* 19ac aese v0.16b, v28.16b *)
-  0x4e286800;   (* 19b0 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 19b4 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 19b8 aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 19bc aese v2.16b, v28.16b *)
-  0x4e286842;   (* 19c0 aesmc v2.16b, v2.16b *)
-  0xad45717b;   (* 19c4 ldp q27, q28, [x11, #160] *)
-  0x4e284b40;   (* 19c8 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 19cc aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 19d0 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 19d4 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 19d8 aese v2.16b, v26.16b *)
-  0x4e286842;   (* 19dc aesmc v2.16b, v2.16b *)
-  0x4e284b60;   (* 19e0 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 19e4 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 19e8 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 19ec aesmc v1.16b, v1.16b *)
-  0x4e284b62;   (* 19f0 aese v2.16b, v27.16b *)
-  0x4e286842;   (* 19f4 aesmc v2.16b, v2.16b *)
-  0xad466d7a;   (* 19f8 ldp q26, q27, [x11, #192] *)
-  0x4e284b80;   (* 19fc aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1a00 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1a04 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 1a08 aesmc v1.16b, v1.16b *)
-  0x4e284b82;   (* 1a0c aese v2.16b, v28.16b *)
-  0x4e286842;   (* 1a10 aesmc v2.16b, v2.16b *)
-  0x3dc0397c;   (* 1a14 ldr q28, [x11, #224] *)
-  0x4e284b40;   (* 1a18 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1a1c aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1a20 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1a24 aesmc v1.16b, v1.16b *)
-  0x4e284b42;   (* 1a28 aese v2.16b, v26.16b *)
-  0x4e286842;   (* 1a2c aesmc v2.16b, v2.16b *)
-  0x4e284b60;   (* 1a30 aese v0.16b, v27.16b *)
-  0x4e284b61;   (* 1a34 aese v1.16b, v27.16b *)
-  0x4e284b62;   (* 1a38 aese v2.16b, v27.16b *)
-  0x3cc10408;   (* 1a3c ldr q8, [x0], #16 *)
-  0x6e134270;   (* 1a40 ext v16.16b, v19.16b, v19.16b, #8 *)
-  0x4ebc1f9d;   (* 1a44 mov v29.16b, v28.16b *)
-  0x6ebf87de;   (* 1a48 sub v30.4s, v30.4s, v31.4s *)
-  0x6ebf87de;   (* 1a4c sub v30.4s, v30.4s, v31.4s *)
-  0x6ebf87de;   (* 1a50 sub v30.4s, v30.4s, v31.4s *)
-  0x6ebf87de;   (* 1a54 sub v30.4s, v30.4s, v31.4s *)
-  0x6ebf87de;   (* 1a58 sub v30.4s, v30.4s, v31.4s *)
-  0xce007509;   (* 1a5c eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
-  0x4c9f7049;   (* 1a60 st1 {v9.16b}, [x2], #16 *)
-  0x3dc00cd7;   (* 1a64 ldr q23, [x6, #48] *)
-  0x4e200928;   (* 1a68 rev64 v8.16b, v9.16b *)
-  0x6e301d08;   (* 1a6c eor v8.16b, v8.16b, v16.16b *)
-  0x3dc010d8;   (* 1a70 ldr q24, [x6, #64] *)
-  0x6e08411b;   (* 1a74 ext v27.16b, v8.16b, v8.16b, #8 *)
-  0x4ef7e10d;   (* 1a78 pmull2 v13.1q, v8.2d, v23.2d *)
-  0x2e281f7b;   (* 1a7c eor v27.8b, v27.8b, v8.8b *)
-  0x3cc10409;   (* 1a80 ldr q9, [x0], #16 *)
-  0x0ef7e10e;   (* 1a84 pmull v14.1q, v8.1d, v23.1d *)
-  0x0ef8e36f;   (* 1a88 pmull v15.1q, v27.1d, v24.1d *)
-  0xce017529;   (* 1a8c eor3 v9.16b, v9.16b, v1.16b, v29.16b *)
-  0x4c9f7049;   (* 1a90 st1 {v9.16b}, [x2], #16 *)
-  0x3dc008d6;   (* 1a94 ldr q22, [x6, #32] *)
-  0x4e200928;   (* 1a98 rev64 v8.16b, v9.16b *)
-  0x3cc10409;   (* 1a9c ldr q9, [x0], #16 *)
-  0x6e08411b;   (* 1aa0 ext v27.16b, v8.16b, v8.16b, #8 *)
-  0x4ef6e11c;   (* 1aa4 pmull2 v28.1q, v8.2d, v22.2d *)
-  0xce027529;   (* 1aa8 eor3 v9.16b, v9.16b, v2.16b, v29.16b *)
-  0x2e281f7b;   (* 1aac eor v27.8b, v27.8b, v8.8b *)
-  0x0ef6e11a;   (* 1ab0 pmull v26.1q, v8.1d, v22.1d *)
-  0x3dc004d5;   (* 1ab4 ldr q21, [x6, #16] *)
-  0x6e1542aa;   (* 1ab8 ext v10.16b, v21.16b, v21.16b, #8 *)
-  0x0eeae37b;   (* 1abc pmull v27.1q, v27.1d, v10.1d *)
-  0x6e2d1f91;   (* 1ac0 eor v17.16b, v28.16b, v13.16b *)
-  0x6e2e1f53;   (* 1ac4 eor v19.16b, v26.16b, v14.16b *)
-  0x6e2f1f72;   (* 1ac8 eor v18.16b, v27.16b, v15.16b *)
-  0x3dc000d4;   (* 1acc ldr q20, [x6] *)
-  0x4e200928;   (* 1ad0 rev64 v8.16b, v9.16b *)
-  0x6e200bde;   (* 1ad4 rev32 v30.16b, v30.16b *)
-  0x3d80021e;   (* 1ad8 str q30, [x16] *)
-  0x4c007049;   (* 1adc st1 {v9.16b}, [x2] *)
-  0x6e084510;   (* 1ae0 mov v16.d[0], v8.d[1] *)
-  0x4ef4e11c;   (* 1ae4 pmull2 v28.1q, v8.2d, v20.2d *)
-  0x0ef4e11a;   (* 1ae8 pmull v26.1q, v8.1d, v20.1d *)
-  0x2e281e10;   (* 1aec eor v16.8b, v16.8b, v8.8b *)
-  0x0ef5e210;   (* 1af0 pmull v16.1q, v16.1d, v21.1d *)
-  0x6e3c1e31;   (* 1af4 eor v17.16b, v17.16b, v28.16b *)
-  0x6e3a1e73;   (* 1af8 eor v19.16b, v19.16b, v26.16b *)
-  0x6e301e52;   (* 1afc eor v18.16b, v18.16b, v16.16b *)
-  0x140000b0;   (* 1b00 b 1dc0 <L256_enc_small_reduce> *)
-  0xd281c1e7;   (* 1b04 mov x7, #0xe0f                  // #3599 *)
-  0xf2a181a7;   (* 1b08 movk x7, #0xc0d, lsl #16 *)
-  0xf2c14167;   (* 1b0c movk x7, #0xa0b, lsl #32 *)
-  0xf2e10127;   (* 1b10 movk x7, #0x809, lsl #48 *)
-  0xd280c0e8;   (* 1b14 mov x8, #0x607                  // #1543 *)
-  0xf2a080a8;   (* 1b18 movk x8, #0x405, lsl #16 *)
-  0xf2c04068;   (* 1b1c movk x8, #0x203, lsl #32 *)
-  0xf2e00028;   (* 1b20 movk x8, #0x1, lsl #48 *)
-  0x9e6700ec;   (* 1b24 fmov d12, x7 *)
-  0x4e181d0c;   (* 1b28 mov v12.d[1], x8 *)
-  0x4e284b40;   (* 1b2c aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1b30 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1b34 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1b38 aesmc v1.16b, v1.16b *)
-  0xad41697c;   (* 1b3c ldp q28, q26, [x11, #32] *)
-  0x4e284b60;   (* 1b40 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1b44 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 1b48 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 1b4c aesmc v1.16b, v1.16b *)
-  0x4e284b80;   (* 1b50 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1b54 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1b58 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 1b5c aesmc v1.16b, v1.16b *)
-  0xad42717b;   (* 1b60 ldp q27, q28, [x11, #64] *)
-  0x4e284b40;   (* 1b64 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1b68 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1b6c aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1b70 aesmc v1.16b, v1.16b *)
-  0x4e284b60;   (* 1b74 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1b78 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 1b7c aese v1.16b, v27.16b *)
-  0x4e286821;   (* 1b80 aesmc v1.16b, v1.16b *)
-  0xad436d7a;   (* 1b84 ldp q26, q27, [x11, #96] *)
-  0x4e284b80;   (* 1b88 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1b8c aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1b90 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 1b94 aesmc v1.16b, v1.16b *)
-  0x4e284b40;   (* 1b98 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1b9c aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1ba0 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1ba4 aesmc v1.16b, v1.16b *)
-  0xad44697c;   (* 1ba8 ldp q28, q26, [x11, #128] *)
-  0x4e284b60;   (* 1bac aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1bb0 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 1bb4 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 1bb8 aesmc v1.16b, v1.16b *)
-  0x4e284b80;   (* 1bbc aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1bc0 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1bc4 aese v1.16b, v28.16b *)
-  0x4e286821;   (* 1bc8 aesmc v1.16b, v1.16b *)
-  0xad45717b;   (* 1bcc ldp q27, q28, [x11, #160] *)
-  0x4e284b40;   (* 1bd0 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1bd4 aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1bd8 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1bdc aesmc v1.16b, v1.16b *)
-  0x4e284b60;   (* 1be0 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1be4 aesmc v0.16b, v0.16b *)
-  0x4e284b61;   (* 1be8 aese v1.16b, v27.16b *)
-  0x4e286821;   (* 1bec aesmc v1.16b, v1.16b *)
-  0xad466d7a;   (* 1bf0 ldp q26, q27, [x11, #192] *)
-  0x4e284b80;   (* 1bf4 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1bf8 aesmc v0.16b, v0.16b *)
-  0x4e284b81;   (* 1bfc aese v1.16b, v28.16b *)
-  0x4e286821;   (* 1c00 aesmc v1.16b, v1.16b *)
-  0x3dc0397c;   (* 1c04 ldr q28, [x11, #224] *)
-  0x4e284b40;   (* 1c08 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1c0c aesmc v0.16b, v0.16b *)
-  0x4e284b41;   (* 1c10 aese v1.16b, v26.16b *)
-  0x4e286821;   (* 1c14 aesmc v1.16b, v1.16b *)
-  0x4e284b60;   (* 1c18 aese v0.16b, v27.16b *)
-  0x4e284b61;   (* 1c1c aese v1.16b, v27.16b *)
-  0x3cc10408;   (* 1c20 ldr q8, [x0], #16 *)
-  0x6e134270;   (* 1c24 ext v16.16b, v19.16b, v19.16b, #8 *)
-  0x4ebc1f9d;   (* 1c28 mov v29.16b, v28.16b *)
-  0xce007509;   (* 1c2c eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
-  0x6ebf87de;   (* 1c30 sub v30.4s, v30.4s, v31.4s *)
-  0x3dc008d6;   (* 1c34 ldr q22, [x6, #32] *)
-  0x6ebf87de;   (* 1c38 sub v30.4s, v30.4s, v31.4s *)
-  0x3dc004d5;   (* 1c3c ldr q21, [x6, #16] *)
-  0x6ebf87de;   (* 1c40 sub v30.4s, v30.4s, v31.4s *)
-  0x3dc000d4;   (* 1c44 ldr q20, [x6] *)
-  0x6ebf87de;   (* 1c48 sub v30.4s, v30.4s, v31.4s *)
-  0x4c9f7049;   (* 1c4c st1 {v9.16b}, [x2], #16 *)
-  0x6ebf87de;   (* 1c50 sub v30.4s, v30.4s, v31.4s *)
-  0x4e200928;   (* 1c54 rev64 v8.16b, v9.16b *)
-  0x6ebf87de;   (* 1c58 sub v30.4s, v30.4s, v31.4s *)
-  0x6e301d08;   (* 1c5c eor v8.16b, v8.16b, v16.16b *)
-  0x3cc10409;   (* 1c60 ldr q9, [x0], #16 *)
-  0x6e08411b;   (* 1c64 ext v27.16b, v8.16b, v8.16b, #8 *)
-  0x6e1542aa;   (* 1c68 ext v10.16b, v21.16b, v21.16b, #8 *)
-  0x4ef6e10d;   (* 1c6c pmull2 v13.1q, v8.2d, v22.2d *)
-  0x2e281f7b;   (* 1c70 eor v27.8b, v27.8b, v8.8b *)
-  0x0ef6e10e;   (* 1c74 pmull v14.1q, v8.1d, v22.1d *)
-  0xce017529;   (* 1c78 eor3 v9.16b, v9.16b, v1.16b, v29.16b *)
-  0x0eeae36f;   (* 1c7c pmull v15.1q, v27.1d, v10.1d *)
-  0x4c007049;   (* 1c80 st1 {v9.16b}, [x2] *)
-  0x4e200928;   (* 1c84 rev64 v8.16b, v9.16b *)
-  0x6e084510;   (* 1c88 mov v16.d[0], v8.d[1] *)
-  0x4ef4e11c;   (* 1c8c pmull2 v28.1q, v8.2d, v20.2d *)
-  0x0ef4e11a;   (* 1c90 pmull v26.1q, v8.1d, v20.1d *)
-  0x2e281e10;   (* 1c94 eor v16.8b, v16.8b, v8.8b *)
-  0x0ef5e210;   (* 1c98 pmull v16.1q, v16.1d, v21.1d *)
-  0x6e3c1db1;   (* 1c9c eor v17.16b, v13.16b, v28.16b *)
-  0x6e3a1dd3;   (* 1ca0 eor v19.16b, v14.16b, v26.16b *)
-  0x6e301df2;   (* 1ca4 eor v18.16b, v15.16b, v16.16b *)
-  0x6e200bde;   (* 1ca8 rev32 v30.16b, v30.16b *)
-  0x3d80021e;   (* 1cac str q30, [x16] *)
-  0x14000044;   (* 1cb0 b 1dc0 <L256_enc_small_reduce> *)
-  0xd281c1e7;   (* 1cb4 mov x7, #0xe0f                  // #3599 *)
-  0xf2a181a7;   (* 1cb8 movk x7, #0xc0d, lsl #16 *)
-  0xf2c14167;   (* 1cbc movk x7, #0xa0b, lsl #32 *)
-  0xf2e10127;   (* 1cc0 movk x7, #0x809, lsl #48 *)
-  0xd280c0e8;   (* 1cc4 mov x8, #0x607                  // #1543 *)
-  0xf2a080a8;   (* 1cc8 movk x8, #0x405, lsl #16 *)
-  0xf2c04068;   (* 1ccc movk x8, #0x203, lsl #32 *)
-  0xf2e00028;   (* 1cd0 movk x8, #0x1, lsl #48 *)
-  0x9e6700ec;   (* 1cd4 fmov d12, x7 *)
-  0x4e181d0c;   (* 1cd8 mov v12.d[1], x8 *)
-  0x4e284b40;   (* 1cdc aese v0.16b, v26.16b *)
+  0x4ebf87a8;   (* 158c add v8.4s, v29.4s, v31.4s *)
+  0x6e200901;   (* 1590 rev32 v1.16b, v8.16b *)
+  0x4ebc87a9;   (* 1594 add v9.4s, v29.4s, v28.4s *)
+  0x6e200922;   (* 1598 rev32 v2.16b, v9.16b *)
+  0x4eaa87af;   (* 159c add v15.4s, v29.4s, v10.4s *)
+  0x6e2009e3;   (* 15a0 rev32 v3.16b, v15.16b *)
+  0xf100413f;   (* 15a4 cmp x9, #0x10 *)
+  0x540036a0;   (* 15a8 b.eq 1c7c <L256_enc_small_1>  // b.none *)
+  0xf100813f;   (* 15ac cmp x9, #0x20 *)
+  0x54002980;   (* 15b0 b.eq 1ae0 <L256_enc_small_2>  // b.none *)
+  0xf100c13f;   (* 15b4 cmp x9, #0x30 *)
+  0x54001740;   (* 15b8 b.eq 18a0 <L256_enc_small_3>  // b.none *)
+  0x4eab87be;   (* 15bc add v30.4s, v29.4s, v11.4s *)
+  0xd281c1e7;   (* 15c0 mov x7, #0xe0f                  // #3599 *)
+  0xf2a181a7;   (* 15c4 movk x7, #0xc0d, lsl #16 *)
+  0xf2c14167;   (* 15c8 movk x7, #0xa0b, lsl #32 *)
+  0xf2e10127;   (* 15cc movk x7, #0x809, lsl #48 *)
+  0xd280c0e8;   (* 15d0 mov x8, #0x607                  // #1543 *)
+  0xf2a080a8;   (* 15d4 movk x8, #0x405, lsl #16 *)
+  0xf2c04068;   (* 15d8 movk x8, #0x203, lsl #32 *)
+  0xf2e00028;   (* 15dc movk x8, #0x1, lsl #48 *)
+  0x9e6700ec;   (* 15e0 fmov d12, x7 *)
+  0x4e181d0c;   (* 15e4 mov v12.d[1], x8 *)
+  0x4e284b40;   (* 15e8 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 15ec aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 15f0 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 15f4 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 15f8 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 15fc aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 1600 aese v3.16b, v26.16b *)
+  0x4e286863;   (* 1604 aesmc v3.16b, v3.16b *)
+  0xad41697c;   (* 1608 ldp q28, q26, [x11, #32] *)
+  0x4e284b60;   (* 160c aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1610 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 1614 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1618 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 161c aese v2.16b, v27.16b *)
+  0x4e286842;   (* 1620 aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 1624 aese v3.16b, v27.16b *)
+  0x4e286863;   (* 1628 aesmc v3.16b, v3.16b *)
+  0x4e284b80;   (* 162c aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1630 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1634 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 1638 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 163c aese v2.16b, v28.16b *)
+  0x4e286842;   (* 1640 aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 1644 aese v3.16b, v28.16b *)
+  0x4e286863;   (* 1648 aesmc v3.16b, v3.16b *)
+  0xad42717b;   (* 164c ldp q27, q28, [x11, #64] *)
+  0x4e284b40;   (* 1650 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1654 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1658 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 165c aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 1660 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 1664 aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 1668 aese v3.16b, v26.16b *)
+  0x4e286863;   (* 166c aesmc v3.16b, v3.16b *)
+  0x4e284b60;   (* 1670 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1674 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 1678 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 167c aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 1680 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 1684 aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 1688 aese v3.16b, v27.16b *)
+  0x4e286863;   (* 168c aesmc v3.16b, v3.16b *)
+  0xad436d7a;   (* 1690 ldp q26, q27, [x11, #96] *)
+  0x4e284b80;   (* 1694 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1698 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 169c aese v1.16b, v28.16b *)
+  0x4e286821;   (* 16a0 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 16a4 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 16a8 aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 16ac aese v3.16b, v28.16b *)
+  0x4e286863;   (* 16b0 aesmc v3.16b, v3.16b *)
+  0x4e284b40;   (* 16b4 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 16b8 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 16bc aese v1.16b, v26.16b *)
+  0x4e286821;   (* 16c0 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 16c4 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 16c8 aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 16cc aese v3.16b, v26.16b *)
+  0x4e286863;   (* 16d0 aesmc v3.16b, v3.16b *)
+  0xad44697c;   (* 16d4 ldp q28, q26, [x11, #128] *)
+  0x4e284b60;   (* 16d8 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 16dc aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 16e0 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 16e4 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 16e8 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 16ec aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 16f0 aese v3.16b, v27.16b *)
+  0x4e286863;   (* 16f4 aesmc v3.16b, v3.16b *)
+  0x4e284b80;   (* 16f8 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 16fc aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1700 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 1704 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 1708 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 170c aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 1710 aese v3.16b, v28.16b *)
+  0x4e286863;   (* 1714 aesmc v3.16b, v3.16b *)
+  0xad45717b;   (* 1718 ldp q27, q28, [x11, #160] *)
+  0x4e284b40;   (* 171c aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1720 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1724 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1728 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 172c aese v2.16b, v26.16b *)
+  0x4e286842;   (* 1730 aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 1734 aese v3.16b, v26.16b *)
+  0x4e286863;   (* 1738 aesmc v3.16b, v3.16b *)
+  0x4e284b60;   (* 173c aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1740 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 1744 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1748 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 174c aese v2.16b, v27.16b *)
+  0x4e286842;   (* 1750 aesmc v2.16b, v2.16b *)
+  0x4e284b63;   (* 1754 aese v3.16b, v27.16b *)
+  0x4e286863;   (* 1758 aesmc v3.16b, v3.16b *)
+  0xad466d7a;   (* 175c ldp q26, q27, [x11, #192] *)
+  0x4e284b80;   (* 1760 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1764 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1768 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 176c aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 1770 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 1774 aesmc v2.16b, v2.16b *)
+  0x4e284b83;   (* 1778 aese v3.16b, v28.16b *)
+  0x4e286863;   (* 177c aesmc v3.16b, v3.16b *)
+  0x3dc0397c;   (* 1780 ldr q28, [x11, #224] *)
+  0x4e284b40;   (* 1784 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1788 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 178c aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1790 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 1794 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 1798 aesmc v2.16b, v2.16b *)
+  0x4e284b43;   (* 179c aese v3.16b, v26.16b *)
+  0x4e286863;   (* 17a0 aesmc v3.16b, v3.16b *)
+  0x4e284b60;   (* 17a4 aese v0.16b, v27.16b *)
+  0x4e284b61;   (* 17a8 aese v1.16b, v27.16b *)
+  0x4e284b62;   (* 17ac aese v2.16b, v27.16b *)
+  0x4e284b63;   (* 17b0 aese v3.16b, v27.16b *)
+  0x3cc10408;   (* 17b4 ldr q8, [x0], #16 *)
+  0x6e134270;   (* 17b8 ext v16.16b, v19.16b, v19.16b, #8 *)
+  0x4ebc1f9d;   (* 17bc mov v29.16b, v28.16b *)
+  0x0f00e411;   (* 17c0 movi v17.8b, #0x0 *)
+  0x0f00e412;   (* 17c4 movi v18.8b, #0x0 *)
+  0x0f00e413;   (* 17c8 movi v19.8b, #0x0 *)
+  0xce007509;   (* 17cc eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
+  0x4c9f7049;   (* 17d0 st1 {v9.16b}, [x2], #16 *)
+  0x3dc014d9;   (* 17d4 ldr q25, [x6, #80] *)
+  0x4e200928;   (* 17d8 rev64 v8.16b, v9.16b *)
+  0x6e301d08;   (* 17dc eor v8.16b, v8.16b, v16.16b *)
+  0x6e08411b;   (* 17e0 ext v27.16b, v8.16b, v8.16b, #8 *)
+  0x4ef9e10d;   (* 17e4 pmull2 v13.1q, v8.2d, v25.2d *)
+  0x3dc010d8;   (* 17e8 ldr q24, [x6, #64] *)
+  0x6e18430b;   (* 17ec ext v11.16b, v24.16b, v24.16b, #8 *)
+  0x2e281f7b;   (* 17f0 eor v27.8b, v27.8b, v8.8b *)
+  0x3cc10409;   (* 17f4 ldr q9, [x0], #16 *)
+  0x0eebe36f;   (* 17f8 pmull v15.1q, v27.1d, v11.1d *)
+  0x0ef9e10e;   (* 17fc pmull v14.1q, v8.1d, v25.1d *)
+  0xce017529;   (* 1800 eor3 v9.16b, v9.16b, v1.16b, v29.16b *)
+  0x4c9f7049;   (* 1804 st1 {v9.16b}, [x2], #16 *)
+  0x3dc00cd7;   (* 1808 ldr q23, [x6, #48] *)
+  0x4e200928;   (* 180c rev64 v8.16b, v9.16b *)
+  0x3cc10409;   (* 1810 ldr q9, [x0], #16 *)
+  0x6e08411b;   (* 1814 ext v27.16b, v8.16b, v8.16b, #8 *)
+  0x4ef7e11c;   (* 1818 pmull2 v28.1q, v8.2d, v23.2d *)
+  0xce027529;   (* 181c eor3 v9.16b, v9.16b, v2.16b, v29.16b *)
+  0x2e281f7b;   (* 1820 eor v27.8b, v27.8b, v8.8b *)
+  0x0ef7e11a;   (* 1824 pmull v26.1q, v8.1d, v23.1d *)
+  0x0ef8e37b;   (* 1828 pmull v27.1q, v27.1d, v24.1d *)
+  0xce1c3631;   (* 182c eor3 v17.16b, v17.16b, v28.16b, v13.16b *)
+  0xce1a3a73;   (* 1830 eor3 v19.16b, v19.16b, v26.16b, v14.16b *)
+  0xce1b3e52;   (* 1834 eor3 v18.16b, v18.16b, v27.16b, v15.16b *)
+  0x4c9f7049;   (* 1838 st1 {v9.16b}, [x2], #16 *)
+  0x3dc008d6;   (* 183c ldr q22, [x6, #32] *)
+  0x4e200928;   (* 1840 rev64 v8.16b, v9.16b *)
+  0x3cc10409;   (* 1844 ldr q9, [x0], #16 *)
+  0x6e08411b;   (* 1848 ext v27.16b, v8.16b, v8.16b, #8 *)
+  0x4ef6e10d;   (* 184c pmull2 v13.1q, v8.2d, v22.2d *)
+  0xce037529;   (* 1850 eor3 v9.16b, v9.16b, v3.16b, v29.16b *)
+  0x0ef6e10e;   (* 1854 pmull v14.1q, v8.1d, v22.1d *)
+  0x2e281f7b;   (* 1858 eor v27.8b, v27.8b, v8.8b *)
+  0x3dc004d5;   (* 185c ldr q21, [x6, #16] *)
+  0x6e1542aa;   (* 1860 ext v10.16b, v21.16b, v21.16b, #8 *)
+  0x0eeae36f;   (* 1864 pmull v15.1q, v27.1d, v10.1d *)
+  0x3dc000d4;   (* 1868 ldr q20, [x6] *)
+  0x4e200928;   (* 186c rev64 v8.16b, v9.16b *)
+  0x6e200bde;   (* 1870 rev32 v30.16b, v30.16b *)
+  0x3d80021e;   (* 1874 str q30, [x16] *)
+  0x4c007049;   (* 1878 st1 {v9.16b}, [x2] *)
+  0x6e084510;   (* 187c mov v16.d[0], v8.d[1] *)
+  0x4ef4e11c;   (* 1880 pmull2 v28.1q, v8.2d, v20.2d *)
+  0x0ef4e11a;   (* 1884 pmull v26.1q, v8.1d, v20.1d *)
+  0x2e281e10;   (* 1888 eor v16.8b, v16.8b, v8.8b *)
+  0x0ef5e210;   (* 188c pmull v16.1q, v16.1d, v21.1d *)
+  0xce1c3631;   (* 1890 eor3 v17.16b, v17.16b, v28.16b, v13.16b *)
+  0xce1a3a73;   (* 1894 eor3 v19.16b, v19.16b, v26.16b, v14.16b *)
+  0xce103e52;   (* 1898 eor3 v18.16b, v18.16b, v16.16b, v15.16b *)
+  0x14000135;   (* 189c b 1d70 <L256_enc_small_reduce> *)
+  0x4eaa87be;   (* 18a0 add v30.4s, v29.4s, v10.4s *)
+  0xd281c1e7;   (* 18a4 mov x7, #0xe0f                  // #3599 *)
+  0xf2a181a7;   (* 18a8 movk x7, #0xc0d, lsl #16 *)
+  0xf2c14167;   (* 18ac movk x7, #0xa0b, lsl #32 *)
+  0xf2e10127;   (* 18b0 movk x7, #0x809, lsl #48 *)
+  0xd280c0e8;   (* 18b4 mov x8, #0x607                  // #1543 *)
+  0xf2a080a8;   (* 18b8 movk x8, #0x405, lsl #16 *)
+  0xf2c04068;   (* 18bc movk x8, #0x203, lsl #32 *)
+  0xf2e00028;   (* 18c0 movk x8, #0x1, lsl #48 *)
+  0x9e6700ec;   (* 18c4 fmov d12, x7 *)
+  0x4e181d0c;   (* 18c8 mov v12.d[1], x8 *)
+  0x4e284b40;   (* 18cc aese v0.16b, v26.16b *)
+  0x4e286800;   (* 18d0 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 18d4 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 18d8 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 18dc aese v2.16b, v26.16b *)
+  0x4e286842;   (* 18e0 aesmc v2.16b, v2.16b *)
+  0xad41697c;   (* 18e4 ldp q28, q26, [x11, #32] *)
+  0x4e284b60;   (* 18e8 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 18ec aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 18f0 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 18f4 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 18f8 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 18fc aesmc v2.16b, v2.16b *)
+  0x4e284b80;   (* 1900 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1904 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1908 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 190c aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 1910 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 1914 aesmc v2.16b, v2.16b *)
+  0xad42717b;   (* 1918 ldp q27, q28, [x11, #64] *)
+  0x4e284b40;   (* 191c aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1920 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1924 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1928 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 192c aese v2.16b, v26.16b *)
+  0x4e286842;   (* 1930 aesmc v2.16b, v2.16b *)
+  0x4e284b60;   (* 1934 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1938 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 193c aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1940 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 1944 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 1948 aesmc v2.16b, v2.16b *)
+  0xad436d7a;   (* 194c ldp q26, q27, [x11, #96] *)
+  0x4e284b80;   (* 1950 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1954 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1958 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 195c aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 1960 aese v2.16b, v28.16b *)
+  0x4e286842;   (* 1964 aesmc v2.16b, v2.16b *)
+  0x4e284b40;   (* 1968 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 196c aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1970 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1974 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 1978 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 197c aesmc v2.16b, v2.16b *)
+  0xad44697c;   (* 1980 ldp q28, q26, [x11, #128] *)
+  0x4e284b60;   (* 1984 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1988 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 198c aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1990 aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 1994 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 1998 aesmc v2.16b, v2.16b *)
+  0x4e284b80;   (* 199c aese v0.16b, v28.16b *)
+  0x4e286800;   (* 19a0 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 19a4 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 19a8 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 19ac aese v2.16b, v28.16b *)
+  0x4e286842;   (* 19b0 aesmc v2.16b, v2.16b *)
+  0xad45717b;   (* 19b4 ldp q27, q28, [x11, #160] *)
+  0x4e284b40;   (* 19b8 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 19bc aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 19c0 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 19c4 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 19c8 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 19cc aesmc v2.16b, v2.16b *)
+  0x4e284b60;   (* 19d0 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 19d4 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 19d8 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 19dc aesmc v1.16b, v1.16b *)
+  0x4e284b62;   (* 19e0 aese v2.16b, v27.16b *)
+  0x4e286842;   (* 19e4 aesmc v2.16b, v2.16b *)
+  0xad466d7a;   (* 19e8 ldp q26, q27, [x11, #192] *)
+  0x4e284b80;   (* 19ec aese v0.16b, v28.16b *)
+  0x4e286800;   (* 19f0 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 19f4 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 19f8 aesmc v1.16b, v1.16b *)
+  0x4e284b82;   (* 19fc aese v2.16b, v28.16b *)
+  0x4e286842;   (* 1a00 aesmc v2.16b, v2.16b *)
+  0x3dc0397c;   (* 1a04 ldr q28, [x11, #224] *)
+  0x4e284b40;   (* 1a08 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1a0c aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1a10 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1a14 aesmc v1.16b, v1.16b *)
+  0x4e284b42;   (* 1a18 aese v2.16b, v26.16b *)
+  0x4e286842;   (* 1a1c aesmc v2.16b, v2.16b *)
+  0x4e284b60;   (* 1a20 aese v0.16b, v27.16b *)
+  0x4e284b61;   (* 1a24 aese v1.16b, v27.16b *)
+  0x4e284b62;   (* 1a28 aese v2.16b, v27.16b *)
+  0x3cc10408;   (* 1a2c ldr q8, [x0], #16 *)
+  0x6e134270;   (* 1a30 ext v16.16b, v19.16b, v19.16b, #8 *)
+  0x4ebc1f9d;   (* 1a34 mov v29.16b, v28.16b *)
+  0xce007509;   (* 1a38 eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
+  0x4c9f7049;   (* 1a3c st1 {v9.16b}, [x2], #16 *)
+  0x3dc00cd7;   (* 1a40 ldr q23, [x6, #48] *)
+  0x4e200928;   (* 1a44 rev64 v8.16b, v9.16b *)
+  0x6e301d08;   (* 1a48 eor v8.16b, v8.16b, v16.16b *)
+  0x3dc010d8;   (* 1a4c ldr q24, [x6, #64] *)
+  0x6e08411b;   (* 1a50 ext v27.16b, v8.16b, v8.16b, #8 *)
+  0x4ef7e10d;   (* 1a54 pmull2 v13.1q, v8.2d, v23.2d *)
+  0x2e281f7b;   (* 1a58 eor v27.8b, v27.8b, v8.8b *)
+  0x3cc10409;   (* 1a5c ldr q9, [x0], #16 *)
+  0x0ef7e10e;   (* 1a60 pmull v14.1q, v8.1d, v23.1d *)
+  0x0ef8e36f;   (* 1a64 pmull v15.1q, v27.1d, v24.1d *)
+  0xce017529;   (* 1a68 eor3 v9.16b, v9.16b, v1.16b, v29.16b *)
+  0x4c9f7049;   (* 1a6c st1 {v9.16b}, [x2], #16 *)
+  0x3dc008d6;   (* 1a70 ldr q22, [x6, #32] *)
+  0x4e200928;   (* 1a74 rev64 v8.16b, v9.16b *)
+  0x3cc10409;   (* 1a78 ldr q9, [x0], #16 *)
+  0x6e08411b;   (* 1a7c ext v27.16b, v8.16b, v8.16b, #8 *)
+  0x4ef6e11c;   (* 1a80 pmull2 v28.1q, v8.2d, v22.2d *)
+  0xce027529;   (* 1a84 eor3 v9.16b, v9.16b, v2.16b, v29.16b *)
+  0x2e281f7b;   (* 1a88 eor v27.8b, v27.8b, v8.8b *)
+  0x0ef6e11a;   (* 1a8c pmull v26.1q, v8.1d, v22.1d *)
+  0x3dc004d5;   (* 1a90 ldr q21, [x6, #16] *)
+  0x6e1542aa;   (* 1a94 ext v10.16b, v21.16b, v21.16b, #8 *)
+  0x0eeae37b;   (* 1a98 pmull v27.1q, v27.1d, v10.1d *)
+  0x6e2d1f91;   (* 1a9c eor v17.16b, v28.16b, v13.16b *)
+  0x6e2e1f53;   (* 1aa0 eor v19.16b, v26.16b, v14.16b *)
+  0x6e2f1f72;   (* 1aa4 eor v18.16b, v27.16b, v15.16b *)
+  0x3dc000d4;   (* 1aa8 ldr q20, [x6] *)
+  0x4e200928;   (* 1aac rev64 v8.16b, v9.16b *)
+  0x6e200bde;   (* 1ab0 rev32 v30.16b, v30.16b *)
+  0x3d80021e;   (* 1ab4 str q30, [x16] *)
+  0x4c007049;   (* 1ab8 st1 {v9.16b}, [x2] *)
+  0x6e084510;   (* 1abc mov v16.d[0], v8.d[1] *)
+  0x4ef4e11c;   (* 1ac0 pmull2 v28.1q, v8.2d, v20.2d *)
+  0x0ef4e11a;   (* 1ac4 pmull v26.1q, v8.1d, v20.1d *)
+  0x2e281e10;   (* 1ac8 eor v16.8b, v16.8b, v8.8b *)
+  0x0ef5e210;   (* 1acc pmull v16.1q, v16.1d, v21.1d *)
+  0x6e3c1e31;   (* 1ad0 eor v17.16b, v17.16b, v28.16b *)
+  0x6e3a1e73;   (* 1ad4 eor v19.16b, v19.16b, v26.16b *)
+  0x6e301e52;   (* 1ad8 eor v18.16b, v18.16b, v16.16b *)
+  0x140000a5;   (* 1adc b 1d70 <L256_enc_small_reduce> *)
+  0x4ebc87be;   (* 1ae0 add v30.4s, v29.4s, v28.4s *)
+  0xd281c1e7;   (* 1ae4 mov x7, #0xe0f                  // #3599 *)
+  0xf2a181a7;   (* 1ae8 movk x7, #0xc0d, lsl #16 *)
+  0xf2c14167;   (* 1aec movk x7, #0xa0b, lsl #32 *)
+  0xf2e10127;   (* 1af0 movk x7, #0x809, lsl #48 *)
+  0xd280c0e8;   (* 1af4 mov x8, #0x607                  // #1543 *)
+  0xf2a080a8;   (* 1af8 movk x8, #0x405, lsl #16 *)
+  0xf2c04068;   (* 1afc movk x8, #0x203, lsl #32 *)
+  0xf2e00028;   (* 1b00 movk x8, #0x1, lsl #48 *)
+  0x9e6700ec;   (* 1b04 fmov d12, x7 *)
+  0x4e181d0c;   (* 1b08 mov v12.d[1], x8 *)
+  0x4e284b40;   (* 1b0c aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1b10 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1b14 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1b18 aesmc v1.16b, v1.16b *)
+  0xad41697c;   (* 1b1c ldp q28, q26, [x11, #32] *)
+  0x4e284b60;   (* 1b20 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1b24 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 1b28 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1b2c aesmc v1.16b, v1.16b *)
+  0x4e284b80;   (* 1b30 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1b34 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1b38 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 1b3c aesmc v1.16b, v1.16b *)
+  0xad42717b;   (* 1b40 ldp q27, q28, [x11, #64] *)
+  0x4e284b40;   (* 1b44 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1b48 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1b4c aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1b50 aesmc v1.16b, v1.16b *)
+  0x4e284b60;   (* 1b54 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1b58 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 1b5c aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1b60 aesmc v1.16b, v1.16b *)
+  0xad436d7a;   (* 1b64 ldp q26, q27, [x11, #96] *)
+  0x4e284b80;   (* 1b68 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1b6c aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1b70 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 1b74 aesmc v1.16b, v1.16b *)
+  0x4e284b40;   (* 1b78 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1b7c aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1b80 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1b84 aesmc v1.16b, v1.16b *)
+  0xad44697c;   (* 1b88 ldp q28, q26, [x11, #128] *)
+  0x4e284b60;   (* 1b8c aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1b90 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 1b94 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1b98 aesmc v1.16b, v1.16b *)
+  0x4e284b80;   (* 1b9c aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1ba0 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1ba4 aese v1.16b, v28.16b *)
+  0x4e286821;   (* 1ba8 aesmc v1.16b, v1.16b *)
+  0xad45717b;   (* 1bac ldp q27, q28, [x11, #160] *)
+  0x4e284b40;   (* 1bb0 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1bb4 aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1bb8 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1bbc aesmc v1.16b, v1.16b *)
+  0x4e284b60;   (* 1bc0 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1bc4 aesmc v0.16b, v0.16b *)
+  0x4e284b61;   (* 1bc8 aese v1.16b, v27.16b *)
+  0x4e286821;   (* 1bcc aesmc v1.16b, v1.16b *)
+  0xad466d7a;   (* 1bd0 ldp q26, q27, [x11, #192] *)
+  0x4e284b80;   (* 1bd4 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1bd8 aesmc v0.16b, v0.16b *)
+  0x4e284b81;   (* 1bdc aese v1.16b, v28.16b *)
+  0x4e286821;   (* 1be0 aesmc v1.16b, v1.16b *)
+  0x3dc0397c;   (* 1be4 ldr q28, [x11, #224] *)
+  0x4e284b40;   (* 1be8 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1bec aesmc v0.16b, v0.16b *)
+  0x4e284b41;   (* 1bf0 aese v1.16b, v26.16b *)
+  0x4e286821;   (* 1bf4 aesmc v1.16b, v1.16b *)
+  0x4e284b60;   (* 1bf8 aese v0.16b, v27.16b *)
+  0x4e284b61;   (* 1bfc aese v1.16b, v27.16b *)
+  0x3cc10408;   (* 1c00 ldr q8, [x0], #16 *)
+  0x6e134270;   (* 1c04 ext v16.16b, v19.16b, v19.16b, #8 *)
+  0x4ebc1f9d;   (* 1c08 mov v29.16b, v28.16b *)
+  0xce007509;   (* 1c0c eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
+  0x3dc008d6;   (* 1c10 ldr q22, [x6, #32] *)
+  0x3dc004d5;   (* 1c14 ldr q21, [x6, #16] *)
+  0x3dc000d4;   (* 1c18 ldr q20, [x6] *)
+  0x4c9f7049;   (* 1c1c st1 {v9.16b}, [x2], #16 *)
+  0x4e200928;   (* 1c20 rev64 v8.16b, v9.16b *)
+  0x6e301d08;   (* 1c24 eor v8.16b, v8.16b, v16.16b *)
+  0x3cc10409;   (* 1c28 ldr q9, [x0], #16 *)
+  0x6e08411b;   (* 1c2c ext v27.16b, v8.16b, v8.16b, #8 *)
+  0x6e1542aa;   (* 1c30 ext v10.16b, v21.16b, v21.16b, #8 *)
+  0x4ef6e10d;   (* 1c34 pmull2 v13.1q, v8.2d, v22.2d *)
+  0x2e281f7b;   (* 1c38 eor v27.8b, v27.8b, v8.8b *)
+  0x0ef6e10e;   (* 1c3c pmull v14.1q, v8.1d, v22.1d *)
+  0xce017529;   (* 1c40 eor3 v9.16b, v9.16b, v1.16b, v29.16b *)
+  0x0eeae36f;   (* 1c44 pmull v15.1q, v27.1d, v10.1d *)
+  0x4c007049;   (* 1c48 st1 {v9.16b}, [x2] *)
+  0x4e200928;   (* 1c4c rev64 v8.16b, v9.16b *)
+  0x6e084510;   (* 1c50 mov v16.d[0], v8.d[1] *)
+  0x4ef4e11c;   (* 1c54 pmull2 v28.1q, v8.2d, v20.2d *)
+  0x0ef4e11a;   (* 1c58 pmull v26.1q, v8.1d, v20.1d *)
+  0x2e281e10;   (* 1c5c eor v16.8b, v16.8b, v8.8b *)
+  0x0ef5e210;   (* 1c60 pmull v16.1q, v16.1d, v21.1d *)
+  0x6e3c1db1;   (* 1c64 eor v17.16b, v13.16b, v28.16b *)
+  0x6e3a1dd3;   (* 1c68 eor v19.16b, v14.16b, v26.16b *)
+  0x6e301df2;   (* 1c6c eor v18.16b, v15.16b, v16.16b *)
+  0x6e200bde;   (* 1c70 rev32 v30.16b, v30.16b *)
+  0x3d80021e;   (* 1c74 str q30, [x16] *)
+  0x1400003e;   (* 1c78 b 1d70 <L256_enc_small_reduce> *)
+  0x4ebf87be;   (* 1c7c add v30.4s, v29.4s, v31.4s *)
+  0xd281c1e7;   (* 1c80 mov x7, #0xe0f                  // #3599 *)
+  0xf2a181a7;   (* 1c84 movk x7, #0xc0d, lsl #16 *)
+  0xf2c14167;   (* 1c88 movk x7, #0xa0b, lsl #32 *)
+  0xf2e10127;   (* 1c8c movk x7, #0x809, lsl #48 *)
+  0xd280c0e8;   (* 1c90 mov x8, #0x607                  // #1543 *)
+  0xf2a080a8;   (* 1c94 movk x8, #0x405, lsl #16 *)
+  0xf2c04068;   (* 1c98 movk x8, #0x203, lsl #32 *)
+  0xf2e00028;   (* 1c9c movk x8, #0x1, lsl #48 *)
+  0x9e6700ec;   (* 1ca0 fmov d12, x7 *)
+  0x4e181d0c;   (* 1ca4 mov v12.d[1], x8 *)
+  0x4e284b40;   (* 1ca8 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1cac aesmc v0.16b, v0.16b *)
+  0xad41697c;   (* 1cb0 ldp q28, q26, [x11, #32] *)
+  0x4e284b60;   (* 1cb4 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1cb8 aesmc v0.16b, v0.16b *)
+  0x4e284b80;   (* 1cbc aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1cc0 aesmc v0.16b, v0.16b *)
+  0xad42717b;   (* 1cc4 ldp q27, q28, [x11, #64] *)
+  0x4e284b40;   (* 1cc8 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1ccc aesmc v0.16b, v0.16b *)
+  0x4e284b60;   (* 1cd0 aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1cd4 aesmc v0.16b, v0.16b *)
+  0xad436d7a;   (* 1cd8 ldp q26, q27, [x11, #96] *)
+  0x4e284b80;   (* 1cdc aese v0.16b, v28.16b *)
   0x4e286800;   (* 1ce0 aesmc v0.16b, v0.16b *)
-  0xad41697c;   (* 1ce4 ldp q28, q26, [x11, #32] *)
-  0x4e284b60;   (* 1ce8 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1cec aesmc v0.16b, v0.16b *)
-  0x4e284b80;   (* 1cf0 aese v0.16b, v28.16b *)
+  0x4e284b40;   (* 1ce4 aese v0.16b, v26.16b *)
+  0x4e286800;   (* 1ce8 aesmc v0.16b, v0.16b *)
+  0xad44697c;   (* 1cec ldp q28, q26, [x11, #128] *)
+  0x4e284b60;   (* 1cf0 aese v0.16b, v27.16b *)
   0x4e286800;   (* 1cf4 aesmc v0.16b, v0.16b *)
-  0xad42717b;   (* 1cf8 ldp q27, q28, [x11, #64] *)
-  0x4e284b40;   (* 1cfc aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1d00 aesmc v0.16b, v0.16b *)
-  0x4e284b60;   (* 1d04 aese v0.16b, v27.16b *)
+  0x4e284b80;   (* 1cf8 aese v0.16b, v28.16b *)
+  0x4e286800;   (* 1cfc aesmc v0.16b, v0.16b *)
+  0xad45717b;   (* 1d00 ldp q27, q28, [x11, #160] *)
+  0x4e284b40;   (* 1d04 aese v0.16b, v26.16b *)
   0x4e286800;   (* 1d08 aesmc v0.16b, v0.16b *)
-  0xad436d7a;   (* 1d0c ldp q26, q27, [x11, #96] *)
-  0x4e284b80;   (* 1d10 aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1d14 aesmc v0.16b, v0.16b *)
-  0x4e284b40;   (* 1d18 aese v0.16b, v26.16b *)
+  0x4e284b60;   (* 1d0c aese v0.16b, v27.16b *)
+  0x4e286800;   (* 1d10 aesmc v0.16b, v0.16b *)
+  0xad466d7a;   (* 1d14 ldp q26, q27, [x11, #192] *)
+  0x4e284b80;   (* 1d18 aese v0.16b, v28.16b *)
   0x4e286800;   (* 1d1c aesmc v0.16b, v0.16b *)
-  0xad44697c;   (* 1d20 ldp q28, q26, [x11, #128] *)
-  0x4e284b60;   (* 1d24 aese v0.16b, v27.16b *)
+  0x3dc0397c;   (* 1d20 ldr q28, [x11, #224] *)
+  0x4e284b40;   (* 1d24 aese v0.16b, v26.16b *)
   0x4e286800;   (* 1d28 aesmc v0.16b, v0.16b *)
-  0x4e284b80;   (* 1d2c aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1d30 aesmc v0.16b, v0.16b *)
-  0xad45717b;   (* 1d34 ldp q27, q28, [x11, #160] *)
-  0x4e284b40;   (* 1d38 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1d3c aesmc v0.16b, v0.16b *)
-  0x4e284b60;   (* 1d40 aese v0.16b, v27.16b *)
-  0x4e286800;   (* 1d44 aesmc v0.16b, v0.16b *)
-  0xad466d7a;   (* 1d48 ldp q26, q27, [x11, #192] *)
-  0x4e284b80;   (* 1d4c aese v0.16b, v28.16b *)
-  0x4e286800;   (* 1d50 aesmc v0.16b, v0.16b *)
-  0x3dc0397c;   (* 1d54 ldr q28, [x11, #224] *)
-  0x4e284b40;   (* 1d58 aese v0.16b, v26.16b *)
-  0x4e286800;   (* 1d5c aesmc v0.16b, v0.16b *)
-  0x4e284b60;   (* 1d60 aese v0.16b, v27.16b *)
-  0x3dc00008;   (* 1d64 ldr q8, [x0] *)
-  0x6e134270;   (* 1d68 ext v16.16b, v19.16b, v19.16b, #8 *)
-  0x4ebc1f9d;   (* 1d6c mov v29.16b, v28.16b *)
-  0xce007509;   (* 1d70 eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
-  0x6ebf87de;   (* 1d74 sub v30.4s, v30.4s, v31.4s *)
-  0x3dc000d4;   (* 1d78 ldr q20, [x6] *)
-  0x6ebf87de;   (* 1d7c sub v30.4s, v30.4s, v31.4s *)
-  0x3dc004d5;   (* 1d80 ldr q21, [x6, #16] *)
-  0x6ebf87de;   (* 1d84 sub v30.4s, v30.4s, v31.4s *)
-  0x4e200928;   (* 1d88 rev64 v8.16b, v9.16b *)
-  0x6ebf87de;   (* 1d8c sub v30.4s, v30.4s, v31.4s *)
-  0x6e301d08;   (* 1d90 eor v8.16b, v8.16b, v16.16b *)
-  0x6ebf87de;   (* 1d94 sub v30.4s, v30.4s, v31.4s *)
-  0x4c007049;   (* 1d98 st1 {v9.16b}, [x2] *)
-  0x6ebf87de;   (* 1d9c sub v30.4s, v30.4s, v31.4s *)
-  0x6e084510;   (* 1da0 mov v16.d[0], v8.d[1] *)
-  0x6ebf87de;   (* 1da4 sub v30.4s, v30.4s, v31.4s *)
-  0x4ef4e111;   (* 1da8 pmull2 v17.1q, v8.2d, v20.2d *)
-  0x0ef4e113;   (* 1dac pmull v19.1q, v8.1d, v20.1d *)
-  0x2e281e10;   (* 1db0 eor v16.8b, v16.8b, v8.8b *)
-  0x0ef5e212;   (* 1db4 pmull v18.1q, v16.1d, v21.1d *)
-  0x6e200bde;   (* 1db8 rev32 v30.16b, v30.16b *)
-  0x3d80021e;   (* 1dbc str q30, [x16] *)
-  0xfd400150;   (* 1dc0 ldr d16, [x10] *)
-  0x6e114235;   (* 1dc4 ext v21.16b, v17.16b, v17.16b, #8 *)
-  0xce114e52;   (* 1dc8 eor3 v18.16b, v18.16b, v17.16b, v19.16b *)
-  0x0ef0e23d;   (* 1dcc pmull v29.1q, v17.1d, v16.1d *)
-  0xce1d5652;   (* 1dd0 eor3 v18.16b, v18.16b, v29.16b, v21.16b *)
-  0x0ef0e251;   (* 1dd4 pmull v17.1q, v18.1d, v16.1d *)
-  0x6e124255;   (* 1dd8 ext v21.16b, v18.16b, v18.16b, #8 *)
-  0xce115673;   (* 1ddc eor3 v19.16b, v19.16b, v17.16b, v21.16b *)
-  0x4e0c0273;   (* 1de0 tbl v19.16b, {v19.16b}, v12.16b *)
-  0x4c007073;   (* 1de4 st1 {v19.16b}, [x3] *)
-  0x17fffcf7;   (* 1de8 b 11c4 <L256_enc_epilogue> *)
+  0x4e284b60;   (* 1d2c aese v0.16b, v27.16b *)
+  0x3dc00008;   (* 1d30 ldr q8, [x0] *)
+  0x6e134270;   (* 1d34 ext v16.16b, v19.16b, v19.16b, #8 *)
+  0x4ebc1f9d;   (* 1d38 mov v29.16b, v28.16b *)
+  0xce007509;   (* 1d3c eor3 v9.16b, v8.16b, v0.16b, v29.16b *)
+  0x3dc000d4;   (* 1d40 ldr q20, [x6] *)
+  0x3dc004d5;   (* 1d44 ldr q21, [x6, #16] *)
+  0x4e200928;   (* 1d48 rev64 v8.16b, v9.16b *)
+  0x6e301d08;   (* 1d4c eor v8.16b, v8.16b, v16.16b *)
+  0x4c007049;   (* 1d50 st1 {v9.16b}, [x2] *)
+  0x6e084510;   (* 1d54 mov v16.d[0], v8.d[1] *)
+  0x4ef4e111;   (* 1d58 pmull2 v17.1q, v8.2d, v20.2d *)
+  0x0ef4e113;   (* 1d5c pmull v19.1q, v8.1d, v20.1d *)
+  0x2e281e10;   (* 1d60 eor v16.8b, v16.8b, v8.8b *)
+  0x0ef5e212;   (* 1d64 pmull v18.1q, v16.1d, v21.1d *)
+  0x6e200bde;   (* 1d68 rev32 v30.16b, v30.16b *)
+  0x3d80021e;   (* 1d6c str q30, [x16] *)
+  0xfd400150;   (* 1d70 ldr d16, [x10] *)
+  0x6e114235;   (* 1d74 ext v21.16b, v17.16b, v17.16b, #8 *)
+  0xce114e52;   (* 1d78 eor3 v18.16b, v18.16b, v17.16b, v19.16b *)
+  0x0ef0e23d;   (* 1d7c pmull v29.1q, v17.1d, v16.1d *)
+  0xce1d5652;   (* 1d80 eor3 v18.16b, v18.16b, v29.16b, v21.16b *)
+  0x0ef0e251;   (* 1d84 pmull v17.1q, v18.1d, v16.1d *)
+  0x6e124255;   (* 1d88 ext v21.16b, v18.16b, v18.16b, #8 *)
+  0xce115673;   (* 1d8c eor3 v19.16b, v19.16b, v17.16b, v21.16b *)
+  0x4e0c0273;   (* 1d90 tbl v19.16b, {v19.16b}, v12.16b *)
+  0x4c007073;   (* 1d94 st1 {v19.16b}, [x3] *)
+  0x17fffd0b;   (* 1d98 b 11c4 <L256_enc_epilogue> *)
 ];;
 
 let AESV8_GCM_8X_ENC_256_EXEC = ARM_MK_EXEC_RULE aesv8_gcm_8x_enc_256_mc;;
@@ -7276,7 +7256,7 @@ let AESV8_GCM_8X_ENC_256_FAST2_TAIL = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
-           read PC s = word (pc + 0x1c20) /\
+           read PC s = word (pc + 0x1c00) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7293,7 +7273,7 @@ let AESV8_GCM_8X_ENC_256_FAST2_TAIL = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 4)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -7334,11 +7314,11 @@ let AESV8_GCM_8X_ENC_256_FAST2_TAIL = prove
     CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC;
     ALL_TAC] THEN
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
-  MAP_EVERY NSTEP_GP (1--45) THEN
-  fold_q19_at `read Q19 s45 : int128` `8 * g + 2` TAIL_Q19_FOLD_REM2 THEN
+  MAP_EVERY NSTEP_GP (1--39) THEN
+  fold_q19_at `read Q19 s39 : int128` `8 * g + 2` TAIL_Q19_FOLD_REM2 THEN
   (*[s118] Q25 is the LIVE tbl index here (not reduce-scratch) -> KEEP it so read Q25 propagates to the tbl step*)
   DISCARD_REGS ["Q17";"Q18";"Q20";"Q21";"Q22";"Q23";"Q24";"Q25";"Q26";"Q29";"Q16";"Q8";"Q9";"Q10";"Q11";"Q13";"Q14";"Q15"] THEN
-  MAP_EVERY NSTEP_GP (46--48) THEN
+  MAP_EVERY NSTEP_GP (40--42) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -7394,7 +7374,7 @@ let AESV8_GCM_8X_ENC_256_FAST1_TAIL = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
-           read PC s = word (pc + 0x1d64) /\
+           read PC s = word (pc + 0x1d30) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7409,7 +7389,7 @@ let AESV8_GCM_8X_ENC_256_FAST1_TAIL = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 3)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -7447,10 +7427,10 @@ let AESV8_GCM_8X_ENC_256_FAST1_TAIL = prove
     FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC;
     ALL_TAC] THEN
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
-  MAP_EVERY NSTEP_GP (1--31) THEN
-  fold_q19_at `read Q19 s31 : int128` `8 * g + 1` TAIL_Q19_FOLD_REM1 THEN
+  MAP_EVERY NSTEP_GP (1--24) THEN
+  fold_q19_at `read Q19 s24 : int128` `8 * g + 1` TAIL_Q19_FOLD_REM1 THEN
   DISCARD_REGS ["Q17";"Q18";"Q20";"Q21";"Q22";"Q23";"Q24";"Q25";"Q26";"Q29";"Q16";"Q8";"Q9";"Q10";"Q11";"Q13";"Q14";"Q15"] THEN
-  MAP_EVERY NSTEP_GP (32--34) THEN
+  MAP_EVERY NSTEP_GP (25--27) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -7914,7 +7894,7 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM4 = prove
 (* ===================================================================== *)
 
 let FOLD_Q19_REM4_FAST4 : tactic =
-  fold_q19_at `read Q19 s71 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
+  fold_q19_at `read Q19 s67 : int128` `8 * g + 4` TAIL_Q19_FOLD_REM4;;
 
 let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
  (`!in_p out_p tag_p ivec_p htable_p mod_p
@@ -7929,7 +7909,7 @@ let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
-           read PC s = word (pc + 0x17b8) /\
+           read PC s = word (pc + 0x17b4) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -7950,7 +7930,7 @@ let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 6)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -7997,12 +7977,12 @@ let AESV8_GCM_8X_ENC_256_FAST4_TAIL = prove
     REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC;
     ALL_TAC] THEN
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
-  MAP_EVERY NSTEP_GP (1--71) THEN
+  MAP_EVERY NSTEP_GP (1--67) THEN
   FOLD_Q19_REM4_FAST4 THEN
   (*[s121tbl] KEEP Q12 (live tbl index) -> explicit discard = DISCARD_DEAD_REDUCE_SCRATCH minus Q12*)
   DISCARD_REGS ["Q17"; "Q18"; "Q20"; "Q21"; "Q22"; "Q23"; "Q24"; "Q25"; "Q26";
      "Q29"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q13"; "Q14"; "Q15"] THEN
-  MAP_EVERY NSTEP_GP (72--74) THEN
+  MAP_EVERY NSTEP_GP (68--70) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -8058,7 +8038,7 @@ let AESV8_GCM_8X_ENC_256_FAST3_TAIL = prove
       [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
     ==> ensures arm
       (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_mc /\
-           read PC s = word (pc + 0x1a3c) /\
+           read PC s = word (pc + 0x1a2c) /\
            read X0 s = word_add in_p (word (128 * g)) /\
            read X2 s = word_add out_p (word (128 * g)) /\
            read X3 s = tag_p /\
@@ -8077,7 +8057,7 @@ let AESV8_GCM_8X_ENC_256_FAST3_TAIL = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * g)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * g + 5)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -8121,11 +8101,11 @@ let AESV8_GCM_8X_ENC_256_FAST3_TAIL = prove
     REPEAT CONJ_TAC THEN FIRST_ASSUM MATCH_MP_TAC THEN ASM_ARITH_TAC;
     ALL_TAC] THEN
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
-  MAP_EVERY NSTEP_GP (1--58) THEN
-  fold_q19_at `read Q19 s58 : int128` `8 * g + 3` TAIL_Q19_FOLD_REM3 THEN
+  MAP_EVERY NSTEP_GP (1--53) THEN
+  fold_q19_at `read Q19 s53 : int128` `8 * g + 3` TAIL_Q19_FOLD_REM3 THEN
   DISCARD_REGS ["Q17"; "Q18"; "Q20"; "Q21"; "Q22"; "Q23"; "Q24"; "Q25"; "Q26";
      "Q29"; "Q16"; "Q8"; "Q9"; "Q10"; "Q11"; "Q13"; "Q14"; "Q15"] THEN
-  MAP_EVERY NSTEP_GP (59--61) THEN
+  MAP_EVERY NSTEP_GP (54--56) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -12050,7 +12030,7 @@ let AESV8_GCM_8X_ENC_256_FAST2 = prove
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
-  ENSURES_SEQUENCE_TAC `pc + 0x1c20`
+  ENSURES_SEQUENCE_TAC `pc + 0x1c00`
    `\s. read X0 s = word_add in_p (word (128 * 0)) /\
            read X2 s = word_add out_p (word (128 * 0)) /\
            read X3 s = tag_p /\
@@ -12067,7 +12047,7 @@ let AESV8_GCM_8X_ENC_256_FAST2 = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 4)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -12093,16 +12073,16 @@ let AESV8_GCM_8X_ENC_256_FAST2 = prove
     RULE_ASSUM_TAC(REWRITE_RULE[
       MATCH_MP DISPATCH4_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`));
       MATCH_MP DISPATCH_SMALL_TAKEN (CONJ (ASSUME `1 <= nb`) (ASSUME `nb <= 3`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--23) THEN
-    NSTEP 24 THEN NSTEP 25 THEN
+    MAP_EVERY NSTEP (8--21) THEN
+    NSTEP 22 THEN NSTEP 23 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
-    NSTEP 26 THEN NSTEP 27 THEN
+    NSTEP 24 THEN NSTEP 25 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_TAKEN (ASSUME `nb = 2`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (28--98) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s98) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (26--97) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s97) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q1 s98) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q1 s97) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 3)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
@@ -12212,7 +12192,7 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
-  ENSURES_SEQUENCE_TAC `pc + 0x17b8`
+  ENSURES_SEQUENCE_TAC `pc + 0x17b4`
    `\s. read X0 s = word_add in_p (word (128 * 0)) /\
            read X2 s = word_add out_p (word (128 * 0)) /\
            read X3 s = tag_p /\
@@ -12233,7 +12213,7 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 6)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -12256,24 +12236,24 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
     SUBGOAL_THEN `~(nb = 3)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
     MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH4_TAKEN (ASSUME `nb = 4`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--23) THEN
-    NSTEP 24 THEN NSTEP 25 THEN
+    MAP_EVERY NSTEP (8--21) THEN
+    NSTEP 22 THEN NSTEP 23 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
-    NSTEP 26 THEN NSTEP 27 THEN
+    NSTEP 24 THEN NSTEP 25 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 28 THEN NSTEP 29 THEN
+    NSTEP 26 THEN NSTEP 27 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH3_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 3)`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (30--154) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s154) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (28--153) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s153) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q1 s154) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q1 s153) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 3)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q2 s154) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q2 s153) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 4)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q3 s154) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q3 s153) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 5)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
@@ -12383,7 +12363,7 @@ let AESV8_GCM_8X_ENC_256_FAST1 = prove
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
-  ENSURES_SEQUENCE_TAC `pc + 0x1d64`
+  ENSURES_SEQUENCE_TAC `pc + 0x1d30`
    `\s. read X0 s = word_add in_p (word (128 * 0)) /\
            read X2 s = word_add out_p (word (128 * 0)) /\
            read X3 s = tag_p /\
@@ -12398,7 +12378,7 @@ let AESV8_GCM_8X_ENC_256_FAST1 = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 3)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -12422,11 +12402,11 @@ let AESV8_GCM_8X_ENC_256_FAST1 = prove
     RULE_ASSUM_TAC(REWRITE_RULE[
       MATCH_MP DISPATCH4_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`));
       MATCH_MP DISPATCH_SMALL_TAKEN (CONJ (ASSUME `1 <= nb`) (ASSUME `nb <= 3`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--23) THEN
-    NSTEP 24 THEN NSTEP 25 THEN
+    MAP_EVERY NSTEP (8--21) THEN
+    NSTEP 22 THEN NSTEP 23 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_TAKEN (ASSUME `nb = 1`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (26--69) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s69) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (24--68) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s68) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
@@ -12536,7 +12516,7 @@ let AESV8_GCM_8X_ENC_256_FAST3 = prove
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
-  ENSURES_SEQUENCE_TAC `pc + 0x1a3c`
+  ENSURES_SEQUENCE_TAC `pc + 0x1a2c`
    `\s. read X0 s = word_add in_p (word (128 * 0)) /\
            read X2 s = word_add out_p (word (128 * 0)) /\
            read X3 s = tag_p /\
@@ -12555,7 +12535,7 @@ let AESV8_GCM_8X_ENC_256_FAST3 = prove
              nist_ghash (aes256_cipher (word 0) rk) tag0
                  (list_of_seq (nist_cipher_block nonce rk inblock) (8 * 0)) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
-           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 10)) /\
+           read Q30 s = word_reversefields 32 (ctr_block nonce (8 * 0 + 5)) /\
            read Q31 s = word 79228162514264337593543950336 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
            (!j. j < nb
@@ -12584,21 +12564,21 @@ let AESV8_GCM_8X_ENC_256_FAST3 = prove
     RULE_ASSUM_TAC(REWRITE_RULE[
       MATCH_MP DISPATCH4_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`));
       MATCH_MP DISPATCH_SMALL_TAKEN (CONJ (ASSUME `1 <= nb`) (ASSUME `nb <= 3`)); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (8--23) THEN
-    NSTEP 24 THEN NSTEP 25 THEN
+    MAP_EVERY NSTEP (8--21) THEN
+    NSTEP 22 THEN NSTEP 23 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH1_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 1)`)); COND_CLAUSES]) THEN
-    NSTEP 26 THEN NSTEP 27 THEN
+    NSTEP 24 THEN NSTEP 25 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 2)`)); COND_CLAUSES]) THEN
-    NSTEP 28 THEN NSTEP 29 THEN
+    NSTEP 26 THEN NSTEP 27 THEN
     RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP DISPATCH3_TAKEN (ASSUME `nb = 3`); COND_CLAUSES]) THEN
-    MAP_EVERY NSTEP (30--127) THEN
-    SUBGOAL_THEN `word_xor (read Q0 s127) (word_reversefields 8 (EL 14 rk)) =
+    MAP_EVERY NSTEP (28--126) THEN
+    SUBGOAL_THEN `word_xor (read Q0 s126) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 2)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q1 s127) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q1 s126) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 3)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
-    SUBGOAL_THEN `word_xor (read Q2 s127) (word_reversefields 8 (EL 14 rk)) =
+    SUBGOAL_THEN `word_xor (read Q2 s126) (word_reversefields 8 (EL 14 rk)) =
       word_reversefields 8 (aes256_cipher (ctr_block nonce (8 * 0 + 4)) rk)`
       ASSUME_TAC THENL [KSCLOSE; ALL_TAC] THEN
     ENSURES_FINAL_STATE_TAC THEN
