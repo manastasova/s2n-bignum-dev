@@ -1097,7 +1097,7 @@ let aesv8_gcm_8x_enc_256_mc =
   0x0f00e410;   (* 1090 movi v16.8b, #0x0 *)
   0x6e3b1e52;   (* 1094 eor v18.16b, v18.16b, v27.16b *)
   0x6e3c1e31;   (* 1098 eor v17.16b, v17.16b, v28.16b *)
-  0x4c9f7049;   (* 109c st1 {v9.16b}, [x2], #16 *)
+  0x140000bf;   (* 109c b 1398 <L256_enc_rem4_drain> [s148] rem5/6/7 -> fused rem4 drain *)
   0x3dc014d9;   (* 10a0 ldr q25, [x6, #80] *)
   0x4e200928;   (* 10a4 rev64 v8.16b, v9.16b *)
   0x6e301d08;   (* 10a8 eor v8.16b, v8.16b, v16.16b *)
@@ -8201,7 +8201,9 @@ let TAIL_Q19_FOLD_REM5 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM5 : tactic =
-  fold_q19_at `read Q19 s126 : int128` `8 * g + 5` TAIL_Q19_FOLD_REM5;;
+  (* [s148] rem5 now finishes on the eor3-fused rem4_drain (mt3->rem4_drain redirect);
+     fold state s126->s115 (drain entry step 57 + 58 to the MODULO low-fold @0x1480). *)
+  fold_q19_at `read Q19 s115 : int128` `8 * g + 5` TAIL_Q19_FOLD_REM5;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM5 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -8311,10 +8313,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM5 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM5]) THEN
-  MAP_EVERY NSTEP_GP (10--126) THEN
+  MAP_EVERY NSTEP_GP (10--115) THEN
   FOLD_Q19_REM5 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (127--129) THEN
+  MAP_EVERY NSTEP_GP (116--119) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -8419,7 +8421,8 @@ let TAIL_Q19_FOLD_REM6 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM6 : tactic =
-  fold_q19_at `read Q19 s134 : int128` `8 * g + 6` TAIL_Q19_FOLD_REM6;;
+  (* [s148] rem6 -> eor3-fused rem4_drain; fold s134->s123 (drain entry 65 + 58). *)
+  fold_q19_at `read Q19 s123 : int128` `8 * g + 6` TAIL_Q19_FOLD_REM6;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM6 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -8532,10 +8535,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM6 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM6]) THEN
-  MAP_EVERY NSTEP_GP (10--134) THEN
+  MAP_EVERY NSTEP_GP (10--123) THEN
   FOLD_Q19_REM6 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (135--137) THEN
+  MAP_EVERY NSTEP_GP (124--127) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
@@ -8642,7 +8645,8 @@ let TAIL_Q19_FOLD_REM7 =
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_REM7 : tactic =
-  fold_q19_at `read Q19 s140 : int128` `8 * g + 7` TAIL_Q19_FOLD_REM7;;
+  (* [s148] rem7 -> eor3-fused rem4_drain; fold s140->s129 (drain entry 71 + 58). *)
+  fold_q19_at `read Q19 s129 : int128` `8 * g + 7` TAIL_Q19_FOLD_REM7;;
 
 let AESV8_GCM_8X_ENC_256_TAIL_REM7 = prove
  (`!q27_init in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
@@ -8758,10 +8762,10 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM7 = prove
   RULE_ASSUM_TAC(fun th -> try MATCH_MP KS_SOLVE th with Failure _ -> th) THEN
   MAP_EVERY NSTEP_GP (1--9) THEN
   RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM7]) THEN
-  MAP_EVERY NSTEP_GP (10--140) THEN
+  MAP_EVERY NSTEP_GP (10--129) THEN
   FOLD_Q19_REM7 THEN
   DISCARD_DEAD_REDUCE_SCRATCH THEN
-  MAP_EVERY NSTEP_GP (141--143) THEN
+  MAP_EVERY NSTEP_GP (130--133) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   CONJ_TAC THENL
    [REWRITE_TAC[IVEC_STORE_REV32] THEN
