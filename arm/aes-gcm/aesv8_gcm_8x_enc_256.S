@@ -1869,7 +1869,7 @@ L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (t
 	movk	x8, #0x0203, lsl #32
 	movk	x8, #0x0001, lsl #48
 	fmov	d12, x7
-	mov	v12.d[1], x8	//[s121tbl] rev index in fast4 shadow (v12=dead +5 incr)
+	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
 	aese	v1.16b, v26.16b
@@ -2048,18 +2048,8 @@ L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (t
 	.inst	0xce1c3631	//eor3 v17,v17,v28,v13	//fused high (pair-2)
 	.inst	0xce1a3a73	//eor3 v19,v19,v26,v14	//fused low (pair-2)
 	.inst	0xce103e52	//eor3 v18,v18,v16,v15	//fused mid (pair-2)
-	ldr	d16, [x10]			//MODULO - load modulo constant
-	ext	v21.16b, v17.16b, v17.16b, #8			//MODULO - other top alignment
-	.inst	0xce114e52	//eor3 v18,v18,v17,v19		//MODULO - karatsuba tidy up
-	pmull	v29.1q, v17.1d, v16.1d			//MODULO - top 64b align with mid
-	.inst	0xce1d5652	//eor3 v18,v18,v29,v21		//MODULO - fold into mid
-	pmull	v17.1q, v18.1d, v16.1d			//MODULO - mid 64b align with low
-	ext	v21.16b, v18.16b, v18.16b, #8			//MODULO - other mid alignment
-	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
-	tbl	v19.16b, { v19.16b }, v12.16b	//[s121tbl] ext+rev64 -> tbl (16B reverse)
-	st1	{ v19.16b }, [x3]
-	b	L256_enc_epilogue
-L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v25)
+	b	L256_enc_small_reduce
+L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -2068,8 +2058,8 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v25)
 	movk	x8, #0x0405, lsl #16
 	movk	x8, #0x0203, lsl #32
 	movk	x8, #0x0001, lsl #48
-	fmov	d25, x7
-	mov	v25.d[1], x8	//[s130 tbl] rev index in AES shadow
+	fmov	d12, x7
+	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
 	// v26=rk0, v27=rk1 loaded. v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
@@ -2212,18 +2202,8 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v25)
 	eor	v17.16b, v17.16b, v28.16b	//accumulate hi
 	eor	v19.16b, v19.16b, v26.16b	//accumulate lo
 	eor	v18.16b, v18.16b, v16.16b	//accumulate mid
-	ldr	d16, [x10]			//MODULO - load modulo constant
-	ext	v21.16b, v17.16b, v17.16b, #8	//MODULO - other top alignment
-	.inst	0xce114e52	//eor3 v18,v18,v17,v19		//MODULO - karatsuba tidy up
-	pmull	v29.1q, v17.1d, v16.1d		//MODULO - top 64b align with mid
-	.inst	0xce1d5652	//eor3 v18,v18,v29,v21		//MODULO - fold into mid
-	pmull	v17.1q, v18.1d, v16.1d		//MODULO - mid 64b align with low
-	ext	v21.16b, v18.16b, v18.16b, #8	//MODULO - other mid alignment
-	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
-	tbl	v19.16b, {v19.16b}, v25.16b	//[s130 tbl] ext+rev64 -> tbl (16B reverse)
-	st1	{ v19.16b }, [x3]
-	b	L256_enc_epilogue
-L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain (tbl v25)
+	b	L256_enc_small_reduce
+L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain (tbl v12)
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -2232,8 +2212,8 @@ L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain 
 	movk	x8, #0x0405, lsl #16
 	movk	x8, #0x0203, lsl #32
 	movk	x8, #0x0001, lsl #48
-	fmov	d25, x7
-	mov	v25.d[1], x8	//[s116] rev index in fast2 shadow
+	fmov	d12, x7
+	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
 	aese	v1.16b, v26.16b
@@ -2331,18 +2311,8 @@ L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain 
 	eor	v18.16b, v15.16b, v16.16b	//fused mid
 	rev32	v30.16b, v30.16b
 	str	q30, [x16]			//ivec store
-	ldr	d16, [x10]			//modulo const
-	ext	v21.16b, v17.16b, v17.16b, #8
-	.inst	0xce114e52	//eor3 v18,v18,v17,v19
-	pmull	v29.1q, v17.1d, v16.1d
-	.inst	0xce1d5652	//eor3 v18,v18,v29,v21
-	pmull	v17.1q, v18.1d, v16.1d
-	ext	v21.16b, v18.16b, v18.16b, #8
-	.inst	0xce115673	//eor3 v19,v19,v17,v21
-	tbl	v19.16b, {v19.16b}, v25.16b	//[s116] ext+rev64 -> tbl (16B reverse)
-	st1	{ v19.16b }, [x3]		//tag store
-	b	L256_enc_epilogue
-L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v25)
+	b	L256_enc_small_reduce
+L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v12)
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -2351,8 +2321,8 @@ L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v
 	movk	x8, #0x0405, lsl #16
 	movk	x8, #0x0203, lsl #32
 	movk	x8, #0x0001, lsl #48
-	fmov	d25, x7
-	mov	v25.d[1], x8	//[s130 tbl] rev index in AES shadow
+	fmov	d12, x7
+	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
 	// v26=rk0, v27=rk1 loaded (before dispatch). v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0 (rk0)
@@ -2413,6 +2383,7 @@ L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v
 	pmull	v18.1q, v16.1d, v21.1d		//mid -> v18 (h1k low lane)
 	rev32	v30.16b, v30.16b
 	str	q30, [x16]			//store the updated counter (base+1 = ctr(nb+2))
+L256_enc_small_reduce:  //[s146 (a)] shared final GHASH reduction + tbl(v12) reverse + tag store
 	ldr	d16, [x10]			//MODULO - load modulo constant
 	ext	v21.16b, v17.16b, v17.16b, #8	//MODULO - other top alignment
 	.inst	0xce114e52	//eor3 v18,v18,v17,v19		//MODULO - karatsuba tidy up
@@ -2421,7 +2392,7 @@ L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v
 	pmull	v17.1q, v18.1d, v16.1d		//MODULO - mid 64b align with low
 	ext	v21.16b, v18.16b, v18.16b, #8	//MODULO - other mid alignment
 	.inst	0xce115673	//eor3 v19,v19,v17,v21		//MODULO - fold into low
-	tbl	v19.16b, {v19.16b}, v25.16b	//[s130 tbl] ext+rev64 -> tbl (16B reverse)
+	tbl	v19.16b, {v19.16b}, v12.16b	//[s146] ext+rev64 -> tbl (16B reverse)
 	st1	{ v19.16b }, [x3]
 	b	L256_enc_epilogue
 
