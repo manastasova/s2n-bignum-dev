@@ -1705,7 +1705,7 @@ L256_enc_exact8_drain:  //[s097] dedicated exact-8 GHASH drain (no no-op tag eor
 	st1	{ v19.16b }, [x3]
 	b	L256_enc_epilogue
 
-L256_enc_rem4_drain:  //[s107] dedicated rem=4 (64B/192B) GHASH drain, eor3-fused (s098 pattern)
+L256_enc_rem4_drain:  //[s147] dedicated rem=4 (192B only; 64B routes to L256_enc_small) GHASH drain, eor3-fused
 	// entry (shuffled by tail, x5=64): v9=ct(v0 block final-3), v5/v6/v7=keystreams for
 	// final-2/-1/final, v16=partial tag, v17/v18/v19=0, v29=rk14, v30=base+4, x0/x2/x3 positioned.
 	// pair (final-3,final-2) and (final-1,final): A-block products to free v13/v14/v15, B fuses.
@@ -1723,15 +1723,13 @@ L256_enc_rem4_drain:  //[s107] dedicated rem=4 (64B/192B) GHASH drain, eor3-fuse
 	pmull	v15.1q, v27.1d, v11.1d		//[s107] final-3 mid -> v15
 	pmull	v14.1q, v8.1d, v25.1d		//[s107] final-3 low -> v14
 .inst	0xce057529	//eor3 v9.16b, v9.16b, v5.16b, v29.16b		//final-2 - result
-	movi	v16.8b, #0
 	// --- block final-2 (B): products -> v28/v26/v27, fuse pair-1 ---
+	// [s147] dropped no-op `eor v8,v8,v16` (v16=0) + dead `movi v16` here and below
 	st1	{ v9.16b}, [x2], #16
 	ldr	q23, [x6, #48]			//h3l | h3h
 	rev64	v8.16b, v9.16b
 	ldr	q9, [x0], #16			//final-1 - load plaintext
-	eor	v8.16b, v8.16b, v16.16b
 	ext	v27.16b, v8.16b, v8.16b, #8
-	movi	v16.8b, #0
 	pmull2	v28.1q, v8.2d, v23.2d		//final-2 high
 .inst	0xce067529	//eor3 v9.16b, v9.16b, v6.16b, v29.16b		//final-1 - result
 	eor	v27.8b, v27.8b, v8.8b
@@ -1745,8 +1743,6 @@ L256_enc_rem4_drain:  //[s107] dedicated rem=4 (64B/192B) GHASH drain, eor3-fuse
 	ldr	q22, [x6, #32]			//h2l | h2h
 	rev64	v8.16b, v9.16b
 	ldr	q9, [x0], #16			//final - load plaintext
-	eor	v8.16b, v8.16b, v16.16b
-	movi	v16.8b, #0
 	ext	v27.16b, v8.16b, v8.16b, #8
 	pmull2	v13.1q, v8.2d, v22.2d		//[s107] final-1 high -> v13
 .inst	0xce077529	//eor3 v9.16b, v9.16b, v7.16b, v29.16b		//final - result
@@ -1760,9 +1756,8 @@ L256_enc_rem4_drain:  //[s107] dedicated rem=4 (64B/192B) GHASH drain, eor3-fuse
 	rev64	v8.16b, v9.16b
 	rev32	v30.16b, v30.16b
 	str	q30, [x16]			//store the updated counter
-	eor	v8.16b, v8.16b, v16.16b		//feed in tag
 	st1	{ v9.16b}, [x2]			//store all 16B
-	ins	v16.d[0], v8.d[1]		//final mid
+	ins	v16.d[0], v8.d[1]		//final mid ([s147] v16 lane1 dead: only .d[0]/.8b read below)
 	pmull2	v28.1q, v8.2d, v20.2d		//final high
 	pmull	v26.1q, v8.1d, v20.1d		//final low
 	eor	v16.8b, v16.8b, v8.8b		//final mid
@@ -2170,16 +2165,14 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	rev64	v8.16b, v9.16b
 	ldr	q9, [x0], #16			//block2 PT
 	ext	v27.16b, v8.16b, v8.16b, #8
-	pmull2	v28.1q, v8.2d, v22.2d		//block1 hi (H^2)
+	pmull2	v3.1q, v8.2d, v22.2d		//[s147] block1 hi (H^2) -> v3 (stage for 3-way eor3)
 	.inst	0xce027529	//eor3 v9,v9,v2,v29	//block2 ct
 	eor	v27.8b, v27.8b, v8.8b
-	pmull	v26.1q, v8.1d, v22.1d		//block1 lo
+	pmull	v4.1q, v8.1d, v22.1d		//[s147] block1 lo -> v4
 	ldr	q21, [x6, #16]			//h2k | h1k
 	ext	v10.16b, v21.16b, v21.16b, #8	//h2k hi->lo lane
-	pmull	v27.1q, v27.1d, v10.1d		//block1 mid (h2k)
-	eor	v17.16b, v28.16b, v13.16b	//fused hi = blk1 ^ blk0
-	eor	v19.16b, v26.16b, v14.16b	//fused lo
-	eor	v18.16b, v27.16b, v15.16b	//fused mid
+	pmull	v5.1q, v27.1d, v10.1d		//[s147] block1 mid (h2k) -> v5
+	// [s147] pairwise (blk1^blk0) fuse deleted; folded into block2's 3-way eor3 below
 	// --- block2 (lone): H^1, final products + accumulate + MODULO ---
 	ldr	q20, [x6]			//h1l | h1h
 	rev64	v8.16b, v9.16b
@@ -2191,9 +2184,9 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	pmull	v26.1q, v8.1d, v20.1d		//block2 lo
 	eor	v16.8b, v16.8b, v8.8b		//final mid
 	pmull	v16.1q, v16.1d, v21.1d		//final mid (h1k low lane)
-	eor	v17.16b, v17.16b, v28.16b	//accumulate hi
-	eor	v19.16b, v19.16b, v26.16b	//accumulate lo
-	eor	v18.16b, v18.16b, v16.16b	//accumulate mid
+	.inst	0xce033791	//eor3 v17,v28,v3,v13	//[s147] hi = blk2^blk1^blk0 (accum depth 2->1)
+	.inst	0xce043b53	//eor3 v19,v26,v4,v14	//[s147] lo
+	.inst	0xce053e12	//eor3 v18,v16,v5,v15	//[s147] mid
 	b	L256_enc_small_reduce
 L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain (tbl v12)
 	add	v30.4s, v29.4s, v28.4s	//[s146 (c)] final counter = base+2 = ctr(nb+2), direct
