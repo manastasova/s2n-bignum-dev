@@ -8700,14 +8700,14 @@ let TAIL_Q19_FOLD_G =
       `word_xor (i:int128) (word_reversefields 8 a) =
        word_xor (word_reversefields 8 a) i`] THEN
   GEN_REWRITE_TAC (LAND_CONV o TOP_DEPTH_CONV)
-    [ARITH_RULE `8 * g + 2 = (8 * g + 0) + 2`;
-              ARITH_RULE `8 * g + 3 = (8 * g + 1) + 2`;
-              ARITH_RULE `8 * g + 4 = (8 * g + 2) + 2`;
-              ARITH_RULE `8 * g + 5 = (8 * g + 3) + 2`;
-              ARITH_RULE `8 * g + 6 = (8 * g + 4) + 2`;
-              ARITH_RULE `8 * g + 7 = (8 * g + 5) + 2`;
-              ARITH_RULE `8 * g + 8 = (8 * g + 6) + 2`;
-              ARITH_RULE `8 * g + 9 = (8 * g + 7) + 2`] THEN
+    [ARITH_RULE `8 * g + c = c + 8 * g`;
+     ARITH_RULE `8 * g + c + 1 = c + (8 * g + 1)`;
+     ARITH_RULE `8 * g + c + 2 = c + (8 * g + 2)`;
+     ARITH_RULE `8 * g + c + 3 = c + (8 * g + 3)`;
+     ARITH_RULE `8 * g + c + 4 = c + (8 * g + 4)`;
+     ARITH_RULE `8 * g + c + 5 = c + (8 * g + 5)`;
+     ARITH_RULE `8 * g + c + 6 = c + (8 * g + 6)`;
+     ARITH_RULE `8 * g + c + 7 = c + (8 * g + 7)`] THEN
   REWRITE_TAC[GSYM aes_ctr_block] THEN
   REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
   REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
@@ -8721,7 +8721,8 @@ let TAIL_Q19_FOLD_G =
   REWRITE_TAC[KARATSUBA_IS_DOT_HW] THEN
   REWRITE_TAC[NIST_GHASH_IS_POLYVAL] THEN
   REWRITE_TAC[ARITH_RULE
-    `8 * g + 8 = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * g))))))))`] THEN
+    `8 * g + 8 = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * g))))))))`;
+              ARITH_RULE `8 + 8 * g = SUC(SUC(SUC(SUC(SUC(SUC(SUC(SUC(8 * g))))))))`] THEN
   REWRITE_TAC[list_of_seq] THEN REWRITE_TAC[GSYM APPEND_ASSOC] THEN
   REWRITE_TAC[APPEND] THEN
   REWRITE_TAC[GHASH_ACC_APPEND] THEN
@@ -8745,6 +8746,7 @@ let TAIL_Q19_FOLD_G =
   REWRITE_TAC[polyval_dot] THEN
   REWRITE_TAC[GSYM PROP3_XOR] THEN
   REWRITE_TAC[NCB_ETA] THEN
+  REWRITE_TAC[ARITH_RULE `1 + 8 * g = 8 * g + 1`; ARITH_RULE `2 + 8 * g = 8 * g + 2`; ARITH_RULE `3 + 8 * g = 8 * g + 3`; ARITH_RULE `4 + 8 * g = 8 * g + 4`; ARITH_RULE `5 + 8 * g = 8 * g + 5`; ARITH_RULE `6 + 8 * g = 8 * g + 6`; ARITH_RULE `7 + 8 * g = 8 * g + 7`] THEN
   AP_TERM_TAC THEN CONV_TAC WORD_BITWISE_RULE;;
 
 let FOLD_Q19_S136_G : tactic =
@@ -8951,21 +8953,17 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM8 = prove
   CONV_TAC NUM_REDUCE_CONV THEN
   REWRITE_TAC[WORD_ADD; GSYM WORD_ADD_ASSOC] THEN
   REWRITE_TAC[ADD_ASSOC; ARITH] THEN
+  (* [s153] close the ciphertext identity at the aes_ctr_block level (TAIL pattern):
+     the old GSYM cipher_block fold is higher-order ambiguous under c. *)
+  REWRITE_TAC[AES256_CIPHER_KEYLIST] THEN
   REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
-  REWRITE_TAC[GSYM cipher_block] THEN
-  REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
-  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
-  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
-  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
-  REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
-  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
-  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-  (* block 8*g (first new out-block) leaves a nist_cipher_block with a constant-lambda inblock *)
-  (* slot; unfold+BETA+rev-rev-cancel exposes the clean word_xor cancellation for all 8 blocks. *)
-  REWRITE_TAC[nist_cipher_block; cipher_block] THEN CONV_TAC(DEPTH_CONV BETA_CONV) THEN
-  REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
-  REPEAT CONJ_TAC THEN CONV_TAC WORD_BITWISE_RULE);;
+  REWRITE_TAC[ARITH_RULE `8 * g + c = c + 8 * g`] THEN
+  REWRITE_TAC[ADD_ASSOC] THEN
+  REPEAT CONJ_TAC THEN
+  TRY(CONV_TAC WORD_RULE) THEN
+  TRY(CONV_TAC WORD_BITWISE_RULE) THEN
+  REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
+  TRY ARITH_TAC);;
 
 (* ===================================================================== *)
 (* SESSION 081 — UNIFIED tail cascade: WB_TAIL_REM(rem in 1..8, g>=0).      *)
