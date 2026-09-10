@@ -32,7 +32,52 @@ so those are the correct references. Negative = faster.
 | aws-lc x8 original | 4,672 B | +10.6% | 0.0% |
 | aws-lc 4x | 2,872 B | 0.0% | +27.5% |
 
-## 3. Current kernel vs nebeid's, per size
+## 3. Improvement over the ORIGINAL aws-lc x8 kernel
+
+This is the direct measure of the campaign: every kernel here descends from aws-lc's
+`aesv8-gcm-armv8-unroll8-enc-256.pl` output (4,672 B), so the percentage against it is what the
+work actually bought. Negative = faster than the original.
+
+| kernel | `.text` | 16 | 32 | 48 | 64 | 80 | 96 | 112 | 128 | 192 | 256 | 512 | 1024 | 4096 | **geomean (13)** |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **OURS (current)** | **6,488 B** | -29.7 | -26.1 | -27.0 | -27.4 | -17.5 | -20.7 | -22.0 | -26.3 | -9.9 | -14.2 | -9.3 | -5.2 | -1.6 | **-18.7%** |
+| ours `fused4` | 7,780 B | -29.8 | -26.1 | -26.2 | -27.1 | -12.8 | -16.5 | -18.6 | -26.1 | -9.0 | -14.0 | -9.2 | -5.1 | -1.1 | -17.5% |
+| ours `sizecap` | 9,100 B | -29.2 | -26.4 | -25.8 | -26.7 | -23.9 | -26.8 | -26.0 | -25.0 | -8.9 | -13.2 | -8.7 | -4.9 | -1.2 | -19.5% |
+| ours `speed` | 11,848 B | -29.2 | -26.3 | -26.0 | -27.0 | -24.4 | -26.5 | -25.8 | -26.9 | -9.0 | -14.8 | -9.6 | -5.6 | -1.9 | **-20.0%** |
+| nebeid | 7,504 B | -30.6 | -26.5 | -26.3 | -27.8 | -12.9 | -16.5 | -18.5 | -26.5 | -8.8 | -14.3 | -9.7 | -5.7 | -1.6 | -17.9% |
+| aws-lc 4x (shipped) | 2,872 B | -23.9 | -17.8 | -15.9 | -19.8 | +1.8 | -0.7 | -3.6 | -5.9 | +1.3 | +12.4 | +24.1 | +32.7 | +42.0 | +0.2% |
+
+Split by aws-lc's dispatch regime:
+
+| kernel | `.text` | 16-192 B vs orig x8 | 256-4096 B vs orig x8 |
+|---|---|---|---|
+| **OURS (current)** | **6,488 B** | **-23.2%** | **-7.7%** |
+| ours `fused4` | 7,780 B | -21.6% | -7.5% |
+| ours `sizecap` | 9,100 B | -24.5% | -7.1% |
+| ours `speed` | 11,848 B | -24.8% | -8.1% |
+| nebeid | 7,504 B | -21.9% | -7.9% |
+| aws-lc 4x | 2,872 B | -9.9% | +27.3% |
+
+### What this table says
+
+- **The current kernel is 18.7% faster than the original across all 13 sizes**, and 23.2% faster
+  over 16-192 B, in 6,488 B versus the original's 4,672 B (1.39x the code).
+- **It beats nebeid's on the overall geomean** (-18.7% vs -17.9%) while being 1,016 B smaller. Her
+  kernel is marginally better at 16/32/48/64/128 B (~1%, the literal-index difference) and ours is
+  4-5 points better at 80/96/112 B (the rem 5/6/7 fused-drain redirect).
+- **`speed` (11,848 B) remains the fastest at -20.0%**, and the entire 1.3-point gap to the current
+  kernel is 80/96/112 B, where it has dedicated `fast5/6/7` bodies. That is the size/speed knob:
+  ~1,045 B per width to recover -14.6/-13.3/-10.7% at those three sizes.
+- **The 4x is the right choice below ~64 B and wrong everywhere above it.** It beats the original x8
+  by 16-24% at 16-64 B -- which is exactly why aws-lc dispatches to it below 256 B -- but loses
+  12-42% from 256 B up. Every one of our variants beats both at every size below 256 B, which makes
+  the `len >= 256` dispatch threshold the thing standing between this work and real callers.
+- **The 4096 B column (-1.6%) is the roofline showing through.** The main loop was deliberately never
+  touched (measured at ~99% of AES issue peak), so at sizes where the loop dominates, all six kernels
+  converge.
+
+
+## 4. Current kernel vs nebeid's, per size
 
 negative = ours faster.
 
@@ -54,7 +99,7 @@ Everything else in the two kernels is instruction-for-instruction identical -- v
 the four short bodies and all five tail regions (`tail_dispatch`, `tail_slides`, `exact8_drain`,
 `rem4_drain`, `rem2_drain` are **byte-identical**).
 
-## 4. Reading these numbers
+## 5. Reading these numbers
 
 - **`speed` (11,848 B) is still the fastest below 256 B** (-16.3%), and the whole gap to the current
   kernel is 80/96/112 B: 37.5/38.8/41.2 vs 40.8/42.0/43.3. Those three sizes have dedicated
@@ -71,7 +116,7 @@ the four short bodies and all five tail regions (`tail_dispatch`, `tail_slides`,
   32/48/64 B the median bias is itself noisy up to +1.0%. Treat anything under ~1.5% on the short
   path as flat within noise.
 
-## 5. Provenance
+## 6. Provenance
 
 - Our kernel: `arm/aes-gcm/aesv8_gcm_8x_enc_256.S` at `b4cf58d6`, proof
   `arm/proofs/aesv8_gcm_8x_enc_256.ml`, cold gate 0-CHEAT / 3 axioms / both exported subroutine
