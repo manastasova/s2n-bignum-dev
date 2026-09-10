@@ -7010,8 +7010,8 @@ let AESV8_GCM_8X_ENC_256_REM2_DRAIN = prove
     REWRITE_TAC[WORD_RULE `word_sub (x:int32) (word 0) = x`] THEN
     REWRITE_TAC[WORD_RULE
       `word_sub (word_sub (word_sub (word_sub (word_sub (word_sub
-        (word (8 * g + 10):int32) (word 1)) (word 1)) (word 1)) (word 1))
-        (word 1)) (word 1) = word (8 * g + 4)`] THEN
+        (word (8 * g + c + 8):int32) (word 1)) (word 1)) (word 1)) (word 1))
+        (word 1)) (word 1) = word (8 * g + c + 2)`] THEN
     REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8] THEN
     AP_TERM_TAC THEN AP_TERM_TAC THEN ARITH_TAC;
     ALL_TAC] THEN
@@ -7036,6 +7036,8 @@ let AESV8_GCM_8X_ENC_256_REM2_DRAIN = prove
   CONV_TAC(DEPTH_CONV NUM_ADD_CONV) THEN ASM_REWRITE_TAC[] THEN
   REWRITE_TAC[LEFT_ADD_DISTRIB; GSYM ADD_ASSOC] THEN
   CONV_TAC NUM_REDUCE_CONV THEN
+  REWRITE_TAC[ARITH_RULE `8 * g + c = c + 8 * g`] THEN
+  REWRITE_TAC[ADD_ASSOC] THEN
   CONV_TAC WORD_BITWISE_RULE);;
 
 
