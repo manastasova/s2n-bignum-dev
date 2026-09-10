@@ -149,6 +149,9 @@ let iclasses =
   "01001110000x1000000011xxxxxxxxxx"; (* original DUP Vd.2d, xn *)
   "0x001110000xxxxx000011xxxxxxxxxx"; (* other variants too     *)
 
+  (*** DUP (element) ***)
+  "0x001110000xxxxx000001xxxxxxxxxx";
+
   (*** EOR ***)
   "0x101110001xxxxx000111xxxxxxxxxx";
 
@@ -570,6 +573,14 @@ let check_insns () =
 
     (*** ld3 / st3, multiple structures, 3 reg, post-imm and register ***)
     "0x0011001x0xxxxx0100xxxxxxxxxxxx";
+
+    (*** st1 (3 registers, Post-immediate offset) 128-bit ***)
+    (*** modeled (arm_ldstp_3q); cosim-tested via cosimulate_ldst_1_3reg ***)
+    "01001100100111110110xxxxxxxxxxxx";
+
+    (*** st1 (3 registers, no offset) 128-bit ***)
+    (*** modeled (arm_ldstp_3q); cosim-tested via cosimulate_ldst_1_3reg ***)
+    "01001100000000000110xxxxxxxxxxxx";
 
     (*** stp ***)
     "x010100010xxxxxxxxxxxxxxxxxxxxxx";

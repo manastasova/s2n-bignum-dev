@@ -468,6 +468,36 @@ let cosimulate_ldst_1_2reg() =
   else
     [add_Xn_SP_imm rn stackoff; code; sub_Xn_SP_Xn rn];;
 
+(*** This covers LD1 and ST1 with three registers, with the
+ *** addressing modes, no-offset and post-immediate offset.
+ *** Modeled on cosimulate_ldst_1_2reg; opcode field 0b0110 (three regs),
+ *** post-increment is 3 * 16 = 48 bytes.
+ ***)
+
+let cosimulate_ldst_1_3reg() =
+  let someoffset = Random.int 2
+  and rn = Random.int 32
+  and isld = Random.int 2
+  and rt = Random.int 32
+  and esize = Random.int 4 in
+  let stackoff =
+    if rn = 31 then Random.int 13 * 16
+    else Random.int 208 in
+  let postinc = someoffset * 48 in
+  let code =
+    pow2 24 */ num 0b01001100 +/
+    pow2 23 */ num someoffset +/
+    pow2 22 */ num isld +/
+    pow2 16 */ num(0b011111 * someoffset) +/
+    pow2 12 */ num 0b0110 +/
+    pow2 10 */ num esize +/
+    pow2 5 */ num rn +/
+    num rt in
+  if rn = 31 then
+    [add_Xn_SP_imm 31 stackoff; code; sub_Xn_SP_imm 31 (stackoff + postinc)]
+  else
+    [add_Xn_SP_imm rn stackoff; code; sub_Xn_SP_Xn rn];;
+
 (*** This covers LDRB and STRB with unshifted register
  *** There are several more supported addressing modes to cover.
  ***)
@@ -573,8 +603,8 @@ let cosimulate_ldst3() =
 
 let memclasses =
    [cosimulate_ldstr; cosimulate_ldstp; cosimulate_ldst_12;
-    cosimulate_ldst_1_2reg; cosimulate_ldstrb; cosimulate_ld1r;
-    cosimulate_ldst3; cosimulate_ldstu
+    cosimulate_ldst_1_2reg; cosimulate_ldst_1_3reg; cosimulate_ldstrb;
+    cosimulate_ld1r; cosimulate_ldst3; cosimulate_ldstu
     ];;
 
 let run_random_memopsimulation() =
