@@ -60,6 +60,7 @@
 : extr$
 : fcsel$
 : fmov$
+: ld1$
 : ld1r$
 : ld1r.2d$
 : ld3$
@@ -94,6 +95,8 @@
 : ngcs$
 : orr$
 : orr.4s$
+: pmull$
+: pmull2$
 : rax1$
 : rax1.2d$
 : ret$
