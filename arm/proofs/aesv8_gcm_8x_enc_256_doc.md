@@ -143,3 +143,90 @@ plaintext `inblock` at `in_p`), the routine:
 - advances the counter block `ivec` to `ctr_block nonce (nblocks + 2)`,
 - respects the C calling convention.
 Proven 0-CHEAT against the three standard HOL Light axioms.
+
+---
+
+## Addendum 2026-09-10 — the leg structure after the fused short path
+
+The map above describes the proof as it stood before the short-message work. The layering is
+unchanged, but the leg inventory grew. `WB_`-prefixed names in the text above were renamed
+(the `_wb` infix was dropped in `c52198b4`); read `WB_X` as `AESV8_GCM_8X_ENC_256_X`.
+
+**Current: 12,778 lines, 37 named theorems, cold load ~3,440 s.** Exported surface unchanged:
+
+| exported theorem | hypotheses |
+|---|---|
+| `AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT` | 0 |
+| `AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT_GEN` | 0 |
+
+Both statement blocks have been **byte-identical since `3f893a36`** and are diffed against
+that commit before every commit; 3 axioms, 0 cheats, no `MAYCHANGE` widening.
+
+### The legs, by group
+
+```
+infrastructure   EXEC · AES_SETUP · GHASH_REDUCE
+
+generic path     SETUP · SETUP_GEN · SETUP_G1 · MAIN_LOOP
+                 PREPRETAIL · PREPRETAIL_GEN
+                 TAIL · TAIL_REM1..TAIL_REM8 · TAIL_REM · REM2_DRAIN
+
+short path       FAST1 · FAST2 · FAST3 · FAST4          (the SEG-A bodies)
+                 FAST1_TAIL · FAST2_TAIL · FAST3_TAIL · FAST4_TAIL
+
+nb = 0 / g = 0   SETUP0 · SETUP0_TAIL
+
+assembly         CORRECT · CORRECT_G1 · CORRECT_GEN · CORRECT_ALL
+                 -> SUBROUTINE_CORRECT / _GEN
+```
+
+`CORRECT_ALL` dispatches with `ASM_CASES_TAC \`nb = N\``; the `nb <= 4` arm splits internally
+on 1|2|3|4 because the four block counts produce different remainders and therefore different
+postconditions, even though they share one entry test.
+
+### What the short-path work added to the proof
+
+- **`DISPATCH_SMALL_TAKEN` / `DISPATCH_SMALL_NOT_TAKEN`** — the single `cmp x9,#64 / b.le`
+  entry test is a *signed* comparison, so the branch condition is `ZF \/ ~(NF <=> VF)`, not
+  the simple zero test the per-size `b.eq` ladder used. These lemmas plus `IVAL_WORD_SMALL` /
+  `IVAL_WORD_SUB_SMALL` were the blocker that stalled two sessions.
+  (nebeid's kernel dispatches *unsigned* with `b.ls`, condition `~CF \/ ZF`, which would have
+  reused simpler machinery. `x9` is a length and never negative, so unsigned is the natural
+  choice — recorded as a lesson for future dispatch tests.)
+- **A shared reduction leg.** Four drains now branch to one `L256_enc_small_reduce`, composed
+  from each arm by `ENSURES_SEQUENCE` rather than cloned — the `abc66939` "Option B" pattern
+  (reuse a tail leg verbatim from a second arm instead of duplicating it).
+- **Re-rolled AES drives with a FLAT `MAP_EVERY NSTEP` range.** The trip count is the literal
+  13, so `ARM_STEP` follows the concrete `b.ne` and **no loop invariant is needed**. Body steps
+  = linear + 12x(3+2N) = 152/125/98/71 for N = 4/3/2/1. The kernel's *only* real loop invariant
+  remains the pre-existing main-loop one (`ENSURES_WHILE_PUP_TAC`, one application), whose trip
+  count `g = (nb-1) DIV 8` is symbolic and cannot be unrolled.
+
+### Why the re-roll shrank the code but not the proof
+
+HOL Light reasons about the **executed trace**, not the source text. Re-rolling 14 unrolled
+rounds into a loop leaves the trace identical — same `aese`/`aesmc` in the same order, plus
+a handful of loop-control instructions — so the symbolic execution is the same length. The
+`.text` fell 5x for those bodies; the proof did not shrink at all.
+
+### Traps that cost real time
+
+- **`NSTEP` range too short on a re-rolled body.** A range 10 steps short stops mid-13th
+  iteration, leaving a register holding ~12.5 rounds of AES, and surfaces ~100 lines later as
+  an opaque `Exception: Failure "AP_TERM_TAC"` naming nothing. Count the steps exactly.
+- **`fold_q19_at`** carries a hardcoded state index that must track any drain shift (it moved
+  by -1 when the fused drain landed).
+- **`DISCARD_REGS` / `DISCARD_DEAD_REDUCE_SCRATCH`** silently drop facts for registers a change
+  makes newly *live* — the same opaque `AP_TERM_TAC`. `82ef4d58` had to explicitly KEEP `Q25`
+  (the live `tbl` index, not scratch) for exactly this reason; audit every discard list first.
+- **`ENSURES_SEQUENCE` splits must be at the tail-setup start**, not the drain entry, and the
+  tail leg takes the keystreams as *preconditions*. After the long AES history `ARM_STEPS`
+  drops the inline `eor3` ciphertext write.
+- **`MATCH_MP_TAC` "No match"** is usually conjunct *order* in the `ENSURES_SEQUENCE` target,
+  not a real mismatch.
+- **Span deletion over-deletes.** Removing a span of `let`s to drop dead AESV8 lemmas also
+  takes non-AESV8 helper `let`s with it.
+- **False-pass gates.** A stale HOL server still holding port 12002 makes `loadt` reuse
+  already-defined theorems and report a pass in seconds; so does re-loading on a still-warm
+  server from a previous gate (1.3 s vs the genuine ~3,440 s). Verify `Sys.time ~= 0.3` and
+  that `mc` is Unbound before trusting any gate result.
