@@ -40,8 +40,27 @@ official `benchmarks/benchmark.c` unless marked h2h.
 | 19 | `abc66939` | `fast4` early-dispatch moved BEFORE the counter build | h2h 64 B 23.9 -> 23.1 ns (**-2.5%**), vs-4x ratio 1.112 -> 1.15 |
 | 20 | `424a8e5b` | `fast2` early-dispatch moved BEFORE the counter build | h2h 32 B 20.6 -> 19.6 ns (**-4.9%**), vs-4x ratio 1.14 -> 1.20 |
 | 21 | `00492897` | **AES re-roll** (14-round unroll -> loop) for `fast3/5/6/7` + drop dead `fast2`/`fast4` bodies. Branch `aes_gcm_256_x8_opt_sizecap` | `.text` 11848 -> **9100 B (-23%)**; speed-neutral EXCEPT **80 B +4.3%** (37.3 -> 38.9, A/B confirmed) |
+| 22 | `3f893a36` | **fused `nb<=4` short path**: replace the seven `fastN` dispatch tests with ONE `cmp x9,#64 / b.le`; four braided bodies behind a shared prefix. Branch `aes_gcm_256_x8_opt_fused4` | `.text` 11848 -> **7780 B (-34%)**; 80/96/112 B **+11-14%** accepted (they lose `fast5/6/7`) |
+| 23 | `de217086` | **(a) shared final GHASH reduction suffix** + unify the `tbl` index register to `v12` (nebeid item a) | `.text` 7780 -> **7660 B (-120)**; speed TIE at all 13 sizes |
+| 24 | `5725221e` | **(c) direct final-counter construction** -- delete the 22 counter-rollback `sub`s (nebeid item c) | `.text` 7660 -> **7580 B (-80)**; speed TIE |
+| 25 | `107b6236` | strip `rem4_drain`'s 3 no-op tag `eor`s + 3 dead `movi`s (the s097 lever, never applied there) + complete `small_3`'s `eor3` fusion (3-way fold, depth 2->1) | `.text` 7580 -> **7544 B**; 192 B **-1.1..-2.4%** |
+| 26 | `8cb29b6d` | **redirect the generic cascade's rem 5/6/7 into the `eor3`-fused `rem4_drain`** -- `mt3`'s body is operation-identical to `rem4_drain`'s first block, so overwrite its redundant leading `st1` with `b rem4_drain`. ZERO PC shift: exactly one instruction word differs | 80/96/112 B **-3.3/-3.4/-3.4%**; `.text` unchanged |
+| 27 | `8476aeda` | **(A) build the reversal index ONCE** in the shared prefix instead of in all four bodies (nebeid item b, via register synthesis -- her literal-table form is unprovable, see below) | `.text` 7544 -> **7424 B (-120)**; 16 B flat/faster |
+| 28 | `b5ca504a` | **(C) re-roll `small_4`'s 14-round AES** into a 13-iteration loop | `.text` 7424 -> **7040 B (-384)**; 64 B median -0.20% = NEUTRAL |
+| 29 | `d4d08b19` | **(C) complete the re-roll for `small_1/2/3`** -- narrow bodies benefit MORE, not less | `.text` 7040 -> **6464 B (-576)**; flat incl. 16 B |
+| 30 | `279a0daf` | **(B) per-width counter build** -- stop building counters 1-3 unconditionally ahead of the dispatch (nebeid) | `.text` 6464 -> **6488 B (+24)** but 16 B **-2.8%**: removing 6 dead SIMD ops from before the 1-block dispatch cuts crypto-pipe contention |
 
-Cumulative: faster than every AES-256 kernel measured at all 13 sizes 16 B..4096 B.
+Rows 22-30 are the **nebeid short-path alignment** (see
+<https://github.com/nebeid/s2n-bignum/blob/10ec0962/_docs/aes-gcm-enc-fast1-4-experiment/aes256-gcm-4x-experiment/src/x8-enc-pareto-full.S>).
+All four of her structural items are ported; her *literal* reversal index
+(`.byte 15,14,...,1,0` + `ldr q12,<label>`) is **unprovable for us** -- `arm/proofs/decode.ml`
+has no PC-relative `LDR (literal)` decode rule (0 of 172 rules match the `0b*011100` shape),
+so symbolic execution cannot step it. Route B (hoisted synthesis) gets -120 B of her -140 B.
+
+Cumulative: `.text` **4672 B (aws-lc original) -> 11848 B (speed-optimal) -> 6488 B (current)**,
+faster than every AES-256 kernel measured at all 13 sizes 16 B..4096 B, and **1016 B smaller
+than nebeid's 7504 B** while being faster on the 16-192 B geomean (-14.7% vs -13.2% against
+aws-lc's 4x). Every row re-proven 0-CHEAT before commit.
 
 ---
 

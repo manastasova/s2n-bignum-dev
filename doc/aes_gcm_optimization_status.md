@@ -1,4 +1,35 @@
-# AES-256-GCM optimization status: encrypt (ours) vs decrypt (nebeid)
+# AES-256-GCM: ours (encrypt) vs nebeid's work
+
+> **STATUS 2026-09-10 -- THE EQUALIZATION IN SECTION 4 IS COMPLETE.**
+> All four structural items from nebeid's encrypt short-path experiment
+> (<https://github.com/nebeid/s2n-bignum/blob/10ec0962/_docs/aes-gcm-enc-fast1-4-experiment/aes256-gcm-4x-experiment/src/x8-enc-pareto-full.S>)
+> are ported and proven. Current kernel: **`.text` 6488 B at `b4cf58d6`**, which is
+> **1016 B smaller than her 7504 B** and faster on the 16-192 B geomean
+> (**-14.7%** vs **-13.2%** against aws-lc's 4x). See
+> `doc/aes_gcm_256_kernel_comparison.md` for the full head-to-head.
+>
+> | her item | ours |
+> |---|---|
+> | single 64 B threshold before the preloop | `3f893a36` |
+> | shared setup prefix | `3f893a36` |
+> | four parallel fused bodies (widths 1-4) | `3f893a36` |
+> | shared final GHASH reduction suffix | `de217086` |
+> | direct final-counter construction (22 rollback `sub`s) | `5725221e` |
+> | dead `fast2`/`fast4` prefixes removed (784 B) | `3f893a36` |
+> | index built once | `8476aeda` -- **route B (register synthesis)**, not her literal table |
+> | per-width counter build | `279a0daf` |
+>
+> **The one substitution:** her `.byte 15,14,...,1,0` table + `ldr q12,<label>` is 20 B smaller
+> and ~1% faster than route B, but **unprovable for us** -- `arm/proofs/decode.ml` has no
+> PC-relative `LDR (literal)` decode rule (0 of 172 rules match the `0b*011100` shape), so
+> symbolic execution cannot step it. Closing that 20 B needs an upstream `decode.ml` extension.
+>
+> **Beyond her design**, we additionally carry: the AES re-roll on all four fused bodies
+> (`b5ca504a`, `d4d08b19`, -960 B, speed-neutral -- she keeps them unrolled), and the
+> rem 5/6/7 -> `eor3`-fused-drain redirect (`8cb29b6d`, 80/96/112 B **-5%** vs hers).
+>
+> Her decrypt kernel is a separate matter: awslabs/s2n-bignum#445, which uses a **chained**
+> one-block short path (984 B) that is only viable for decrypt -- see section 3.
 
 Snapshot 2026-08-28. Measured on Graviton3 / Neoverse-V1, `taskset -c 20`, idle
 core, min of 3 runs.
@@ -24,7 +55,7 @@ both exported subroutine theorems at 0 hypotheses before commit.
 | **AES re-roll** (size-cap branch `aes_gcm_256_x8_opt_sizecap`) | re-rolling the 14-round unroll into a loop: `.text` 11848 -> 9100 B, speed-neutral except +4.3% at 80 B. |
 
 Result: faster than every AES-256 kernel measured, at all 13 sizes 16 B..4096 B.
-`.text` 11848 B (9100 B on the size-cap branch).
+`.text` **6488 B** at `b4cf58d6` (historical milestones: 11848 B speed-optimal, 9100 B size-capped, 7780 B fused4).
 
 ---
 
@@ -187,7 +218,7 @@ ns/call, Graviton3/V1, `./benchmark 3000` (with-setup scope):
 | 1024 B | **201.8** | 214.8 | 277.9 | 279.2 | 296.2 | 280.0 | 451.1 |
 | 4096 B | **728.4** | 741.2 | 1053.0 | 1048.9 | 1125.6 | 1049.3 | 1740.5 |
 
-Code size (`.text`): ours 11848 B (9100 B size-capped) | org x8 4672 | awslc 4x
+Code size (`.text`): ours **6488 B** (11848 speed-optimal / 9100 size-capped / 7780 fused4 historically) | org x8 4672 | awslc 4x
 2872 | hanno_opt 3864 | hanno_base 3416 | my SWP 4936 | my clean 1320.
 
 Large messages, raw scope: ours and the ORIGINAL x8 converge -- 2829 vs 2827 ns

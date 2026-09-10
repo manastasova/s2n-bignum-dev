@@ -255,3 +255,65 @@ grep -icE "error:|exception:" aes-gcm/aesv8_gcm_8x_enc_256.correct # 0 = passed
 
 The `.correct` file is written incrementally, so its existence does not mean the
 run finished — check for the `Running time` line.
+
+---
+
+## Addendum 2026-09-10 -- the fused short path (supersedes the seven `fastN` paths)
+
+The seven dedicated `fastN` paths described above were **replaced by a single fused
+`nb <= 4` short path** (`3f893a36`), then refined through `279a0daf`. Current kernel
+`.text` **6488 B** (was 11848 B at the seven-path peak).
+
+### Structure now
+
+```
+line   77   cmp x9,#64 ; b.le L256_enc_small        <- the ONE entry test, before the counter build
+            ... 8-counter build + 112 aese ...      <- runs only for nb >= 5
+line 1499   L256_enc_epilogue
+--------- appended past the epilogue ---------
+            L256_enc_small          shared prefix: reversed base counter, Xi, rk0/rk1, tbl index
+            L256_enc_small_1..4     four parallel FUSED bodies (AES and GHASH interleaved)
+            L256_enc_small_reduce   ONE shared MODULO reduction + tag store
+```
+
+### The five mechanisms added since the original document
+
+| mechanism | what it does | effect |
+|---|---|---|
+| **fused `nb<=4` dispatch** | one `cmp x9,#64 / b.le` replaces seven `b.eq` tests; four braided bodies share a prefix | `.text` -34%; 80/96/112 B +11-14% (they lose their dedicated bodies) |
+| **shared reduction suffix** | the maximal common tail (11 instrs: `ldr d16` -> MODULO fold -> `tbl v12` -> `st1` -> `b epilogue`) factored out of all four bodies | -120 B, speed TIE |
+| **direct final-counter construction** | build the needed counter as `base + N` instead of subtracting back down from `base+8` -- deletes 22 rollback `sub`s | -80 B, speed TIE |
+| **index built once** | the 10-instruction `movz`/`movk`/`fmov` reversal-index synthesis hoisted from all four bodies into the shared prefix | -120 B; 16 B flat/faster |
+| **AES re-roll** | each body's 14-round unrolled AES becomes a 13-iteration loop over `rk0..rk13` + a peeled `rk13`/`rk14` | **-960 B**, speed-neutral at every size |
+| **per-width counter build** | stop building counters 1-3 unconditionally ahead of the internal dispatch | +24 B but **16 B -2.8%** (removes 6 dead SIMD ops from before the 1-block dispatch, cutting crypto-pipe contention) |
+| **rem 5/6/7 -> fused drain** | `mt3`'s body is operation-identical to `rem4_drain`'s first block, so overwrite its redundant leading `st1` with `b rem4_drain`; rem 5/6/7 finish on the `eor3`-fused drain instead of the pairwise cascade | 80/96/112 B **-3.3/-3.4/-3.4%**, `.text` unchanged, ONE instruction word differs |
+
+### Proof cost of these seven
+
+Every one re-proven 0-CHEAT / 3 axioms / both exported subroutine theorems at 0 hypotheses,
+with the spec definitions and both `*_SUBROUTINE_CORRECT*` statement blocks byte-identical.
+All the edits live **past `L256_enc_epilogue`**, so the main loop, prepretail, generic cascade,
+the three tail drains and SETUP keep their PCs -- blast radius is the four `SMALL_*` legs, their
+tails, and the `mc` literal.
+
+Two techniques carried the cost:
+
+- **The AES re-roll drives via a FLAT `MAP_EVERY NSTEP` range.** `ARM_STEP` auto-follows the
+  concrete `b.ne` because the loop counter decrements deterministically, so no loop invariant is
+  needed -- the trip count is a literal 13. Body steps = linear + 12x(3+2N) = 152/125/98/71 for
+  N=4/3/2/1. **The re-roll makes the code 5x smaller but the proof no smaller**: HOL reasons about
+  the executed trace, which is unchanged.
+- **`TAIL_Q19_FOLD*` is reusable verbatim** for the shared suffix, the direct counter and the
+  re-roll, because none of them changes the register state at the fold point.
+
+Traps that cost real time: a re-rolled body's `NSTEP` range **10 steps too short** stops mid-13th
+iteration and surfaces ~100 lines later as an opaque `AP_TERM_TAC` (s139); `fold_q19_at` carries a
+hardcoded state index that must track any drain shift; and `DISCARD_REGS` silently drops facts for
+registers a change makes newly live (`82ef4d58` had to explicitly KEEP `Q25` for this reason).
+
+### What was NOT ported, and why
+
+nebeid's kernel loads the reversal index from a `.balign 16` `.byte 15,14,...,1,0` table with one
+`ldr q12,<label>`. That is 20 B smaller and ~1% faster than our hoisted synthesis, but
+**`arm/proofs/decode.ml` has no PC-relative `LDR (literal)` decode rule** (0 of 172 rules match the
+`0b*011100` shape), so symbolic execution cannot step the instruction. Same wall `prfm` hit.
