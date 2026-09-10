@@ -5923,14 +5923,19 @@ let TAIL_Q19_FOLD =
     [WORD_BITWISE_RULE
       `word_xor (i:int128) (word_reversefields 8 a) =
        word_xor (word_reversefields 8 a) i`] THEN
-  REWRITE_TAC[ARITH_RULE `8 * k + 10 = (8 * (k + 1) + 0) + 2`;
-              ARITH_RULE `8 * k + 11 = (8 * (k + 1) + 1) + 2`;
-              ARITH_RULE `8 * k + 12 = (8 * (k + 1) + 2) + 2`;
-              ARITH_RULE `8 * k + 13 = (8 * (k + 1) + 3) + 2`;
-              ARITH_RULE `8 * k + 14 = (8 * (k + 1) + 4) + 2`;
-              ARITH_RULE `8 * k + 15 = (8 * (k + 1) + 5) + 2`;
-              ARITH_RULE `8 * k + 16 = (8 * (k + 1) + 6) + 2`;
-              ARITH_RULE `8 * k + 17 = (8 * (k + 1) + 7) + 2`] THEN
+  (* [s153] under symbolic c, normalise each raw counter index 8*k+c+(8+m) to
+     `c + <inblock index>` so GSYM aes_ctr_block + GSYM cipher_block fold FIRST-ORDER
+     (block 0's inblock index is 8*(k+1) with NO +0, the rest 8*(k+1)+m).  The old
+     concrete `8*k+10 = (8*(k+1)+0)+2` offsets no-op under c, leaving GSYM cipher_block
+     higher-order ambiguous (spurious \x. inblock(..) forms that balloon at NCB_ETA). *)
+  REWRITE_TAC[ARITH_RULE `8 * k + c + 8 = c + 8 * (k + 1)`;
+              ARITH_RULE `8 * k + c + 9  = c + (8 * (k + 1) + 1)`;
+              ARITH_RULE `8 * k + c + 10 = c + (8 * (k + 1) + 2)`;
+              ARITH_RULE `8 * k + c + 11 = c + (8 * (k + 1) + 3)`;
+              ARITH_RULE `8 * k + c + 12 = c + (8 * (k + 1) + 4)`;
+              ARITH_RULE `8 * k + c + 13 = c + (8 * (k + 1) + 5)`;
+              ARITH_RULE `8 * k + c + 14 = c + (8 * (k + 1) + 6)`;
+              ARITH_RULE `8 * k + c + 15 = c + (8 * (k + 1) + 7)`] THEN
   REWRITE_TAC[GSYM aes_ctr_block] THEN
   REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
   REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
@@ -6438,18 +6443,24 @@ let AESV8_GCM_8X_ENC_256_TAIL = prove
   CONV_TAC NUM_REDUCE_CONV THEN
   REWRITE_TAC[WORD_ADD; GSYM WORD_ADD_ASSOC] THEN
   REWRITE_TAC[ADD_ASSOC; ARITH] THEN
+  (* [s153] close the ciphertext identity at the aes_ctr_block level (the s152
+     MAIN_LOOP pattern): collapse the key list, refold aes_ctr_block, then peel
+     word_xor + aes_ctr_block by AP_THM/AP_TERM and discharge the arith-equal
+     counter index by ARITH.  The old GSYM cipher_block fold is higher-order
+     ambiguous under c (block 0 spuriously picks \x. word_reversefields x (EL 14 rk)). *)
+  REWRITE_TAC[AES256_CIPHER_KEYLIST] THEN
   REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
-  REWRITE_TAC[GSYM cipher_block] THEN
-  REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
-  REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
-  SIMP_TAC[WORD_JOIN_COMBINE_LEMMA; ARITH] THEN
-  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
-  REWRITE_TAC[WORD_SUBWORD_BYTESWAP128] THEN
-  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-  REWRITE_TAC[WORD_SUBWORD_XOR] THEN
-  CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
-  REPEAT(CONJ_TAC THENL [CONV_TAC WORD_RULE; ALL_TAC]) THEN
-  CONV_TAC WORD_RULE);;
+  (* [s153] each fresh tail block is word_xor(word_xor ks rk14)(word_xor rk14 inb):
+     the double rk14 cancels under word_xor (WORD_BITWISE), but the aes_ctr_block
+     index is (8*k+c)+m on the LHS vs (c+8*k)+m on the postcond RHS — arith-equal
+     but aes_ctr_block is opaque to the bit-blaster, so normalise 8*k+c -> c+8*k
+     first (one rewrite fixes all 8 blocks), then WORD_BITWISE closes each. *)
+  REWRITE_TAC[ARITH_RULE `8 * k + c = c + 8 * k`] THEN
+  REPEAT CONJ_TAC THEN
+  TRY(CONV_TAC WORD_RULE) THEN
+  TRY(CONV_TAC WORD_BITWISE_RULE) THEN
+  REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN
+  TRY ARITH_TAC);;
 
 
 (* ===================================================================== *)
