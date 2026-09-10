@@ -6518,7 +6518,7 @@ let TAIL_Q19_FOLD_REM1 =
     [WORD_BITWISE_RULE
       `word_xor (i:int128) (word_reversefields 8 a) =
        word_xor (word_reversefields 8 a) i`] THEN
-  REWRITE_TAC[ARITH_RULE `8 * g + 2 = (8 * g) + 2`] THEN
+  REWRITE_TAC[ARITH_RULE `8 * g + c = c + 8 * g`] THEN
   REWRITE_TAC[GSYM aes_ctr_block] THEN
   REWRITE_TAC[GSYM cipher_block] THEN REWRITE_TAC[CIPHER_BLOCK_NIST] THEN
   REWRITE_TAC[WORD_SUBWORD_REVERSEFIELDS] THEN
@@ -6529,7 +6529,8 @@ let TAIL_Q19_FOLD_REM1 =
   CONV_TAC(TOP_DEPTH_CONV WORD_SIMPLE_SUBWORD_CONV) THEN
   REWRITE_TAC[GSYM WORD_SUBWORD_XOR] THEN
   REWRITE_TAC[KARATSUBA_IS_DOT_HW] THEN
-  REWRITE_TAC[ARITH_RULE `8 * g + 1 = SUC(8 * g)`] THEN
+  REWRITE_TAC[ARITH_RULE `8 * g + 1 = SUC(8 * g)`;
+              ARITH_RULE `1 + 8 * g = SUC(8 * g)`] THEN
   REWRITE_TAC[list_of_seq] THEN
   REWRITE_TAC[NIST_GHASH_APPEND] THEN
   REWRITE_TAC[NIST_GHASH_CONS; nist_ghash] THEN
@@ -6637,8 +6638,8 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM1 = prove
     REWRITE_TAC[WORD_RULE `word_sub (x:int32) (word 0) = x`] THEN
     REWRITE_TAC[WORD_RULE
       `word_sub (word_sub (word_sub (word_sub (word_sub (word_sub (word_sub
-        (word (8 * g + 10):int32) (word 1)) (word 1)) (word 1)) (word 1))
-        (word 1)) (word 1)) (word 1) = word (8 * g + 3)`] THEN
+        (word (8 * g + c + 8):int32) (word 1)) (word 1)) (word 1)) (word 1))
+        (word 1)) (word 1)) (word 1) = word (8 * g + c + 1)`] THEN
     REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8] THEN
     AP_TERM_TAC THEN AP_TERM_TAC THEN ARITH_TAC;
     ALL_TAC] THEN
@@ -6655,7 +6656,8 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM1 = prove
   REWRITE_TAC[FORALL_AND_THM; FORALL_UNWIND_THM2] THEN
   REWRITE_TAC[ARITH_RULE `16 * 8 * g = 128 * g`] THEN
   ASM_REWRITE_TAC[] THEN
-  REWRITE_TAC[aes_ctr_block] THEN CONV_TAC WORD_BITWISE_RULE);;
+  REWRITE_TAC[aes_ctr_block] THEN REWRITE_TAC[ARITH_RULE `8 * g + c = c + 8 * g`] THEN
+  CONV_TAC WORD_BITWISE_RULE);;
 
 
 
