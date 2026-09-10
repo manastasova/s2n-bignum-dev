@@ -1951,95 +1951,23 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	add	v30.4s, v29.4s, v10.4s	//[s146 (c)] final counter = base+3 = ctr(nb+2), direct
 	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	// v26=rk0, v27=rk1 loaded. v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
+	mov	x12, x11			//[s151 C] AES re-roll walking rk ptr
+	mov	w13, #13
+L256_enc_small_3_aesloop:
+	ld1	{ v26.16b }, [x12], #16
 	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//blk0 r0
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//blk1 r0
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b			//blk2 r0
-	ldp	q28, q26, [x11, #32]		//rk2, rk3
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r1 (rk1)
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v27.16b
-	aesmc	v2.16b, v2.16b
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r2 (rk2)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v28.16b
-	aesmc	v2.16b, v2.16b
-	ldp	q27, q28, [x11, #64]		//rk4, rk5
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aesmc	v0.16b, v0.16b
 	aese	v1.16b, v26.16b
 	aesmc	v1.16b, v1.16b
 	aese	v2.16b, v26.16b
 	aesmc	v2.16b, v2.16b
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r4 (rk4)
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v27.16b
-	aesmc	v2.16b, v2.16b
-	ldp	q26, q27, [x11, #96]		//rk6, rk7
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r5 (rk5)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v28.16b
-	aesmc	v2.16b, v2.16b
+	subs	w13, w13, #1
+	b.ne	L256_enc_small_3_aesloop
+	ld1	{ v26.16b }, [x12], #16		//rk13 (no aesmc)
 	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r6 (rk6)
 	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b
 	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b
-	ldp	q28, q26, [x11, #128]		//rk8, rk9
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r7 (rk7)
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v27.16b
-	aesmc	v2.16b, v2.16b
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r8 (rk8)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v28.16b
-	aesmc	v2.16b, v2.16b
-	ldp	q27, q28, [x11, #160]		//rk10, rk11
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r9 (rk9)
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r10 (rk10)
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v27.16b
-	aesmc	v2.16b, v2.16b
-	ldp	q26, q27, [x11, #192]		//rk12, rk13
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r11 (rk11)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v28.16b
-	aesmc	v2.16b, v2.16b
-	ldr	q28, [x11, #224]		//rk14
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r12 (rk12)
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b
-	aese	v2.16b, v26.16b
-	aesmc	v2.16b, v2.16b
-	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
-	aese	v1.16b, v27.16b
-	aese	v2.16b, v27.16b
-	// v28 = rk14; set up 3-block drain entry state (v1/v2 = blk1/blk2 keystreams)
+	ldr	q28, [x12]			//rk14 -> v28
 	ldr	q8, [x0], #16			//block0 PT (x0 -> block1 PT)
 	ext	v16.16b, v19.16b, v19.16b, #8	//partial tag
 	mov	v29.16b, v28.16b		//v29 = rk14
@@ -2089,67 +2017,20 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain (tbl v12)
 	add	v30.4s, v29.4s, v28.4s	//[s146 (c)] final counter = base+2 = ctr(nb+2), direct
 	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
+	mov	x12, x11			//[s151 C] AES re-roll walking rk ptr
+	mov	w13, #13
+L256_enc_small_2_aesloop:
+	ld1	{ v26.16b }, [x12], #16
 	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//blk0 r0
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b			//blk1 r0
-	ldp	q28, q26, [x11, #32]		//rk2, rk3
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r1
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r2 (rk2)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
-	ldp	q27, q28, [x11, #64]		//rk4, rk5
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r3 (rk3)
+	aesmc	v0.16b, v0.16b
 	aese	v1.16b, v26.16b
 	aesmc	v1.16b, v1.16b
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r4 (rk4)
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	ldp	q26, q27, [x11, #96]		//rk6, rk7
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r5 (rk5)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
+	subs	w13, w13, #1
+	b.ne	L256_enc_small_2_aesloop
+	ld1	{ v26.16b }, [x12], #16		//rk13 (no aesmc)
 	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r6 (rk6)
 	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b
-	ldp	q28, q26, [x11, #128]		//rk8, rk9
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r7 (rk7)
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r8 (rk8)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
-	ldp	q27, q28, [x11, #160]		//rk10, rk11
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r9 (rk9)
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r10 (rk10)
-	aese	v1.16b, v27.16b
-	aesmc	v1.16b, v1.16b
-	ldp	q26, q27, [x11, #192]		//rk12, rk13
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r11 (rk11)
-	aese	v1.16b, v28.16b
-	aesmc	v1.16b, v1.16b
-	ldr	q28, [x11, #224]		//rk14
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r12 (rk12)
-	aese	v1.16b, v26.16b
-	aesmc	v1.16b, v1.16b
-	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
-	aese	v1.16b, v27.16b
+	ldr	q28, [x12]			//rk14 -> v28
 	ldr	q8, [x0], #16			//block1 PT (x0 -> block2 PT)
 	ext	v16.16b, v19.16b, v19.16b, #8	//tag prep
 	mov	v29.16b, v28.16b		//v29 = rk14
@@ -2185,41 +2066,17 @@ L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v
 	add	v30.4s, v29.4s, v31.4s	//[s146 (c)] final counter = base+1 = ctr(nb+2), direct
 	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	// v26=rk0, v27=rk1 loaded (before dispatch). v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
+	mov	x12, x11			//[s151 C] AES re-roll walking rk ptr
+	mov	w13, #13
+L256_enc_small_1_aesloop:
+	ld1	{ v26.16b }, [x12], #16
 	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//blk0 r0 (rk0)
-	ldp	q28, q26, [x11, #32]		//rk2, rk3
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r1 (rk1)
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r2 (rk2)
-	ldp	q27, q28, [x11, #64]		//rk4, rk5
+	aesmc	v0.16b, v0.16b
+	subs	w13, w13, #1
+	b.ne	L256_enc_small_1_aesloop
+	ld1	{ v26.16b }, [x12], #16		//rk13 (no aesmc)
 	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r3 (rk3)
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r4 (rk4)
-	ldp	q26, q27, [x11, #96]		//rk6, rk7
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r5 (rk5)
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r6 (rk6)
-	ldp	q28, q26, [x11, #128]		//rk8, rk9
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r7 (rk7)
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r8 (rk8)
-	ldp	q27, q28, [x11, #160]		//rk10, rk11
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r9 (rk9)
-	aese	v0.16b, v27.16b
-	aesmc	v0.16b, v0.16b			//r10 (rk10)
-	ldp	q26, q27, [x11, #192]		//rk12, rk13
-	aese	v0.16b, v28.16b
-	aesmc	v0.16b, v0.16b			//r11 (rk11)
-	ldr	q28, [x11, #224]		//rk14
-	aese	v0.16b, v26.16b
-	aesmc	v0.16b, v0.16b			//r12 (rk12)
-	aese	v0.16b, v27.16b			//r13 (rk13, no aesmc)
-	// v28 = rk14; set up single-block drain entry state
+	ldr	q28, [x12]			//rk14 -> v28
 	ldr	q8, [x0]			//block0 PT
 	ext	v16.16b, v19.16b, v19.16b, #8	//partial tag
 	mov	v29.16b, v28.16b		//v29 = rk14
