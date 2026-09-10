@@ -5870,8 +5870,8 @@ let KS_SOLVE = prove
 (* nist_cipher_block).  ETA_CONV does NOT fire (the lambda is constant, not \x.f x)*)
 (* so a targeted beta-collapse lemma is needed before the final AP_TERM.           *)
 let NCB_ETA = prove
- (`nist_cipher_block nonce rk (\x:num. inb (m:num)) m =
-   nist_cipher_block nonce rk inb m`,
+ (`nist_cipher_block c nonce rk (\x:num. inb (m:num)) m =
+   nist_cipher_block c nonce rk inb m`,
   REWRITE_TAC[nist_cipher_block; cipher_block] THEN CONV_TAC(DEPTH_CONV BETA_CONV));;
 
 (* The TAIL Q19 drain fold: folds the FINAL in-flight 8-block group                *)
