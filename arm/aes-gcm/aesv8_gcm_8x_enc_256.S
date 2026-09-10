@@ -1840,12 +1840,6 @@ L256_enc_small:  //[s142] fused nb<=4 short path (single entry test cmp x9,#64/b
 	add	v10.4s, v28.4s, v31.4s	//+3
 	add	v11.4s, v28.4s, v28.4s	//+4
 	// [s146 (c)] base+8 build removed; each body builds its final counter directly
-	add	v8.4s, v29.4s, v31.4s
-	rev32	v1.16b, v8.16b
-	add	v9.4s, v29.4s, v28.4s
-	rev32	v2.16b, v9.16b
-	add	v15.4s, v29.4s, v10.4s
-	rev32	v3.16b, v15.16b
 	// [s151 (A)] reversal index synthesized ONCE in the shared prefix (route B),
 	// deleted from the four small_N bodies (was 4x10 instrs). Q12 now lives across dispatch.
 	movz	x7, #0x0e0f
@@ -1866,6 +1860,12 @@ L256_enc_small:  //[s142] fused nb<=4 short path (single entry test cmp x9,#64/b
 	b.eq	L256_enc_small_3
 L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (tbl v12)
 	add	v30.4s, v29.4s, v11.4s	//[s146 (c)] final counter = base+4 = ctr(nb+2), direct
+	add	v8.4s, v29.4s, v31.4s	//[s151 B] counter1
+	rev32	v1.16b, v8.16b
+	add	v9.4s, v29.4s, v28.4s	//[s151 B] counter2
+	rev32	v2.16b, v9.16b
+	add	v15.4s, v29.4s, v10.4s	//[s151 B] counter3
+	rev32	v3.16b, v15.16b
 	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	mov	x12, x11			//[s151 (C)] AES re-roll: walking round-key pointer (rk0)
 	mov	w13, #13
@@ -1949,6 +1949,10 @@ L256_enc_small_4_aesloop:
 	b	L256_enc_small_reduce
 L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	add	v30.4s, v29.4s, v10.4s	//[s146 (c)] final counter = base+3 = ctr(nb+2), direct
+	add	v8.4s, v29.4s, v31.4s	//[s151 B] counter1
+	rev32	v1.16b, v8.16b
+	add	v9.4s, v29.4s, v28.4s	//[s151 B] counter2
+	rev32	v2.16b, v9.16b
 	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	// v26=rk0, v27=rk1 loaded. v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
 	mov	x12, x11			//[s151 C] AES re-roll walking rk ptr
@@ -2016,6 +2020,8 @@ L256_enc_small_3_aesloop:
 	b	L256_enc_small_reduce
 L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain (tbl v12)
 	add	v30.4s, v29.4s, v28.4s	//[s146 (c)] final counter = base+2 = ctr(nb+2), direct
+	add	v8.4s, v29.4s, v31.4s	//[s151 B] counter1
+	rev32	v1.16b, v8.16b
 	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	mov	x12, x11			//[s151 C] AES re-roll walking rk ptr
 	mov	w13, #13
