@@ -16772,6 +16772,10 @@ int test_known_values_p384(void)
 
 #include "ref_aes_xts.c"
 
+// Verbatim AWS-LC reference + regression vectors for gcm_init_v8
+
+#include "ref_gcm_init.c"
+
 // Helpers for writing XTS tests
 void assign_bytearray_from_hexstring(uint8_t *bytearr, const char *hexstr, int len)
 {
@@ -17024,6 +17028,73 @@ int test_aes_xts_roundtrip(void)
      else if (VERBOSE)
       { printf("OK: roundtrip len=%zu\n", len);
       }
+   }
+  printf("All OK\n");
+  return 0;
+#endif
+}
+
+// gcm_init_v8: known-answer/regression vectors (real AWS-LC key inputs, expected
+// outputs from the verbatim layered reference) plus a randomized differential
+// test of the imported assembly against ref_gcm_init_v8. All 192 written bytes
+// (Htable[0..11] = 24 uint64 words) are compared; the declared table is 256
+// bytes but this routine only writes the first 192.
+int test_gcm_init_v8(void)
+{
+#ifdef __x86_64__
+  return 1;
+#else
+  uint64_t t;
+  uint64_t H[2];
+  uint64_t asm_out[32], ref_out[24];
+  int fails = 0;
+
+  printf("Testing gcm_init_v8: %d known-answer + %d random differential cases\n",
+         gcm_init_v8_num_kats, tests);
+
+  // Known-answer / regression vectors: assembly vs pinned expected bytes.
+  for (int k = 0; k < gcm_init_v8_num_kats; ++k)
+   { const gcm_init_kat *kat = &gcm_init_v8_kats[k];
+     memset(asm_out, 0, sizeof(asm_out));
+     gcm_init_v8(asm_out, kat->H);
+     if (memcmp(asm_out, kat->Htable, 24 * sizeof(uint64_t)) != 0)
+      { printf("### Disparity: gcm_init_v8 KAT %d H=%016"PRIx64":%016"PRIx64"\n",
+               k, kat->H[0], kat->H[1]);
+        for (int i = 0; i < 24; ++i)
+          if (asm_out[i] != kat->Htable[i])
+            printf("    word %2d: asm %016"PRIx64" != expected %016"PRIx64"\n",
+                   i, asm_out[i], kat->Htable[i]);
+        ++fails;
+      }
+     else if (VERBOSE)
+      { printf("OK: gcm_init_v8 known-answer case %d\n", k);
+      }
+   }
+
+  // Randomized differential test: assembly vs verbatim C reference.
+  for (t = 0; t < (uint64_t)tests; ++t)
+   { H[0] = ((uint64_t)rand() << 40) ^ ((uint64_t)rand() << 20) ^ (uint64_t)rand();
+     H[1] = ((uint64_t)rand() << 40) ^ ((uint64_t)rand() << 20) ^ (uint64_t)rand();
+     memset(asm_out, 0, sizeof(asm_out));
+     gcm_init_v8(asm_out, H);
+     ref_gcm_init_v8(ref_out, H);
+     if (memcmp(asm_out, ref_out, 24 * sizeof(uint64_t)) != 0)
+      { printf("### Disparity: gcm_init_v8 vs reference H=%016"PRIx64":%016"PRIx64"\n",
+               H[0], H[1]);
+        for (int i = 0; i < 24; ++i)
+          if (asm_out[i] != ref_out[i])
+            printf("    word %2d: asm %016"PRIx64" != ref %016"PRIx64"\n",
+                   i, asm_out[i], ref_out[i]);
+        if (++fails > 5) break;
+      }
+     else if (VERBOSE)
+      { printf("OK: gcm_init_v8 random case %"PRIu64"\n", t);
+      }
+   }
+
+  if (fails)
+   { printf("### gcm_init_v8: %d failing case(s)\n", fails);
+     return 1;
    }
   printf("All OK\n");
   return 0;
@@ -17965,6 +18036,7 @@ int main(int argc, char *argv[])
     functionaltest(aes,"aes_xts_roundtrip",test_aes_xts_roundtrip);
     functionaltest(aes,"known value tests for aes-xts encrypt",test_known_values_xts_encrypt);
     functionaltest(aes,"known value tests for aes-xts decrypt",test_known_values_xts_decrypt);
+    functionaltest(aes,"gcm_init_v8",test_gcm_init_v8);
   }
 
   if (extrastrigger) function_to_test = "_";

@@ -1001,6 +1001,13 @@ extern void edwards25519_scalarmulbase_alt(uint64_t res[8],const uint64_t scalar
 extern void edwards25519_scalarmuldouble(uint64_t res[8],const uint64_t scalar[4], const uint64_t point[8],const uint64_t bscalar[4]);
 extern void edwards25519_scalarmuldouble_alt(uint64_t res[8],const uint64_t scalar[4], const uint64_t point[8],const uint64_t bscalar[4]);
 
+/* GCM_INIT_V8: expand GHASH hash key h into the PMULL/v8 power table. */
+/* AWS-LC declares the output as "u128 Htable[16]" (256 bytes); this routine */
+/* writes only the first 12 128-bit entries (192 bytes), which in the uint64_t */
+/* view is htable[0..23]; the remaining words serve other GHASH variants. */
+/* Input h[2]; output htable[24] */
+extern void gcm_init_v8(uint64_t htable[32], const uint64_t h[2]);
+
 /* Forward number-theoretic transform for ML-DSA */
 /* Input a[256], z_012345[144], z_67[384] (signed 32-bit words); output a[256] (signed 32-bit words) */
 extern void mldsa_ntt_arm(int32_t a[256], const int32_t z_012345[144], const int32_t z_67[384]);
