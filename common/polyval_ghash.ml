@@ -418,27 +418,38 @@ let byteswap128 = new_definition
    word_join (word_subword x (0,64) : 64 word)
              (word_subword x (64,64) : 64 word)`;;
 
+(* MID-SLOT LANE ORIENTATION (fixed 2026-08-26, human-approved; see below).   *)
+(* Each packed-mid slot (ptr+16/+64/+112/+160) stores the LOWER power's        *)
+(* karatsuba_mid in the LOW 64 bits (bytes[0..8)) and the HIGHER power's in    *)
+(* the HIGH 64 bits (bytes[8..16)).  Ground truth: REF_MID at                  *)
+(* tests/ref_gcm_init.c:177-178 sets out[2*i] = kmid(hp[lower]) — verified     *)
+(* byte-for-byte against the real assembly over 2000 inputs.  HOL's            *)
+(* `word_join x y` places `x` in the HIGH half, so the HIGHER power is the     *)
+(* FIRST argument.  (An earlier version had the two arguments swapped, putting *)
+(* the lower power in the high half — the opposite of the hardware.  It was    *)
+(* never machine-checked against bytes; the lane-orientation lemma and         *)
+(* concrete KAT in arm/proofs/gcm_init_v8.ml now pin this.)                    *)
 let htable_mem = new_definition
   `htable_mem (h:int128) (ptr:int64) (s:armstate) <=>
    read (memory :> bytes128 ptr) s = byteswap128(h_power h 0) /\
    read (memory :> bytes128 (word_add ptr (word 16))) s =
-     word_join (karatsuba_mid(h_power h 0) : 64 word)
-               (karatsuba_mid(h_power h 1) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 1) : 64 word)
+               (karatsuba_mid(h_power h 0) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 32))) s = byteswap128(h_power h 1) /\
    read (memory :> bytes128 (word_add ptr (word 48))) s = byteswap128(h_power h 2) /\
    read (memory :> bytes128 (word_add ptr (word 64))) s =
-     word_join (karatsuba_mid(h_power h 2) : 64 word)
-               (karatsuba_mid(h_power h 3) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 3) : 64 word)
+               (karatsuba_mid(h_power h 2) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 80))) s = byteswap128(h_power h 3) /\
    read (memory :> bytes128 (word_add ptr (word 96))) s = byteswap128(h_power h 4) /\
    read (memory :> bytes128 (word_add ptr (word 112))) s =
-     word_join (karatsuba_mid(h_power h 4) : 64 word)
-               (karatsuba_mid(h_power h 5) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 5) : 64 word)
+               (karatsuba_mid(h_power h 4) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 128))) s = byteswap128(h_power h 5) /\
    read (memory :> bytes128 (word_add ptr (word 144))) s = byteswap128(h_power h 6) /\
    read (memory :> bytes128 (word_add ptr (word 160))) s =
-     word_join (karatsuba_mid(h_power h 6) : 64 word)
-               (karatsuba_mid(h_power h 7) : 64 word) /\
+     word_join (karatsuba_mid(h_power h 7) : 64 word)
+               (karatsuba_mid(h_power h 6) : 64 word) /\
    read (memory :> bytes128 (word_add ptr (word 176))) s = byteswap128(h_power h 7)`;;
 
 (* ========================================================================= *)
