@@ -10645,15 +10645,18 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT = prove
     `inblock:num->int128`; `nb:num`; `nb - 8 * (k + 1)`; `k + 1`; `pc:num`]
    AESV8_GCM_8X_ENC_256_TAIL_REM) THEN
   REWRITE_TAC[LENGTH_WB_MC; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
-  REWRITE_TAC[ARITH_RULE `8 * (k + 1) + 2 = 8 * k + 10`;
-              ARITH_RULE `8 * (k + 1) + 3 = 8 * k + 11`;
-              ARITH_RULE `8 * (k + 1) + 4 = 8 * k + 12`;
-              ARITH_RULE `8 * (k + 1) + 5 = 8 * k + 13`;
-              ARITH_RULE `8 * (k + 1) + 6 = 8 * k + 14`;
-              ARITH_RULE `8 * (k + 1) + 7 = 8 * k + 15`;
-              ARITH_RULE `8 * (k + 1) + 8 = 8 * k + 16`;
-              ARITH_RULE `8 * (k + 1) + 9 = 8 * k + 17`;
-              ARITH_RULE `8 * (k + 1) + 10 = 8 * k + 18`] THEN
+  (* [s153] align TAIL_REM's ISPECL'd (g:=k+1) counters 8*(k+1)+c+M with the
+     intermediate state's 8*k+c+(M+8) form.  The old bare-num rules 8*(k+1)+N=8*k+(N+8)
+     no longer fire (the counters carry c); the transform missed them (no ctr_block). *)
+  REWRITE_TAC[ARITH_RULE `8 * (k + 1) + c = 8 * k + c + 8`;
+              ARITH_RULE `8 * (k + 1) + c + 1 = 8 * k + c + 9`;
+              ARITH_RULE `8 * (k + 1) + c + 2 = 8 * k + c + 10`;
+              ARITH_RULE `8 * (k + 1) + c + 3 = 8 * k + c + 11`;
+              ARITH_RULE `8 * (k + 1) + c + 4 = 8 * k + c + 12`;
+              ARITH_RULE `8 * (k + 1) + c + 5 = 8 * k + c + 13`;
+              ARITH_RULE `8 * (k + 1) + c + 6 = 8 * k + c + 14`;
+              ARITH_RULE `8 * (k + 1) + c + 7 = 8 * k + c + 15`;
+              ARITH_RULE `8 * (k + 1) + c + 8 = 8 * k + c + 16`] THEN
   DISCH_THEN MATCH_MP_TAC THEN ASM_SIMP_TAC[NONOVERLAPPING_CLAUSES] THEN ASM_ARITH_TAC);;
 
 (* ========================================================================= *)
@@ -11084,15 +11087,17 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1 = prove
     `inblock:num->int128`; `nb:num`; `nb - 8 * (0 + 1)`; `0 + 1`; `pc:num`]
    AESV8_GCM_8X_ENC_256_TAIL_REM) THEN
   REWRITE_TAC[LENGTH_WB_MC; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
-  REWRITE_TAC[ARITH_RULE `8 * (0 + 1) + 2 = 8 * 0 + 10`;
-              ARITH_RULE `8 * (0 + 1) + 3 = 8 * 0 + 11`;
-              ARITH_RULE `8 * (0 + 1) + 4 = 8 * 0 + 12`;
-              ARITH_RULE `8 * (0 + 1) + 5 = 8 * 0 + 13`;
-              ARITH_RULE `8 * (0 + 1) + 6 = 8 * 0 + 14`;
-              ARITH_RULE `8 * (0 + 1) + 7 = 8 * 0 + 15`;
-              ARITH_RULE `8 * (0 + 1) + 8 = 8 * 0 + 16`;
-              ARITH_RULE `8 * (0 + 1) + 9 = 8 * 0 + 17`;
-              ARITH_RULE `8 * (0 + 1) + 10 = 8 * 0 + 18`] THEN
+  (* [s153] c-form counter alignment (g:=0+1), as GEN_CORRECT; old bare-num rules
+     8*(0+1)+N=8*0+(N+8) no longer fire under symbolic c. *)
+  REWRITE_TAC[ARITH_RULE `8 * (0 + 1) + c = 8 * 0 + c + 8`;
+              ARITH_RULE `8 * (0 + 1) + c + 1 = 8 * 0 + c + 9`;
+              ARITH_RULE `8 * (0 + 1) + c + 2 = 8 * 0 + c + 10`;
+              ARITH_RULE `8 * (0 + 1) + c + 3 = 8 * 0 + c + 11`;
+              ARITH_RULE `8 * (0 + 1) + c + 4 = 8 * 0 + c + 12`;
+              ARITH_RULE `8 * (0 + 1) + c + 5 = 8 * 0 + c + 13`;
+              ARITH_RULE `8 * (0 + 1) + c + 6 = 8 * 0 + c + 14`;
+              ARITH_RULE `8 * (0 + 1) + c + 7 = 8 * 0 + c + 15`;
+              ARITH_RULE `8 * (0 + 1) + c + 8 = 8 * 0 + c + 16`] THEN
   DISCH_THEN MATCH_MP_TAC THEN ASM_SIMP_TAC[NONOVERLAPPING_CLAUSES] THEN ASM_ARITH_TAC);;
 
 (* ===================================================================== *)
