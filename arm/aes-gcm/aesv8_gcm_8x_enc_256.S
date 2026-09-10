@@ -1846,14 +1846,8 @@ L256_enc_small:  //[s142] fused nb<=4 short path (single entry test cmp x9,#64/b
 	rev32	v2.16b, v9.16b
 	add	v15.4s, v29.4s, v10.4s
 	rev32	v3.16b, v15.16b
-	cmp	x9, #16
-	b.eq	L256_enc_small_1
-	cmp	x9, #32
-	b.eq	L256_enc_small_2
-	cmp	x9, #48
-	b.eq	L256_enc_small_3
-L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (tbl v12)
-	add	v30.4s, v29.4s, v11.4s	//[s146 (c)] final counter = base+4 = ctr(nb+2), direct
+	// [s151 (A)] reversal index synthesized ONCE in the shared prefix (route B),
+	// deleted from the four small_N bodies (was 4x10 instrs). Q12 now lives across dispatch.
 	movz	x7, #0x0e0f
 	movk	x7, #0x0c0d, lsl #16
 	movk	x7, #0x0a0b, lsl #32
@@ -1863,7 +1857,16 @@ L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (t
 	movk	x8, #0x0203, lsl #32
 	movk	x8, #0x0001, lsl #48
 	fmov	d12, x7
-	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
+	mov	v12.d[1], x8
+	cmp	x9, #16
+	b.eq	L256_enc_small_1
+	cmp	x9, #32
+	b.eq	L256_enc_small_2
+	cmp	x9, #48
+	b.eq	L256_enc_small_3
+L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (tbl v12)
+	add	v30.4s, v29.4s, v11.4s	//[s146 (c)] final counter = base+4 = ctr(nb+2), direct
+	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
 	aese	v1.16b, v26.16b
@@ -2041,16 +2044,7 @@ L256_enc_small_4:  //[s142] nb==4 (64B): 4-block AES + fast4 eor3-fused drain (t
 	b	L256_enc_small_reduce
 L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	add	v30.4s, v29.4s, v10.4s	//[s146 (c)] final counter = base+3 = ctr(nb+2), direct
-	movz	x7, #0x0e0f
-	movk	x7, #0x0c0d, lsl #16
-	movk	x7, #0x0a0b, lsl #32
-	movk	x7, #0x0809, lsl #48
-	movz	x8, #0x0607
-	movk	x8, #0x0405, lsl #16
-	movk	x8, #0x0203, lsl #32
-	movk	x8, #0x0001, lsl #48
-	fmov	d12, x7
-	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
+	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	// v26=rk0, v27=rk1 loaded. v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
@@ -2189,16 +2183,7 @@ L256_enc_small_3:  //[s142] nb==3 (48B): 3-block AES + 3-block drain (tbl v12)
 	b	L256_enc_small_reduce
 L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain (tbl v12)
 	add	v30.4s, v29.4s, v28.4s	//[s146 (c)] final counter = base+2 = ctr(nb+2), direct
-	movz	x7, #0x0e0f
-	movk	x7, #0x0c0d, lsl #16
-	movk	x7, #0x0a0b, lsl #32
-	movk	x7, #0x0809, lsl #48
-	movz	x8, #0x0607
-	movk	x8, #0x0405, lsl #16
-	movk	x8, #0x0203, lsl #32
-	movk	x8, #0x0001, lsl #48
-	fmov	d12, x7
-	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
+	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0
 	aese	v1.16b, v26.16b
@@ -2293,16 +2278,7 @@ L256_enc_small_2:  //[s142] nb==2 (32B): 2-block AES + eor3-fused 2-block drain 
 	b	L256_enc_small_reduce
 L256_enc_small_1:  //[s142] nb==1 (16B): 1-block AES + single-block drain (tbl v12)
 	add	v30.4s, v29.4s, v31.4s	//[s146 (c)] final counter = base+1 = ctr(nb+2), direct
-	movz	x7, #0x0e0f
-	movk	x7, #0x0c0d, lsl #16
-	movk	x7, #0x0a0b, lsl #32
-	movk	x7, #0x0809, lsl #48
-	movz	x8, #0x0607
-	movk	x8, #0x0405, lsl #16
-	movk	x8, #0x0203, lsl #32
-	movk	x8, #0x0001, lsl #48
-	fmov	d12, x7
-	mov	v12.d[1], x8	//[s146 pathB] per-path index in AES shadow (v12)
+	// [s151 (A)] index synth hoisted to shared prefix (Q12 already set on entry)
 	// v26=rk0, v27=rk1 loaded (before dispatch). v30=base+8 (=ctr(8g+10)), v31=incr, v19=folded tag.
 	aese	v0.16b, v26.16b
 	aesmc	v0.16b, v0.16b			//blk0 r0 (rk0)
