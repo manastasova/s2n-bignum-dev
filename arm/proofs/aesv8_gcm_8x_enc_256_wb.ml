@@ -11275,18 +11275,40 @@ let SETUP_Q30_LANES_10 = prove
 
 (* Keystream closer (KSCLOSE from s076 recipe): the pre-rk14 aese chain register  *)
 (* Qj, XORed with rk14, is rev8(aes256_cipher(ctr_block nonce (j+2)) rk).         *)
+(* [s154] symbolic-c: the OLD terminal `REWRITE_TAC[ctr_block] THEN CONV_TAC
+   WORD_BLAST` blasts a full 128-bit symbolic-c counter term and HANGS.  Mirror the
+   PROVEN CIPHER_CLOSE structural reconstruction (minus the input-XOR reorder, since
+   the keystream register is not XORed with an input block): fold the aese chain to
+   aes256_cipher, reconstruct the AES-input counter lanes to ctr_block nonce K
+   (CTR_LANE_LOW + CTR_NONCE_LANES + GSYM WORD_ADD + CTR_BLOCK_RECONSTRUCT_REV8/32,
+   then cancel the double reverse), refold both sides to aes_ctr_block, and discharge
+   the arith-equal counter index K = c+j by ARITH. *)
 let KSCLOSE =
   ASM_REWRITE_TAC[AES256_CIPHER_RECONSTRUCT; MAP;
                   WORD_REVERSEFIELDS_REVERSEFIELDS; AES256_CIPHER_KEYLIST] THEN
-  AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN CONV_TAC NUM_REDUCE_CONV THEN
-  REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8] THEN REWRITE_TAC[ctr_block] THEN
-  CONV_TAC WORD_BLAST;;
+  REWRITE_TAC[CTR_LANE_LOW; CTR_NONCE_LANES] THEN
+  REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN
+  REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8; CTR_BLOCK_RECONSTRUCT_REV32] THEN
+  REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+  REWRITE_TAC[AES256_CIPHER_KEYLIST] THEN
+  REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] THEN
+  REWRITE_TAC[ADD_CLAUSES; MULT_CLAUSES] THEN
+  TRY(REFL_TAC) THEN
+  TRY(REPEAT(AP_THM_TAC ORELSE AP_TERM_TAC) THEN ARITH_TAC);;
 
-(* Q30 counter closer (index 10). *)
+(* Q30 counter closer (next-group counter, index c+8). *)
+(* [s154] symbolic-c: identical to the PROVEN CTR_CLOSE (Q30 rev32 reconstruction)
+   but with the index-(c+8) lane lemma SETUP_Q30_LANES_10 in place of SETUP_Q30_LANES.
+   Reconstruct the counter lanes structurally, then AP-peel + ARITH the arith-equal
+   index; NO full-term WORD_BLAST (which hangs on the symbolic-c 128-bit term). *)
 let SETUP0_CTR_CLOSE =
   CONV_TAC NUM_REDUCE_CONV THEN
-  REWRITE_TAC[SETUP_Q30_LANES_10; CTR_BLOCK_RECONSTRUCT_REV32] THEN
-  REWRITE_TAC[ctr_block] THEN CONV_TAC WORD_BLAST;;
+  REWRITE_TAC[SETUP_Q30_LANES_10; CTR_LANE_LOW] THEN
+  REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS] THEN
+  REWRITE_TAC[CTR_NONCE_LANES] THEN
+  REWRITE_TAC[GSYM WORD_ADD; WORD_ADD_0] THEN
+  REWRITE_TAC[CTR_BLOCK_RECONSTRUCT_REV8; CTR_BLOCK_RECONSTRUCT_REV32] THEN
+  AP_TERM_TAC THEN AP_TERM_TAC THEN ARITH_TAC;;
 
 (* Q19 init closer: nist_ghash over the empty list = tag0. *)
 let SETUP0_Q19_CLOSE =
