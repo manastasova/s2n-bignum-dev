@@ -12575,6 +12575,17 @@ let AESV8_GCM_8X_ENC_256_CORRECT = prove
    [UNDISCH_TAC `word_reversefields 8 ctr0 = ctr_block nonce c` THEN
     DISCH_THEN(SUBST1_TAC o SYM) THEN REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS];
     ALL_TAC] THEN
+  (* [s156] the internal legs conclude `ctr_block nonce (nb + c)` (mechanical
+     transform of the original `nb + 2`), but the FROZEN exported statement uses
+     the §2 form `ctr_block nonce (c + nb)`.  Normalise the goal's ivec post to
+     the legs' AC-order so `DISCH_THEN MATCH_MP_TAC` unifies in all 7 branches.
+     Specific to this term (not a bare `c + nb = nb + c`, which loops like ADD_SYM
+     and would also hit `pc + 0x11c4`). *)
+  SUBGOAL_THEN
+    `word_reversefields 8 (ctr_block nonce (c + nb)) =
+     word_reversefields 8 (ctr_block nonce (nb + c))`
+    (fun th -> REWRITE_TAC[th]) THENL
+   [AP_TERM_TAC THEN AP_TERM_TAC THEN ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `nb <= 8 \/ (9 <= nb /\ nb <= 16) \/ 17 <= nb` MP_TAC THENL
    [ASM_ARITH_TAC; ALL_TAC] THEN
   STRIP_TAC THENL
