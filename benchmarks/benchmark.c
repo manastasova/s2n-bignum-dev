@@ -1581,7 +1581,9 @@ void call_aes_xts_decrypt_512(void) { repeatfewer(10,aes_xts_decrypt_helper(512)
 // Timing harness only: the round keys, GHASH table, tag and counter are filled
 // with arbitrary buffer bytes (the kernel runs the same instructions regardless
 // of the values). "len" is in bytes and must be a multiple of 16; the kernel is
-// passed the length in bits and only takes the 8x path for len >= 256.
+// passed the length in bits and dispatches on the block count: dedicated short
+// paths for 1-4 blocks, a shared setup for 5-16, and the 8x main loop only for
+// 17 blocks or more (len >= 272).
 static uint8_t aes_gcm_xi[16], aes_gcm_ivec[16];
 static uint64_t aes_gcm_htable[32];
 static void aesv8_gcm_8x_enc_256_wb_helper(size_t len)
@@ -2211,11 +2213,11 @@ int main(int argc, char *argv[])
 
   // AES-256-GCM 8x encrypt kernel needs both AES and SHA3 (eor3)
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (256 bytes)",call_aesv8_gcm_8x_enc_256_wb_256);
-  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (256 bytes)",call_aesv8_gcm_8x_enc_256_wb_128);
-  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (256 bytes)",call_aesv8_gcm_8x_enc_256_wb_64);
-  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (256 bytes)",call_aesv8_gcm_8x_enc_256_wb_48);
-  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (256 bytes)",call_aesv8_gcm_8x_enc_256_wb_32);
-  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (256 bytes)",call_aesv8_gcm_8x_enc_256_wb_16);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (128 bytes)",call_aesv8_gcm_8x_enc_256_wb_128);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (64 bytes)",call_aesv8_gcm_8x_enc_256_wb_64);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (48 bytes)",call_aesv8_gcm_8x_enc_256_wb_48);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (32 bytes)",call_aesv8_gcm_8x_enc_256_wb_32);
+  timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (16 bytes)",call_aesv8_gcm_8x_enc_256_wb_16);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (512 bytes)",call_aesv8_gcm_8x_enc_256_wb_512);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (1024 bytes)",call_aesv8_gcm_8x_enc_256_wb_1024);
   timingtest(aes&&sha3,"aesv8_gcm_8x_enc_256_wb (4096 bytes)",call_aesv8_gcm_8x_enc_256_wb_4096);
