@@ -1584,18 +1584,18 @@ void call_aes_xts_decrypt_512(void) { repeatfewer(10,aes_xts_decrypt_helper(512)
 // passed the length in bits and dispatches on the block count: dedicated short
 // paths for 1-4 blocks, a shared setup for 5-16, and the 8x main loop only for
 // 17 blocks or more (len >= 272).
-static uint8_t aes_gcm_xi[16], aes_gcm_ivec[16];
-static uint64_t aes_gcm_htable[32];
+static uint64_t aes_gcm_enc_tag[2], aes_gcm_enc_htable[24];
+static uint8_t aes_gcm_enc_ivec[16];
 static void aesv8_gcm_8x_enc_256_wb_helper(size_t len)
 {
   int j;
   for (j = 0; j < 30; ++j) aes_key1.rd_key[j] = b1[j % BUFFERSIZE];
   aes_key1.rounds = 14;  // AES-256
-  for (j = 0; j < 32; ++j) aes_gcm_htable[j] = b2[j % BUFFERSIZE];
-  for (j = 0; j < 16; ++j) { aes_gcm_xi[j] = (uint8_t)(b3[j] & 0xFF);
-                             aes_gcm_ivec[j] = (uint8_t)(b4[j] & 0xFF); }
-  aesv8_gcm_8x_enc_256_wb((uint8_t*)b0, len * 8, (uint8_t*)b1, aes_gcm_xi,
-                          aes_gcm_ivec, &aes_key1, aes_gcm_htable);
+  for (j = 0; j < 24; ++j) aes_gcm_enc_htable[j] = b2[j % BUFFERSIZE];
+  for (j = 0; j < 2; ++j) aes_gcm_enc_tag[j] = b3[j];
+  for (j = 0; j < 16; ++j) aes_gcm_enc_ivec[j] = (uint8_t)(b4[j] & 0xFF);
+  aesv8_gcm_8x_enc_256_wb((uint8_t*)b0, len * 8, (uint8_t*)b1, aes_gcm_enc_tag,
+                          aes_gcm_enc_ivec, &aes_key1, aes_gcm_enc_htable);
 }
 
 void call_aesv8_gcm_8x_enc_256_wb_256(void)  { repeat(aesv8_gcm_8x_enc_256_wb_helper(256)); }
