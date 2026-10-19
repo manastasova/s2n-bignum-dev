@@ -46,13 +46,6 @@ extern void aes_xts_decrypt(const uint8_t *in, uint8_t *out, size_t length,
 extern void aes_xts_encrypt(const uint8_t *in, uint8_t *out, size_t length,
         const s2n_bignum_AES_KEY *key1, const s2n_bignum_AES_KEY *key2, const uint8_t iv[S2N_BIGNUM_STATIC 16]);
 
-// Whole-blocks-only variant of aesv8_gcm_8x_enc_256: identical contract, but
-// requires "bit_len" to be a nonzero multiple of 128 (whole 16-byte blocks) and
-// returns 0 having touched no memory otherwise. No partial-final-block masking.
-// Inputs in[bit_len/8], bit_len, xi[16], ivec[16], key[244], htable[32]; outputs function return, out[bit_len/8], xi[16], ivec[16]
-extern size_t aesv8_gcm_8x_enc_256_wb(const uint8_t *in, size_t bit_len, uint8_t *out,
-        uint8_t xi[S2N_BIGNUM_STATIC 16], uint8_t ivec[S2N_BIGNUM_STATIC 16],
-        const s2n_bignum_AES_KEY *key, const uint64_t htable[S2N_BIGNUM_STATIC 32]);
 // AES128_GCM_DEC (AES-128-GCM bulk decryption of whole blocks with GHASH tag update)
 // Inputs in[len_bits/8], len_bits, tag[2], ivec[16], key[176], htable[12]; outputs out[len_bits/8], tag[2], ivec[16], returns bytes processed
 extern uint64_t aes128_gcm_dec(const uint8_t *in, uint64_t len_bits, uint8_t *out,
@@ -81,6 +74,16 @@ extern uint64_t aes256_gcm_enc(const uint8_t *in, uint64_t len_bits, uint8_t *ou
 // Callers must ensure the cumulative message length does not exceed 2^36 - 32 bytes (2^39 - 256 bits).
 // Inputs in[len_bits/8], len_bits, tag[2], ivec[16], key[240], htable[24]; outputs out[len_bits/8], tag[2], ivec[16], returns bytes processed
 extern uint64_t aesv8_gcm_8x_dec_256_wb(const uint8_t *in, uint64_t len_bits, uint8_t *out,
+        uint64_t *tag, uint8_t *ivec, const s2n_bignum_AES_KEY *key, const uint64_t *htable);
+
+// AESV8_GCM_8X_ENC_256_WB (AES-256-GCM bulk encryption of whole blocks with GHASH tag update, 8 blocks at a time)
+// Derived from AWS-LC's aesv8_gcm_8x_enc_256. For len_bits not a multiple of 128 nothing is processed: returns 0 without touching memory.
+// Requires in + len_bits/8 < 2^63 (signed pointer compares); in-place operation (out == in) is not covered.
+// Of key it reads only the 15 round keys (240 bytes), not key->rounds; of htable, the 192-byte table of H^1..H^8 and their Karatsuba middle terms.
+// This routine does not enforce the NIST GCM message limit.
+// Callers must ensure the cumulative message length does not exceed 2^36 - 32 bytes (2^39 - 256 bits).
+// Inputs in[len_bits/8], len_bits, tag[2], ivec[16], key[240], htable[24]; outputs out[len_bits/8], tag[2], ivec[16], returns bytes processed
+extern uint64_t aesv8_gcm_8x_enc_256_wb(const uint8_t *in, uint64_t len_bits, uint8_t *out,
         uint64_t *tag, uint8_t *ivec, const s2n_bignum_AES_KEY *key, const uint64_t *htable);
 
 // Add, z := x + y
