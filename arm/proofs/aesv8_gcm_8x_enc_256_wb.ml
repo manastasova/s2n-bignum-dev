@@ -11037,13 +11037,13 @@ let AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT = prove
 needs "arm/proofs/consttime.ml";;
 
 (* --- Core-level leg safety: FAST1..FAST4 (fixed nb, straight-line). ------- *)
-(* Entry pc+0x38, exit pc+0x11c4; frame (\s s'. T); f_events depends only on  *)
-(* the public pointers + stackpointer + pc (nb is fixed per leg).             *)
+(* Entry pc+0x38, exit pc+0x11c4; MAYCHANGE frame (ABI, Q8..Q15, out/tag/     *)
+(* ivec); f_events depends on the public pointers + stackpointer + pc.        *)
 
 let AESV8_GCM_8X_ENC_256_FAST1_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
-     tag0 nonce c rk inblock nb pc.
+     nb pc.
     nb = 1 /\
     bit_len = 128 * nb /\
     val in_p + 16 * nb < 2 EXP 63 /\
@@ -11069,44 +11069,6 @@ let AESV8_GCM_8X_ENC_256_FAST1_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -11127,7 +11089,7 @@ let AESV8_GCM_8X_ENC_256_FAST1_SAFE = prove
 let AESV8_GCM_8X_ENC_256_FAST2_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
-     tag0 nonce c rk inblock nb pc.
+     nb pc.
     nb = 2 /\
     bit_len = 128 * nb /\
     val in_p + 16 * nb < 2 EXP 63 /\
@@ -11153,44 +11115,6 @@ let AESV8_GCM_8X_ENC_256_FAST2_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -11211,7 +11135,7 @@ let AESV8_GCM_8X_ENC_256_FAST2_SAFE = prove
 let AESV8_GCM_8X_ENC_256_FAST3_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
-     tag0 nonce c rk inblock nb pc.
+     nb pc.
     nb = 3 /\
     bit_len = 128 * nb /\
     val in_p + 16 * nb < 2 EXP 63 /\
@@ -11237,44 +11161,6 @@ let AESV8_GCM_8X_ENC_256_FAST3_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -11295,7 +11181,7 @@ let AESV8_GCM_8X_ENC_256_FAST3_SAFE = prove
 let AESV8_GCM_8X_ENC_256_FAST4_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
-     tag0 nonce c rk inblock nb pc.
+     nb pc.
     nb = 4 /\
     bit_len = 128 * nb /\
     val in_p + 16 * nb < 2 EXP 63 /\
@@ -11321,44 +11207,6 @@ let AESV8_GCM_8X_ENC_256_FAST4_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -11384,7 +11232,7 @@ let AESV8_GCM_8X_ENC_256_FAST4_SAFE = prove
 let AESV8_GCM_8X_ENC_256_SETUP0_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
-     tag0 nonce c rk inblock nb pc.
+     nb pc.
     1 <= nb /\ nb <= 8 /\ ~(nb = 1) /\ ~(nb = 2) /\ ~(nb = 3) /\ ~(nb = 4) /\
     bit_len = 128 * nb /\
     val in_p + 16 * nb < 2 EXP 63 /\
@@ -11410,44 +11258,6 @@ let AESV8_GCM_8X_ENC_256_SETUP0_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0xee0) /\
            read X0 s = in_p /\
@@ -12060,7 +11870,7 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM_SAFE = prove
 let AESV8_GCM_8X_ENC_256_SETUP0_TAIL_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
-     tag0 nonce c rk inblock nb pc.
+     nb pc.
     1 <= nb /\ nb <= 8 /\ ~(nb = 1) /\ ~(nb = 2) /\ ~(nb = 3) /\ ~(nb = 4) /\
     bit_len = 128 * nb /\
     val in_p + 16 * nb < 2 EXP 63 /\
@@ -12086,44 +11896,6 @@ let AESV8_GCM_8X_ENC_256_SETUP0_TAIL_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -12161,8 +11933,7 @@ let AESV8_GCM_8X_ENC_256_SETUP0_TAIL_SAFE = prove
     MP_TAC (REWRITE_RULE[APPEND]
       (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
               `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
-              `bit_len:num`; `tag0:int128`; `nonce:(96)word`; `c:num`; `rk:int128 list`;
-              `inblock:num->int128`; `nb:num`; `pc:num`; `[]:(uarch_event)list`] th))) THEN
+              `bit_len:num`; `nb:num`; `pc:num`; `[]:(uarch_event)list`] th))) THEN
   ANTS_TAC THENL
    [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
     ASM_REWRITE_TAC[];
@@ -12275,7 +12046,7 @@ let AESV8_GCM_8X_ENC_256_PREPRETAIL_GEN_SAFE = prove
 let AESV8_GCM_8X_ENC_256_SETUP_G1_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
-     tag0 nonce c rk inblock nb k pc.
+     nb k pc.
     k = 0 /\
     8 * (k + 1) <= nb /\
     bit_len = 128 * nb /\
@@ -12304,44 +12075,6 @@ let AESV8_GCM_8X_ENC_256_SETUP_G1_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0xa10) /\
            read X0 s = word_add in_p (word (128 * (0 + 1))) /\
@@ -12378,6 +12111,14 @@ let AESV8_GCM_8X_ENC_256_SETUP_G1_SAFE = prove
   REPEAT META_EXISTS_TAC THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
+  SUBGOAL_THEN
+   `?inblock. !j. j < nb
+      ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s0 =
+          inblock j`
+   (CHOOSE_THEN ASSUME_TAC) THENL
+   [EXISTS_TAC
+      `\j. read (memory :> bytes128 (word_add in_p (word (16 * j)))) s0` THEN
+    REWRITE_TAC[]; ALL_TAC] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
   SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `5 <= nb` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
@@ -12513,7 +12254,7 @@ let AESV8_GCM_8X_ENC_256_PREPRETAIL_TAIL_SAFE = prove
 let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
-     tag0 nonce c rk inblock nb k pc.
+     nb k pc.
     k = 0 /\
     8 * (k + 1) <= nb /\
     bit_len = 128 * nb /\
@@ -12543,44 +12284,6 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -12618,8 +12321,7 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1_SAFE = prove
     MP_TAC (REWRITE_RULE[APPEND]
       (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
               `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
-              `bit_len:num`; `end_p:int64`; `tag0:int128`; `nonce:(96)word`;
-              `c:num`; `rk:int128 list`; `inblock:num->int128`; `nb:num`; `k:num`;
+              `bit_len:num`; `end_p:int64`; `nb:num`; `k:num`;
               `pc:num`; `[]:(uarch_event)list`] th))) THEN
   ANTS_TAC THENL
    [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
@@ -12662,7 +12364,7 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1_SAFE = prove
 let AESV8_GCM_8X_ENC_256_SETUP_GEN_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
-     tag0 nonce c rk inblock nb k pc.
+     nb k pc.
     ~(k = 0) /\
     8 * (k + 1) <= nb /\
     bit_len = 128 * nb /\
@@ -12691,44 +12393,6 @@ let AESV8_GCM_8X_ENC_256_SETUP_GEN_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x4c0) /\
            read X0 s = word_add in_p (word (128 * (0 + 1))) /\
@@ -12765,6 +12429,14 @@ let AESV8_GCM_8X_ENC_256_SETUP_GEN_SAFE = prove
   REPEAT META_EXISTS_TAC THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
+  SUBGOAL_THEN
+   `?inblock. !j. j < nb
+      ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s0 =
+          inblock j`
+   (CHOOSE_THEN ASSUME_TAC) THENL
+   [EXISTS_TAC
+      `\j. read (memory :> bytes128 (word_add in_p (word (16 * j)))) s0` THEN
+    REWRITE_TAC[]; ALL_TAC] THEN
   RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
   SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
   SUBGOAL_THEN `5 <= nb` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
@@ -13044,7 +12716,7 @@ let AESV8_GCM_8X_ENC_256_LOOP_TAIL_SAFE = prove
 let AESV8_GCM_8X_ENC_256_GEN_CORRECT_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
-     tag0 nonce c rk inblock nb k pc.
+     nb k pc.
     ~(k = 0) /\
     8 * (k + 1) <= nb /\
     bit_len = 128 * nb /\
@@ -13074,44 +12746,6 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -13149,8 +12783,7 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT_SAFE = prove
     MP_TAC (REWRITE_RULE[APPEND]
       (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
               `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
-              `bit_len:num`; `end_p:int64`; `tag0:int128`; `nonce:(96)word`;
-              `c:num`; `rk:int128 list`; `inblock:num->int128`; `nb:num`; `k:num`;
+              `bit_len:num`; `end_p:int64`; `nb:num`; `k:num`;
               `pc:num`; `[]:(uarch_event)list`] th))) THEN
   ANTS_TAC THENL
    [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
@@ -13191,7 +12824,7 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT_SAFE = prove
 let AESV8_GCM_8X_ENC_256_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
-     tag0 nonce c rk inblock nb pc.
+     nb pc.
     1 <= nb /\
     bit_len = 128 * nb /\
     val in_p + 16 * nb < 2 EXP 63 /\
@@ -13217,44 +12850,6 @@ let AESV8_GCM_8X_ENC_256_SAFE = prove
            read X11 s = key_p /\
            read X9 s = word (bit_len DIV 8) /\
            read X10 s = word_add stackpointer (word 0x40) /\
-           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
-             word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s =
-             word_reversefields 8 (ctr_block nonce c) /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < nb
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = word (pc + 0x11c4) /\
            (exists e2.
@@ -13291,8 +12886,7 @@ let AESV8_GCM_8X_ENC_256_SAFE = prove
   MAP_EVERY X_GEN_TAC
    [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
     `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
-    `bit_len:num`; `tag0:int128`; `nonce:(96)word`; `c:num`; `rk:int128 list`;
-    `inblock:num->int128`; `nb:num`; `pc:num`] THEN
+    `bit_len:num`; `nb:num`; `pc:num`] THEN
   STRIP_TAC THEN BETA_TAC THEN
   SUBGOAL_THEN `nb <= 8 \/ (9 <= nb /\ nb <= 16) \/ 17 <= nb` MP_TAC THENL
    [ASM_ARITH_TAC; ALL_TAC] THEN
@@ -13344,9 +12938,8 @@ let AESV8_GCM_8X_ENC_256_SAFE = prove
 let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p
-     tag0 nonce ctr0 c rk inblock len_bits pc stackpointer returnaddress.
+     len_bits pc stackpointer returnaddress.
     aligned 16 stackpointer /\
-    word_reversefields 8 ctr0 = ctr_block nonce c /\
     val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
     ALLPAIRS nonoverlapping
       [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
@@ -13363,14 +12956,6 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
            read X30 s = returnaddress /\
            C_ARGUMENTS
             [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p] s /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s = ctr0 /\
-           wordlist_from_memory(key_p,15) s =
-             MAP (word_reversefields 8) rk /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < wb_blocks len_bits
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = returnaddress /\
            (exists e2.
@@ -13407,9 +12992,6 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
       :(uarch_event)list` THEN
   REPEAT META_EXISTS_TAC THEN
   REPEAT STRIP_TAC THEN
-  SUBGOAL_THEN `ctr0:int128 = word_reversefields 8 (ctr_block nonce c)` SUBST_ALL_TAC THENL
-   [UNDISCH_TAC `word_reversefields 8 ctr0 = ctr_block nonce c` THEN
-    DISCH_THEN(SUBST1_TAC o SYM) THEN REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS]; ALL_TAC] THEN
   ABBREV_TAC `nb = wb_blocks len_bits` THEN
   ASM_CASES_TAC `val(len_bits:int64) MOD 128 = 0` THENL
    [ALL_TAC;
@@ -13500,8 +13082,7 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
       (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
               `ivec_p:int64`; `key_p:int64`; `htable_p:int64`;
               `word_sub stackpointer (word 80):int64`; `128 * nb`;
-              `tag0:int128`; `nonce:(96)word`; `c:num`; `rk:int128 list`;
-              `inblock:num->int128`; `nb:num`; `pc:num`] th))) THEN
+              `nb:num`; `pc:num`] th))) THEN
   ANTS_TAC THENL
    [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
     REPEAT CONJ_TAC THEN
@@ -13536,9 +13117,8 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
 let AESV8_GCM_8X_ENC_256_SUBROUTINE_SAFE = prove
  (`exists f_events.
    !e in_p out_p tag_p ivec_p key_p htable_p
-     tag0 nonce ctr0 c rk inblock len_bits pc stackpointer returnaddress.
+     len_bits pc stackpointer returnaddress.
     aligned 16 stackpointer /\
-    word_reversefields 8 ctr0 = ctr_block nonce c /\
     val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
     ALLPAIRS nonoverlapping
       [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
@@ -13555,14 +13135,6 @@ let AESV8_GCM_8X_ENC_256_SUBROUTINE_SAFE = prove
            read X30 s = returnaddress /\
            C_ARGUMENTS
             [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p] s /\
-           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
-           read (memory :> bytes128 ivec_p) s = ctr0 /\
-           wordlist_from_memory(key_p,15) s =
-             MAP (word_reversefields 8) rk /\
-           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
-           (!j. j < wb_blocks len_bits
-                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
-                    inblock j) /\
            read events s = e)
       (\s. read PC s = returnaddress /\
            (exists e2.
