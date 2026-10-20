@@ -2,40 +2,73 @@
 // SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
 
 // ----------------------------------------------------------------------------
-// AESV8_GCM_8X_ENC_256 (AES-256-GCM, 8x-unrolled encrypt kernel, WHOLE-BLOCKS)
+// AES-256-GCM bulk encryption, 8 blocks at a time: counter-mode encryption of
+// whole blocks with the GHASH tag update
+// Inputs in[len_bits/8], len_bits, tag[2], ivec[16], key[240], htable[24];
+// outputs out[len_bits/8], tag[2], ivec[16], returns bytes processed
 //
-// Fused AES-256 counter-mode encryption + GHASH-over-ciphertext kernel. It
-// encrypts the plaintext "in" (whose length is given in BITS) under AES-256 in
-// counter mode, starting from the counter block "ivec"; writes the ciphertext
-// to "out"; folds the ciphertext into the GHASH accumulator "Xi" using the
-// precomputed key-power table "Htable"; advances "ivec" to the next counter;
-// and returns the number of BYTES processed.
+//    extern uint64_t aesv8_gcm_8x_enc_256_wb(const uint8_t *in, uint64_t len_bits,
+//                                            uint8_t *out, uint64_t *tag,
+//                                            uint8_t *ivec,
+//                                            const s2n_bignum_AES_KEY *key,
+//                                            const uint64_t *htable);
 //
-// WHOLE-BLOCKS-ONLY variant, derived from aesv8_gcm_8x_enc_256.S with two
-// intentional divergences: (1) a whole-blocks guard at entry
-// (tst x1,#127; b.ne L256_enc_ret) that returns 0 having touched no memory
-// unless bit_len is a nonzero multiple of 128; (2) the partial-block masking
-// machinery in L256_enc_blocks_less_than_1 is deleted as dead under the
-// contract - including the ld1 of existing output bytes (a 16-byte overread of
-// the output buffer) and the read-modify-write bif blend. The final block is a
-// plain full block. The aws-lc caller already satisfies the contract (gcm.c
-// masks len to whole blocks).
+// Processes the input "in" of "len_bits" bits under AES-256 in GCM mode: each
+// 16-byte block is encrypted in counter mode using the counter block "ivec"
+// and the AES round keys "key", the result is written to "out", and the
+// running GHASH authenticator "tag" is updated over the OUTPUT (ciphertext)
+// using the precomputed table of H-powers "htable". On return the updated
+// counter is written back to "ivec", the updated authenticator to "tag", and
+// the number of bytes processed, len_bits/8, is returned. "tag" and "ivec"
+// are the Xi and Yi blocks of AWS-LC's GCM context.
 //
-//    extern size_t aesv8_gcm_8x_enc_256_wb(const uint8_t *in, size_t bit_len,
-//                                          uint8_t *out,
-//                                          uint8_t xi[static 16],
-//                                          uint8_t ivec[static 16],
-//                                          const s2n_bignum_AES_KEY *key,
-//                                          const uint64_t htable[static 32]);
+// Whole blocks only: "len_bits" must be a multiple of 128. For any other
+// value nothing is processed: the function returns 0 without reading or
+// writing memory, as it also does for len_bits = 0. A partial final block is
+// the caller's responsibility, as in AWS-LC's GCM layer, whose
+// crypto/fipsmodule/modes/gcm.c passes whole blocks only.
 //
-// Standard ARM ABI: X0 = in, X1 = bit_len, X2 = out, X3 = Xi, X4 = ivec,
-//                   X5 = key, X6 = Htable, result in X0
+// The table "htable" is the twelve 16-byte entries (192 bytes) that
+// gcm_init_v8 writes at the start of its Htable, derived from the subkey
+// H = AES_K(0^128). They hold, in order, H, m(H,H^2), H^2, H^3, m(H^3,H^4),
+// H^4, H^5, m(H^5,H^6), H^6, H^7, m(H^7,H^8), H^8, where the powers are in
+// the bit-reflected ("twisted") representation that gcm_init_v8 uses and
+// m(A,B) packs the Karatsuba middle terms A.lo ^ A.hi (low 64 bits) and
+// B.lo ^ B.hi (high 64 bits) of two neighbouring powers into one entry. The
+// reference implementation in tests/ref_aes_gcm.c (ref_gcm_init_htable)
+// constructs the same table independently.
+// Of "key" only the 15 round keys (240 bytes) are read, not key->rounds, and
+// of "htable" only these 192 bytes.
+//
+// The input must satisfy in + len_bits/8 < 2^63, because the loop control
+// compares the input pointer with the main-loop end pointer as signed
+// integers (cmp x0, x5 followed by b.ge or b.lt). The buffers written ("out",
+// "tag" and "ivec") must not overlap each other, "in", "key" or "htable"; in
+// particular, in-place operation (out == in) is not covered by the proof.
+//
+// This routine does not enforce the NIST GCM message limit.
+// Callers must ensure the cumulative message length does not exceed 2^36 - 32 bytes (2^39 - 256 bits).
+//
+// Standard ARM ABI: X0 = in, X1 = len_bits, X2 = out, X3 = tag, X4 = ivec,
+//                   X5 = key, X6 = htable, returns X0
 // ----------------------------------------------------------------------------
-// Converted to s2n-bignum house style from the AWS-LC perl generator
-// crypto/fipsmodule/modes/asm/aesv8-gcm-armv8-unroll8.pl (flavor linux64),
-// function aesv8_gcm_8x_enc_256. This is the whole-blocks variant, and the body
-// has since been rescheduled for speed, so it is not a verbatim copy of the
-// generator's output.
+
+// Origin: derived from AWS-LC's aesv8_gcm_8x_enc_256
+// (crypto/fipsmodule/modes/asm/aesv8-gcm-armv8-unroll8.pl, flavor linux64),
+// with these changes:
+//  - Entry: a whole-blocks guard (tst x1, #127; b.ne L256_enc_ret) follows
+//    the zero-length check (cbz x1, L256_enc_ret) and precedes the d8-d15
+//    saves, so the reject path returns 0 having touched no memory unless
+//    len_bits is a nonzero multiple of 128.
+//  - Final block: the partial-block masking machinery at
+//    L256_enc_blocks_less_than_1 is removed as dead under the whole-blocks
+//    contract, including the ld1 that reads existing output bytes (a 16-byte
+//    overread of the output buffer) and the read-modify-write bif blend. The
+//    final block is a plain full block, and the output buffer is never read.
+//    The AWS-LC caller already satisfies the contract: its
+//    crypto/fipsmodule/modes/gcm.c masks the length to whole blocks.
+//  - The body has since been rescheduled for speed, so it is not a verbatim
+//    copy of the generator's output.
 #include "_internal_s2n_bignum_arm.h"
 
         .arch	armv8.2-a+crypto+sha3
