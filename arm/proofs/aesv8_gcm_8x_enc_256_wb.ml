@@ -11027,3 +11027,2558 @@ let AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT = prove
   MATCH_ACCEPT_TAC(ARM_ADD_IBT_RULE ~extra:[htable_mem_8; htable_mem_4; wordlist_from_memory]
                      aesv8_gcm_8x_enc_256_wb_mc aesv8_gcm_8x_enc_256_wb_tmc
                      AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_CORRECT));;
+
+(* ========================================================================= *)
+(* SAFETY companions (constant-time + memory-safety).  Pure additions; the   *)
+(* frozen correctness statements above are unchanged.  See arm/tutorial/      *)
+(* safety.ml and bignum_emontredc_8n.ml for the recipe.                       *)
+(* ========================================================================= *)
+
+needs "arm/proofs/consttime.ml";;
+
+(* --- Core-level leg safety: FAST1..FAST4 (fixed nb, straight-line). ------- *)
+(* Entry pc+0x38, exit pc+0x11c4; frame (\s s'. T); f_events depends only on  *)
+(* the public pointers + stackpointer + pc (nb is fixed per leg).             *)
+
+let AESV8_GCM_8X_ENC_256_FAST1_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
+     tag0 nonce c rk inblock nb pc.
+    nb = 1 /\
+    bit_len = 128 * nb /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  PROVE_SAFETY_SPEC_TAC AESV8_GCM_8X_ENC_256_WB_EXEC);;
+
+let AESV8_GCM_8X_ENC_256_FAST2_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
+     tag0 nonce c rk inblock nb pc.
+    nb = 2 /\
+    bit_len = 128 * nb /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  PROVE_SAFETY_SPEC_TAC AESV8_GCM_8X_ENC_256_WB_EXEC);;
+
+let AESV8_GCM_8X_ENC_256_FAST3_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
+     tag0 nonce c rk inblock nb pc.
+    nb = 3 /\
+    bit_len = 128 * nb /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  PROVE_SAFETY_SPEC_TAC AESV8_GCM_8X_ENC_256_WB_EXEC);;
+
+let AESV8_GCM_8X_ENC_256_FAST4_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
+     tag0 nonce c rk inblock nb pc.
+    nb = 4 /\
+    bit_len = 128 * nb /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  PROVE_SAFETY_SPEC_TAC AESV8_GCM_8X_ENC_256_WB_EXEC);;
+
+
+(* --- Setup segment safety: SETUP0_SAFE (nb in {5,6,7,8}, pc+0x38 ->      *)
+(* pc+0xee0).  Mirrors AESV8_GCM_8X_ENC_256_SETUP0's stepping (NSTEP +      *)
+(* DISPATCH4/SMALL_NOT_TAKEN + WB_BRANCH_COND_TRUE) but closes with the     *)
+(* safety property.  Event trace is nb-independent over {5,6,7,8}.          *)
+let AESV8_GCM_8X_ENC_256_SETUP0_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
+     tag0 nonce c rk inblock nb pc.
+    1 <= nb /\ nb <= 8 /\ ~(nb = 1) /\ ~(nb = 2) /\ ~(nb = 3) /\ ~(nb = 4) /\
+    bit_len = 128 * nb /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0xee0) /\
+           read X0 s = in_p /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = in_p /\
+           read X6 s = htable_p /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read X11 s = key_p /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (stackpointer:int64) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
+  SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `5 <= nb` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    MATCH_MP DISPATCH4_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`));
+    MATCH_MP DISPATCH_SMALL_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `5 <= nb`));
+    COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (8--36) THEN
+  MAP_EVERY NSTEP (37--261) THEN NSTEP 262 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_BRANCH_COND_TRUE
+     (CONJ (ASSUME `1 <= nb`) (ASSUME `nb <= 8`)); COND_CLAUSES]) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  REPEAT CONJ_TAC THEN TRY SETUP0_DISPATCH THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+(* --- Tail-cascade leg safety: TAIL_REM1..8_SAFE (entry pc+0xee0, exit       *)
+(* pc+0x11c4).  Mirrors AESV8_GCM_8X_ENC_256_TAIL_REM<k>'s NSTEP_GP drive +    *)
+(* TAIL_X5 branch resolution, but drops the functional Q19-fold/data closers   *)
+(* (safety needs only PC+events+inbounds) and closes with the safety property. *)
+(* Lean precondition: the key/htable/ivec/counter/inblock CONTENTS are dead    *)
+(* for safety (only the ACCESS addresses matter), so only pointer registers    *)
+(* are pinned.  nb = 8*g+k gives the rem=k arm; g symbolic.                    *)
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM1_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    nb = 8 * g + 1 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM1]) THEN
+  MAP_EVERY NSTEP_GP (10--85) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM2_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    nb = 8 * g + 2 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM2]) THEN
+  MAP_EVERY NSTEP_GP (10--57) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM3_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    nb = 8 * g + 3 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM3]) THEN
+  MAP_EVERY NSTEP_GP (10--110) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM4_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    nb = 8 * g + 4 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM4]) THEN
+  MAP_EVERY NSTEP_GP (10--110) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM5_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    nb = 8 * g + 5 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM5]) THEN
+  MAP_EVERY NSTEP_GP (10--119) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM6_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    nb = 8 * g + 6 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM6]) THEN
+  MAP_EVERY NSTEP_GP (10--127) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM7_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    nb = 8 * g + 7 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[TAIL_X5_REM7]) THEN
+  MAP_EVERY NSTEP_GP (10--133) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM8_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb g pc.
+    8 * g + 8 = nb /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--9) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP TAIL_X5_128_G (ASSUME `8 * g + 8 = nb`)]) THEN
+  MAP_EVERY NSTEP_GP (10--119) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC);;
+
+
+(* --- Tail dispatch safety: TAIL_REM_SAFE (rem in 1..8, g>=0).  Mirrors       *)
+(* AESV8_GCM_8X_ENC_256_TAIL_REM's r=1\/..\/r=8 case split: X_CHOOSE each      *)
+(* arm's event-trace witness, provide the explicit r-indexed dispatch function *)
+(* as f_events, then close each branch by the matching TAIL_REM<k>_SAFE.       *)
+
+let AESV8_GCM_8X_ENC_256_TAIL_REM_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb r g pc.
+    nb = 8 * g + r /\ 1 <= r /\ r <= 8 /\
+    end_p = word_add in_p (word (128 * g)) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * g)) /\
+           read X2 s = word_add out_p (word (128 * g)) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events r in_p out_p tag_p ivec_p key_p htable_p mod_p g pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  X_CHOOSE_TAC `w1:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM1_SAFE THEN
+  X_CHOOSE_TAC `w2:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM2_SAFE THEN
+  X_CHOOSE_TAC `w3:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM3_SAFE THEN
+  X_CHOOSE_TAC `w4:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM4_SAFE THEN
+  X_CHOOSE_TAC `w5:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM5_SAFE THEN
+  X_CHOOSE_TAC `w6:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM6_SAFE THEN
+  X_CHOOSE_TAC `w7:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM7_SAFE THEN
+  X_CHOOSE_TAC `w8:int64->int64->int64->int64->int64->int64->int64->num->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_TAIL_REM8_SAFE THEN
+  EXISTS_TAC
+   `\(r:num) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+     (key_p:int64) (htable_p:int64) (mod_p:int64) (g:num) (pc:num).
+      if r = 1 then w1 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      else if r = 2 then w2 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      else if r = 3 then w3 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      else if r = 4 then w4 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      else if r = 5 then w5 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      else if r = 6 then w6 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      else if r = 7 then w7 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      else w8 in_p out_p tag_p ivec_p key_p htable_p mod_p g pc
+      :(uarch_event)list` THEN
+  MAP_EVERY X_GEN_TAC
+   [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+    `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `mod_p:int64`;
+    `end_p:int64`; `nb:num`; `r:num`; `g:num`; `pc:num`] THEN
+  STRIP_TAC THEN
+  BETA_TAC THEN
+  SUBGOAL_THEN `r = 1 \/ r = 2 \/ r = 3 \/ r = 4 \/ r = 5 \/ r = 6 \/ r = 7 \/ r = 8`
+  MP_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  STRIP_TAC THEN
+  FIRST_X_ASSUM(fun th ->
+    if is_eq(concl th) && lhs(concl th) = `r:num`
+    then SUBST_ALL_TAC th else failwith "not r-eq") THEN
+  REWRITE_TAC[ARITH_EQ; COND_CLAUSES] THEN
+  FIRST_X_ASSUM MATCH_MP_TAC THEN
+  REPEAT CONJ_TAC THEN
+  (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE
+   (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
+    ASM_REWRITE_TAC[]) ORELSE
+   CONV_TAC WORD_RULE));;
+
+(* --- Whole-core safety for nb in {5,6,7,8}: SETUP0_TAIL_SAFE (pc+0x38 ->     *)
+(* pc+0x11c4).  Composes the strengthened SETUP0_SAFE (nb-independent setup     *)
+(* segment, tail-entry registers in its post) with TAIL_REM_SAFE (g=0, r=nb)    *)
+(* by a DOUBLE ABSTRACT BIGSTEP: bigstep SETUP0_SAFE with e_tail=[] (its trace  *)
+(* stays the abstract f_events_callee), then bigstep TAIL_REM_SAFE with e_tail  *)
+(* = that abstract setup trace (a single term -> no CONS blowup).  f_events     *)
+(* takes nb because the tail's event trace depends on nb (= r).                 *)
+let AESV8_GCM_8X_ENC_256_SETUP0_TAIL_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
+     tag0 nonce c rk inblock nb pc.
+    1 <= nb /\ nb <= 8 /\ ~(nb = 1) /\ ~(nb = 2) /\ ~(nb = 3) /\ ~(nb = 4) /\
+    bit_len = 128 * nb /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events nb in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_TAIL_REM_SAFE "H_TAIL" THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_SETUP0_SAFE "H_SETUP0" THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(nb:num) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (stackpointer:int64) (pc:num).
+       APPEND
+         (f_ev_tail nb in_p out_p tag_p ivec_p key_p htable_p stackpointer pc)
+         (f_ev_setup in_p out_p tag_p ivec_p key_p htable_p stackpointer pc)
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+    MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS]) THEN
+  (* ===== BIGSTEP 1: SETUP0 (pc+0x38 -> pc+0xee0), e_tail = [] ===== *)
+  USE_THEN "H_SETUP0" (fun th ->
+    MP_TAC (REWRITE_RULE[APPEND]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
+              `bit_len:num`; `tag0:int128`; `nonce:(96)word`; `c:num`; `rk:int128 list`;
+              `inblock:num->int128`; `nb:num`; `pc:num`; `[]:(uarch_event)list`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    ASM_REWRITE_TAC[];
+    ALL_TAC] THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s1" THEN
+  (* ===== BIGSTEP 2: TAIL_REM (pc+0xee0 -> pc+0x11c4), g=0, r=nb ===== *)
+  USE_THEN "H_TAIL" (fun th ->
+    MP_TAC (GEN_REWRITE_RULE I [RIGHT_FORALL_IMP_THM]
+      (REWRITE_RULE[ARITH_RULE `128 * 0 = 0`; WORD_ADD_0]
+        (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+                `ivec_p:int64`; `key_p:int64`; `htable_p:int64`;
+                `word_add stackpointer (word 0x40):int64`;
+                `word_add in_p (word (128 * 0)):int64`;
+                `nb:num`; `nb:num`; `0`; `pc:num`] th)))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
+  META_EXISTS_TAC THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s2" THENL [
+    BINOP_TAC THENL [ UNIFY_REFL_TAC; REFL_TAC ] THEN NO_TAC;
+    ALL_TAC ] THEN
+  (* ===== CLOSE ===== *)
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  CONJ_TAC THENL
+   [ BINOP_TAC THENL [ UNIFY_F_EVENTS_TAC; UNIFY_F_EVENTS_TAC ];
+     DISCHARGE_MEMACCESS_INBOUNDS_TAC ])
+;;
+
+(* --- PREPRETAIL_GEN_SAFE (pc+0xa10 -> pc+0xee0): the shared prepretail        *)
+(* segment (last full 8-block group's reduction) for nb >= 9.  Lean spec        *)
+(* (pointer regs only; content facts dead for safety).  Pointer regs unchanged  *)
+(* entry->exit; straight-line NSTEP_GP (1--308) drive.  f_events takes k         *)
+(* (access addresses depend on the group index).                                *)
+let AESV8_GCM_8X_ENC_256_PREPRETAIL_GEN_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb k pc.
+    8 * (k + 1) <= nb /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xa10) /\
+           read X0 s = word_add in_p (word (128 * (k + 1))) /\
+           read X2 s = word_add out_p (word (128 * (k + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0xee0) /\
+           read X0 s = word_add in_p (word (128 * (k + 1))) /\
+           read X2 s = word_add out_p (word (128 * (k + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p k pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (k:num) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p mod_p k pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  MAP_EVERY NSTEP_GP (1--308) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC)
+;;
+
+(* --- SETUP_G1_SAFE (pc+0x38 -> pc+0xa10, k=0, nb 9-16): setup for the         *)
+(* single-full-group case.  Mirrors SETUP_G1's NSTEP/LDP_SETUP drive + the      *)
+(* SETUP_BRANCH_COND_FALSE_GEN / _TRUE_2 guard rewrites; post strengthened with *)
+(* the PREPRETAIL_GEN entry registers, closed via SETUP_RECON_TAC_GEN.          *)
+let AESV8_GCM_8X_ENC_256_SETUP_G1_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
+     tag0 nonce c rk inblock nb k pc.
+    k = 0 /\
+    8 * (k + 1) <= nb /\
+    bit_len = 128 * nb /\
+    8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0xa10) /\
+           read X0 s = word_add in_p (word (128 * (0 + 1))) /\
+           read X2 s = word_add out_p (word (128 * (0 + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read X11 s = key_p /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (stackpointer:int64) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
+  SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `5 <= nb` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    MATCH_MP DISPATCH4_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`));
+    MATCH_MP DISPATCH_SMALL_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `5 <= nb`));
+    COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (8--36) THEN
+  MAP_EVERY NSTEP (37--261) THEN NSTEP 262 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_GEN
+    (CONJ (ASSUME `8 * (k + 1) < nb`) (CONJ (ASSUME `nb <= 8 * (k + 2)`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))); COND_CLAUSES]) THEN
+  LDP_SETUP_TAC 263 THEN LDP_SETUP_TAC 264 THEN MAP_EVERY NSTEP (265--271) THEN
+  LDP_SETUP_TAC 272 THEN LDP_SETUP_TAC 273 THEN MAP_EVERY NSTEP (274--289) THEN
+  NSTEP 290 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_TRUE_2
+    (CONJ (ASSUME `k = 0`) (CONJ (ASSUME `8 * (k + 1) < nb`)
+      (CONJ (ASSUME `nb <= 8 * (k + 2)`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))));
+    COND_CLAUSES]) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  REPEAT CONJ_TAC THEN TRY SETUP_RECON_TAC_GEN THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC)
+;;
+
+(* --- PREPRETAIL_TAIL_SAFE (pc+0xa10 -> pc+0x11c4): reusable last-group +      *)
+(* tail composite (PREPRETAIL_GEN_SAFE o TAIL_REM_SAFE, g=k+1, r=nb-8*(k+1)),   *)
+(* general k.  Double abstract bigstep; f_events takes nb,k.                     *)
+let AESV8_GCM_8X_ENC_256_PREPRETAIL_TAIL_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb k pc.
+    8 * (k + 1) <= nb /\
+    8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0xa10) /\
+           read X0 s = word_add in_p (word (128 * (k + 1))) /\
+           read X2 s = word_add out_p (word (128 * (k + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_TAIL_REM_SAFE "H_TAIL" THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_PREPRETAIL_GEN_SAFE "H_PP" THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (nb:num) (k:num) (pc:num).
+       APPEND
+         (f_ev_tail in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc)
+         (f_ev_pp in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc)
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+    MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS]) THEN
+  (* ===== BIGSTEP 1: PREPRETAIL_GEN (pc+0xa10 -> pc+0xee0), e_tail = [] ===== *)
+  USE_THEN "H_PP" (fun th ->
+    MP_TAC (REWRITE_RULE[APPEND]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `mod_p:int64`;
+              `end_p:int64`; `nb:num`; `k:num`; `pc:num`;
+              `[]:(uarch_event)list`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s1" THEN
+  (* ===== BIGSTEP 2: TAIL_REM (pc+0xee0 -> pc+0x11c4), g=k+1, r=nb-8*(k+1) ===== *)
+  USE_THEN "H_TAIL" (fun th ->
+    MP_TAC (GEN_REWRITE_RULE I [RIGHT_FORALL_IMP_THM]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `mod_p:int64`;
+              `end_p:int64`;
+              `nb:num`; `nb - 8 * (k + 1)`; `k + 1`; `pc:num`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
+  META_EXISTS_TAC THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s2" THENL [
+    BINOP_TAC THENL [ UNIFY_REFL_TAC; REFL_TAC ] THEN NO_TAC;
+    ALL_TAC ] THEN
+  (* ===== CLOSE ===== *)
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  CONJ_TAC THENL
+   [ BINOP_TAC THENL [ UNIFY_F_EVENTS_TAC; UNIFY_F_EVENTS_TAC ];
+     DISCHARGE_MEMACCESS_INBOUNDS_TAC ])
+;;
+
+(* --- Whole-core safety for nb 9-16: FIXED_CORRECT_G1_SAFE (pc+0x38 ->         *)
+(* pc+0x11c4, k=0).  SETUP_G1_SAFE o PREPRETAIL_TAIL_SAFE (double bigstep).      *)
+(* f_events takes nb.                                                           *)
+let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
+     tag0 nonce c rk inblock nb k pc.
+    k = 0 /\
+    8 * (k + 1) <= nb /\
+    bit_len = 128 * nb /\
+    8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events nb in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_PREPRETAIL_TAIL_SAFE "H_PT" THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_SETUP_G1_SAFE "H_SETUP" THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(nb:num) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (stackpointer:int64) (pc:num).
+       APPEND
+         (f_ev_pt nb in_p out_p tag_p ivec_p key_p htable_p stackpointer pc)
+         (f_ev_setup nb in_p out_p tag_p ivec_p key_p htable_p stackpointer pc)
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+    MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS]) THEN
+  (* ===== BIGSTEP 1: SETUP_G1 (pc+0x38 -> pc+0xa10), e_tail = [] ===== *)
+  USE_THEN "H_SETUP" (fun th ->
+    MP_TAC (REWRITE_RULE[APPEND]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
+              `bit_len:num`; `end_p:int64`; `tag0:int128`; `nonce:(96)word`;
+              `c:num`; `rk:int128 list`; `inblock:num->int128`; `nb:num`; `k:num`;
+              `pc:num`; `[]:(uarch_event)list`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s1" THEN
+  (* ===== BIGSTEP 2: PREPRETAIL_TAIL (pc+0xa10 -> pc+0x11c4), k=0 ===== *)
+  USE_THEN "H_PT" (fun th ->
+    MP_TAC (GEN_REWRITE_RULE I [RIGHT_FORALL_IMP_THM]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`;
+              `word_add stackpointer (word 0x40):int64`; `end_p:int64`;
+              `nb:num`; `0`; `pc:num`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
+  META_EXISTS_TAC THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s2" THENL [
+    BINOP_TAC THENL [ UNIFY_REFL_TAC; REFL_TAC ] THEN NO_TAC;
+    ALL_TAC ] THEN
+  (* ===== CLOSE ===== *)
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  CONJ_TAC THENL
+   [ BINOP_TAC THENL [ UNIFY_F_EVENTS_TAC; UNIFY_F_EVENTS_TAC ];
+     DISCHARGE_MEMACCESS_INBOUNDS_TAC ])
+;;
+
+(* --- SETUP_GEN_SAFE (pc+0x38 -> pc+0x4c0, k<>0, nb>=17): setup for the        *)
+(* general (main-loop) case.  Identical to SETUP_G1_SAFE except the closing     *)
+(* branch is SETUP_BRANCH_COND_FALSE_2_GEN (~(k=0): fall into the main loop at   *)
+(* pc+0x4c0 rather than skip to prepretail).  Post = MAIN_LOOP entry registers.  *)
+let AESV8_GCM_8X_ENC_256_SETUP_GEN_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
+     tag0 nonce c rk inblock nb k pc.
+    ~(k = 0) /\
+    8 * (k + 1) <= nb /\
+    bit_len = 128 * nb /\
+    8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x4c0) /\
+           read X0 s = word_add in_p (word (128 * (0 + 1))) /\
+           read X2 s = word_add out_p (word (128 * (0 + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read X11 s = key_p /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (stackpointer:int64) (pc:num).
+       f_ev in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8]) THEN
+  SUBGOAL_THEN `~(nb = 4)` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `5 <= nb` ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+  MAP_EVERY NSTEP (1--5) THEN NSTEP 6 THEN NSTEP 7 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[
+    MATCH_MP DISPATCH4_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `~(nb = 4)`));
+    MATCH_MP DISPATCH_SMALL_NOT_TAKEN (CONJ (ASSUME `128 * nb < 2 EXP 64`) (ASSUME `5 <= nb`));
+    COND_CLAUSES]) THEN
+  MAP_EVERY NSTEP (8--36) THEN
+  MAP_EVERY NSTEP (37--261) THEN NSTEP 262 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_GEN
+    (CONJ (ASSUME `8 * (k + 1) < nb`) (CONJ (ASSUME `nb <= 8 * (k + 2)`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))); COND_CLAUSES]) THEN
+  LDP_SETUP_TAC 263 THEN LDP_SETUP_TAC 264 THEN MAP_EVERY NSTEP (265--271) THEN
+  LDP_SETUP_TAC 272 THEN LDP_SETUP_TAC 273 THEN MAP_EVERY NSTEP (274--289) THEN
+  NSTEP 290 THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP SETUP_BRANCH_COND_FALSE_2_GEN
+    (CONJ (ASSUME `~(k = 0)`) (CONJ (ASSUME `8 * (k + 1) < nb`)
+      (CONJ (ASSUME `nb <= 8 * (k + 2)`)
+          (ASSUME `val (in_p:int64) + 128 * (k + 1) < 2 EXP 63`))));
+    COND_CLAUSES]) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[] THEN
+  REPEAT CONJ_TAC THEN TRY SETUP_RECON_TAC_GEN THEN
+  DISCHARGE_SAFETY_PROPERTY_TAC)
+;;
+
+(* --- MAIN_LOOP_SAFE (pc+0x4c0 -> pc+0xa10, k iterations, nb>=17): the 8-block *)
+(* main loop.  Lean invariant (pointer regs only); ENSURES_EVENTS_WHILE_UP2_TAC  *)
+(* with pc2 = exit (pc+0xa10).  Body = the functional NSTEP_G drive with the     *)
+(* ldp/stp at 295/303/304 handled by LDP_STEP4_LEAN (= LDP_STEP4_TAC minus the    *)
+(* dead INBLOCKS content), + the b.gt at step 340; back-edge PC closed via        *)
+(* BRIDGE_GE + IV_ADD (in_p cancels -> i+1<k), events via ENUMERATEL_ADD1.        *)
+let LDP_STEP4_LEAN n =
+  let sn = "s"^string_of_int n in
+  ARM_VERBOSE_STEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC sn THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[WORD_RULE
+    `word_add (word_add b (word m)) (word nn):int64 = word_add b (word(m+nn))`]) THEN
+  RULE_ASSUM_TAC NORMOFF_RULE THEN
+  RULE_ASSUM_TAC SUBWORD_NORM_RULE THEN
+  DISCARD_OLDSTATE_TAC sn;;
+
+let AESV8_GCM_8X_ENC_256_MAIN_LOOP_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb k pc.
+    ~(k = 0) /\
+    8 * (k + 1) <= nb /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x4c0) /\
+           read X0 s = word_add in_p (word (128 * (0 + 1))) /\
+           read X2 s = word_add out_p (word (128 * (0 + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0xa10) /\
+           read X0 s = word_add in_p (word (128 * (k + 1))) /\
+           read X2 s = word_add out_p (word (128 * (k + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (nb:num) (k:num) (pc:num).
+       APPEND
+         (f_ev_post in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc)
+         (APPEND
+           (ENUMERATEL k
+             (\i. f_ev_loop in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc i))
+           (f_ev_pre in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc))
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_EVENTS_WHILE_UP2_TAC `k:num` `pc + 0x4c0` `pc + 0xa10`
+    `\i s. read X0 s = word_add in_p (word (128 * (i + 1))) /\
+           read X2 s = word_add out_p (word (128 * (i + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p` THEN
+  ASM_REWRITE_TAC[] THEN REPEAT CONJ_TAC THENL
+   [(* init (0-step) *)
+    ENSURES_INIT_TAC "s0" THEN ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+    REWRITE_TAC[ENUMERATEL; APPEND] THEN DISCHARGE_SAFETY_PROPERTY_TAC;
+    (* body *)
+    ALL_TAC;
+    (* exit (0-step, pc2 = post PC) *)
+    ENSURES_INIT_TAC "s0" THEN STRIP_EXISTS_ASSUM_TAC THEN
+    ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+    REWRITE_TAC[APPEND_NIL; APPEND] THEN DISCHARGE_SAFETY_PROPERTY_TAC] THEN
+  (* ===== loop body: pc+0x4c0 -> b.gt@pc+0xa0c (340 steps incl branch) ===== *)
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN STRIP_EXISTS_ASSUM_TAC THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[REWRITE_CONV[fst AESV8_GCM_8X_ENC_256_WB_EXEC]
+    `LENGTH aesv8_gcm_8x_enc_256_wb_tmc`]) THEN
+  MAP_EVERY NSTEP_G (1--294) THEN
+  LDP_STEP4_LEAN 295 THEN
+  MAP_EVERY NSTEP_G (296--302) THEN
+  LDP_STEP4_LEAN 303 THEN
+  LDP_STEP4_LEAN 304 THEN
+  MAP_EVERY NSTEP_G (305--340) THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  (* PC branch: <b.gt cond> <=> i+1<k, via BRIDGE_GE + IV_ADD *)
+  CONJ_TAC THENL
+   [REWRITE_TAC[BRIDGE_GE] THEN
+    SUBGOAL_THEN
+      `ival(word_add in_p (word (128 * (k + 1)))) = &(val(in_p:int64) + 128 * (k + 1)) /\
+       ival(word_add in_p (word (128 * (i + 1) + 128))) = &(val(in_p:int64) + (128 * (i + 1) + 128))`
+      (CONJUNCTS_THEN SUBST1_TAC) THENL
+     [CONJ_TAC THEN MATCH_MP_TAC IV_ADD THEN
+      UNDISCH_TAC `val(in_p:int64) + 128 * (k + 1) < 2 EXP 63` THEN
+      UNDISCH_TAC `(i:num) < k` THEN ARITH_TAC;
+      ALL_TAC] THEN
+    REWRITE_TAC[INT_OF_NUM_LE] THEN
+    GEN_REWRITE_TAC RAND_CONV [COND_RAND] THEN
+    MATCH_MP_TAC (MESON[]
+      `(p <=> q) ==> ((if p then (a:int64) else b) = (if q then a else b))`) THEN
+    UNDISCH_TAC `(i:num) < k` THEN ARITH_TAC;
+    ALL_TAC] THEN
+  (* X0, X2 pointer advances *)
+  CONJ_TAC THENL [ AP_TERM_TAC THEN AP_TERM_TAC THEN ARITH_TAC; ALL_TAC ] THEN
+  CONJ_TAC THENL [ AP_TERM_TAC THEN AP_TERM_TAC THEN ARITH_TAC; ALL_TAC ] THEN
+  (* events: e2 = ENUMERATEL (i+1) e_loop; unify f_ev_loop i := this iteration's trace *)
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  CONJ_TAC THENL
+   [PURE_REWRITE_TAC[APPEND_NIL] THEN
+    GEN_REWRITE_TAC RAND_CONV [ENUMERATEL_ADD1] THEN
+    BETA_TAC THEN
+    BINOP_TAC THENL [ UNIFY_F_EVENTS_TAC; REFL_TAC ];
+    DISCHARGE_MEMACCESS_INBOUNDS_TAC])
+;;
+
+(* --- LOOP_TAIL_SAFE (pc+0x4c0 -> pc+0x11c4): MAIN_LOOP_SAFE o                  *)
+(* PREPRETAIL_TAIL_SAFE (double abstract bigstep, param k).  The loop+prepretail *)
+(* +tail composite for nb>=17.                                                   *)
+let AESV8_GCM_8X_ENC_256_LOOP_TAIL_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p mod_p end_p nb k pc.
+    ~(k = 0) /\
+    8 * (k + 1) <= nb /\
+    8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192); (mod_p, 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x4c0) /\
+           read X0 s = word_add in_p (word (128 * (0 + 1))) /\
+           read X2 s = word_add out_p (word (128 * (0 + 1))) /\
+           read X3 s = tag_p /\
+           read X9 s = word (16 * nb) /\
+           read X4 s = word_add in_p (word (16 * nb)) /\
+           read X16 s = ivec_p /\
+           read X5 s = end_p /\
+           read X6 s = htable_p /\
+           read X10 s = mod_p /\
+           read X11 s = key_p /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; mod_p, 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_PREPRETAIL_TAIL_SAFE "H_PT" THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_MAIN_LOOP_SAFE "H_ML" THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (mod_p:int64) (nb:num) (k:num) (pc:num).
+       APPEND
+         (f_ev_pt in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc)
+         (f_ev_ml in_p out_p tag_p ivec_p key_p htable_p mod_p nb k pc)
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+    MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS]) THEN
+  (* ===== BIGSTEP 1: MAIN_LOOP (pc+0x4c0 -> pc+0xa10), e_tail = [] ===== *)
+  USE_THEN "H_ML" (fun th ->
+    MP_TAC (REWRITE_RULE[APPEND]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `mod_p:int64`;
+              `end_p:int64`; `nb:num`; `k:num`; `pc:num`;
+              `[]:(uarch_event)list`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s1" THEN
+  (* ===== BIGSTEP 2: PREPRETAIL_TAIL (pc+0xa10 -> pc+0x11c4), param k ===== *)
+  USE_THEN "H_PT" (fun th ->
+    MP_TAC (GEN_REWRITE_RULE I [RIGHT_FORALL_IMP_THM]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `mod_p:int64`;
+              `end_p:int64`; `nb:num`; `k:num`; `pc:num`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
+  META_EXISTS_TAC THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s2" THENL [
+    BINOP_TAC THENL [ UNIFY_REFL_TAC; REFL_TAC ] THEN NO_TAC;
+    ALL_TAC ] THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  CONJ_TAC THENL
+   [ BINOP_TAC THENL [ UNIFY_F_EVENTS_TAC; UNIFY_F_EVENTS_TAC ];
+     DISCHARGE_MEMACCESS_INBOUNDS_TAC ])
+;;
+
+(* --- Whole-core safety for nb>=17: GEN_CORRECT_SAFE (pc+0x38 -> pc+0x11c4,     *)
+(* k>=1).  SETUP_GEN_SAFE o LOOP_TAIL_SAFE (double bigstep).  f_events takes      *)
+(* nb,k.  Completes the nb>=17 core-safety leg; all 4 nb-legs now covered.        *)
+let AESV8_GCM_8X_ENC_256_GEN_CORRECT_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len end_p
+     tag0 nonce c rk inblock nb k pc.
+    ~(k = 0) /\
+    8 * (k + 1) <= nb /\
+    bit_len = 128 * nb /\
+    8 * (k + 1) < nb /\ nb <= 8 * (k + 2) /\
+    end_p = word_add in_p (word (128 * (k + 1))) /\
+    val in_p + 128 * (k + 1) < 2 EXP 63 /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events nb k in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; MODIFIABLE_SIMD_REGS;
+              MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] THEN
+  REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_LOOP_TAIL_SAFE "H_LT" THEN
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_SETUP_GEN_SAFE "H_SG" THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(nb:num) (k:num) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (stackpointer:int64) (pc:num).
+       APPEND
+         (f_ev_lt nb k in_p out_p tag_p ivec_p key_p htable_p stackpointer pc)
+         (f_ev_sg nb k in_p out_p tag_p ivec_p key_p htable_p stackpointer pc)
+       :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+    MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS]) THEN
+  (* ===== BIGSTEP 1: SETUP_GEN (pc+0x38 -> pc+0x4c0), e_tail = [] ===== *)
+  USE_THEN "H_SG" (fun th ->
+    MP_TAC (REWRITE_RULE[APPEND]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
+              `bit_len:num`; `end_p:int64`; `tag0:int128`; `nonce:(96)word`;
+              `c:num`; `rk:int128 list`; `inblock:num->int128`; `nb:num`; `k:num`;
+              `pc:num`; `[]:(uarch_event)list`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s1" THEN
+  (* ===== BIGSTEP 2: LOOP_TAIL (pc+0x4c0 -> pc+0x11c4), param k ===== *)
+  USE_THEN "H_LT" (fun th ->
+    MP_TAC (GEN_REWRITE_RULE I [RIGHT_FORALL_IMP_THM]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`;
+              `word_add stackpointer (word 0x40):int64`; `end_p:int64`;
+              `nb:num`; `k:num`; `pc:num`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE ASM_REWRITE_TAC[] ORELSE
+     CONV_TAC WORD_RULE);
+    ALL_TAC] THEN
+  ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
+  META_EXISTS_TAC THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s2" THENL [
+    BINOP_TAC THENL [ UNIFY_REFL_TAC; REFL_TAC ] THEN NO_TAC;
+    ALL_TAC ] THEN
+  ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
+  SAFE_META_EXISTS_TAC allowed_vars_e THEN
+  CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+  CONJ_TAC THENL
+   [ BINOP_TAC THENL [ UNIFY_F_EVENTS_TAC; UNIFY_F_EVENTS_TAC ];
+     DISCHARGE_MEMACCESS_INBOUNDS_TAC ])
+;;
+
+(* --- Whole-core safety (all nb): dispatch over the 4 nb-legs (FAST1-4,      *)
+(* SETUP0_TAIL, FIXED_CORRECT_G1, GEN_CORRECT), mirroring                      *)
+(* AESV8_GCM_8X_ENC_256_CORRECT's nb-tree.  Entry pc+0x38, exit pc+0x11c4.     *)
+let AESV8_GCM_8X_ENC_256_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p stackpointer bit_len
+     tag0 nonce c rk inblock nb pc.
+    1 <= nb /\
+    bit_len = 128 * nb /\
+    val in_p + 16 * nb < 2 EXP 63 /\
+    128 * nb < 2 EXP 64 /\
+    nonoverlapping (out_p, 16 * nb)
+                   (word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc) /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * nb); (key_p, 240); (htable_p, 192);
+       (word_add stackpointer (word 0x40), 8)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * nb); (tag_p, 16); (ivec_p, 16)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word (pc + 0x38) /\
+           read X0 s = in_p /\
+           read X1 s = word bit_len /\
+           read X2 s = out_p /\
+           read X3 s = tag_p /\
+           read X16 s = ivec_p /\
+           read X6 s = htable_p /\
+           read X11 s = key_p /\
+           read X9 s = word (bit_len DIV 8) /\
+           read X10 s = word_add stackpointer (word 0x40) /\
+           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
+             word 0xc200000000000000 /\
+           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 16))) s =
+             word_reversefields 8 (EL 1 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 32))) s =
+             word_reversefields 8 (EL 2 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 48))) s =
+             word_reversefields 8 (EL 3 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 64))) s =
+             word_reversefields 8 (EL 4 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 80))) s =
+             word_reversefields 8 (EL 5 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 96))) s =
+             word_reversefields 8 (EL 6 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 112))) s =
+             word_reversefields 8 (EL 7 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 128))) s =
+             word_reversefields 8 (EL 8 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 144))) s =
+             word_reversefields 8 (EL 9 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 160))) s =
+             word_reversefields 8 (EL 10 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 176))) s =
+             word_reversefields 8 (EL 11 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 192))) s =
+             word_reversefields 8 (EL 12 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 208))) s =
+             word_reversefields 8 (EL 13 rk) /\
+           read (memory :> bytes128 (word_add key_p (word 224))) s =
+             word_reversefields 8 (EL 14 rk) /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s =
+             word_reversefields 8 (ctr_block nonce c) /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < nb
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = word (pc + 0x11c4) /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events nb in_p out_p tag_p ivec_p key_p htable_p
+                     stackpointer pc /\
+              memaccess_inbounds e2
+                [in_p, 16 * nb; tag_p, 16; ivec_p, 16; key_p, 240;
+                 htable_p, 192; word_add stackpointer (word 0x40), 8]
+                [out_p, 16 * nb; tag_p, 16; ivec_p, 16]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * nb);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16)])`,
+  X_CHOOSE_TAC `w1:int64->int64->int64->int64->int64->int64->int64->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_FAST1_SAFE THEN
+  X_CHOOSE_TAC `w2:int64->int64->int64->int64->int64->int64->int64->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_FAST2_SAFE THEN
+  X_CHOOSE_TAC `w3:int64->int64->int64->int64->int64->int64->int64->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_FAST3_SAFE THEN
+  X_CHOOSE_TAC `w4:int64->int64->int64->int64->int64->int64->int64->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_FAST4_SAFE THEN
+  X_CHOOSE_TAC `wst:num->int64->int64->int64->int64->int64->int64->int64->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_SETUP0_TAIL_SAFE THEN
+  X_CHOOSE_TAC `wg1:num->int64->int64->int64->int64->int64->int64->int64->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1_SAFE THEN
+  X_CHOOSE_TAC `wgen:num->num->int64->int64->int64->int64->int64->int64->int64->num->(uarch_event)list` AESV8_GCM_8X_ENC_256_GEN_CORRECT_SAFE THEN
+  EXISTS_TAC
+   `\(nb:num) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+     (key_p:int64) (htable_p:int64) (stackpointer:int64) (pc:num).
+      if nb = 1 then w1 in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+      else if nb = 2 then w2 in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+      else if nb = 3 then w3 in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+      else if nb = 4 then w4 in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+      else if nb <= 8 then wst nb in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+      else if nb <= 16 then wg1 nb in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+      else wgen nb ((nb - 1) DIV 8 - 1) in_p out_p tag_p ivec_p key_p htable_p stackpointer pc
+      :(uarch_event)list` THEN
+  MAP_EVERY X_GEN_TAC
+   [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+    `ivec_p:int64`; `key_p:int64`; `htable_p:int64`; `stackpointer:int64`;
+    `bit_len:num`; `tag0:int128`; `nonce:(96)word`; `c:num`; `rk:int128 list`;
+    `inblock:num->int128`; `nb:num`; `pc:num`] THEN
+  STRIP_TAC THEN BETA_TAC THEN
+  SUBGOAL_THEN `nb <= 8 \/ (9 <= nb /\ nb <= 16) \/ 17 <= nb` MP_TAC THENL
+   [ASM_ARITH_TAC; ALL_TAC] THEN
+  STRIP_TAC THENL
+   [ASM_CASES_TAC `nb = 1` THENL
+     [REWRITE_TAC[EQT_INTRO(ASSUME `nb = 1`); COND_CLAUSES] THEN
+     FIRST_X_ASSUM MATCH_MP_TAC THEN REPEAT CONJ_TAC THEN
+     (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE);
+      ALL_TAC] THEN
+    ASM_CASES_TAC `nb = 2` THENL
+     [REWRITE_TAC[EQF_INTRO(ASSUME `~(nb = 1)`); EQT_INTRO(ASSUME `nb = 2`); COND_CLAUSES] THEN
+     FIRST_X_ASSUM MATCH_MP_TAC THEN REPEAT CONJ_TAC THEN
+     (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE);
+      ALL_TAC] THEN
+    ASM_CASES_TAC `nb = 3` THENL
+     [REWRITE_TAC[EQF_INTRO(ASSUME `~(nb = 1)`); EQF_INTRO(ASSUME `~(nb = 2)`); EQT_INTRO(ASSUME `nb = 3`); COND_CLAUSES] THEN
+     FIRST_X_ASSUM MATCH_MP_TAC THEN REPEAT CONJ_TAC THEN
+     (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE);
+      ALL_TAC] THEN
+    ASM_CASES_TAC `nb = 4` THENL
+     [REWRITE_TAC[EQF_INTRO(ASSUME `~(nb = 1)`); EQF_INTRO(ASSUME `~(nb = 2)`); EQF_INTRO(ASSUME `~(nb = 3)`); EQT_INTRO(ASSUME `nb = 4`); COND_CLAUSES] THEN
+     FIRST_X_ASSUM MATCH_MP_TAC THEN REPEAT CONJ_TAC THEN
+     (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE);
+      ALL_TAC] THEN
+    SUBGOAL_THEN `~(nb = 1) /\ ~(nb = 2) /\ ~(nb = 3) /\ ~(nb = 4)` STRIP_ASSUME_TAC THENL [ASM_REWRITE_TAC[]; ALL_TAC] THEN
+    REWRITE_TAC[EQF_INTRO(ASSUME `~(nb = 1)`); EQF_INTRO(ASSUME `~(nb = 2)`); EQF_INTRO(ASSUME `~(nb = 3)`); EQF_INTRO(ASSUME `~(nb = 4)`); EQT_INTRO(ASSUME `nb <= 8`); COND_CLAUSES] THEN
+    FIRST_X_ASSUM MATCH_MP_TAC THEN REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE);
+    SUBGOAL_THEN `~(nb = 1) /\ ~(nb = 2) /\ ~(nb = 3) /\ ~(nb = 4) /\ ~(nb <= 8)` STRIP_ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    REWRITE_TAC[EQF_INTRO(ASSUME `~(nb = 1)`); EQF_INTRO(ASSUME `~(nb = 2)`); EQF_INTRO(ASSUME `~(nb = 3)`); EQF_INTRO(ASSUME `~(nb = 4)`); EQF_INTRO(ASSUME `~(nb <= 8)`); EQT_INTRO(ASSUME `nb <= 16`); COND_CLAUSES] THEN
+    FIRST_X_ASSUM MATCH_MP_TAC THEN
+    EXISTS_TAC `word_add in_p (word (128 * (0 + 1))):int64` THEN EXISTS_TAC `0` THEN
+    REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE);
+    SUBGOAL_THEN `~(nb = 1) /\ ~(nb = 2) /\ ~(nb = 3) /\ ~(nb = 4) /\ ~(nb <= 8) /\ ~(nb <= 16)` STRIP_ASSUME_TAC THENL [ASM_ARITH_TAC; ALL_TAC] THEN
+    REWRITE_TAC[EQF_INTRO(ASSUME `~(nb = 1)`); EQF_INTRO(ASSUME `~(nb = 2)`); EQF_INTRO(ASSUME `~(nb = 3)`); EQF_INTRO(ASSUME `~(nb = 4)`); EQF_INTRO(ASSUME `~(nb <= 8)`); EQF_INTRO(ASSUME `~(nb <= 16)`); COND_CLAUSES] THEN
+    FIRST_X_ASSUM MATCH_MP_TAC THEN
+    EXISTS_TAC `word_add in_p (word (128 * (((nb - 1) DIV 8 - 1) + 1))):int64` THEN
+    MP_TAC(SPECL [`nb - 1`; `8`] DIVISION) THEN REWRITE_TAC[ARITH_EQ] THEN
+    ABBREV_TAC `q = (nb - 1) DIV 8` THEN ABBREV_TAC `r = (nb - 1) MOD 8` THEN
+    STRIP_TAC THEN REPEAT CONJ_TAC THEN
+    (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE)])
+;;
+
+(* --- NOIBT subroutine safety (REQUIRED): 3-path wrapper mirroring            *)
+(* AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_CORRECT.  f_events dispatches on the   *)
+(* public length guards (misaligned / zero / main); main = prologue + CORE_SAFE *)
+(* callee bigstep (in-frame SP = word_sub sp 0x50) + epilogue.                  *)
+let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p
+     tag0 nonce ctr0 c rk inblock len_bits pc stackpointer returnaddress.
+    aligned 16 stackpointer /\
+    word_reversefields 8 ctr0 = ctr_block nonce c /\
+    val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
+       (word_sub stackpointer (word 80), 80)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
+       (in_p, 16 * wb_blocks len_bits); (key_p, 240); (htable_p, 192)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
+       (word_sub stackpointer (word 80), 80)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+           read PC s = word pc /\
+           read SP s = stackpointer /\
+           read X30 s = returnaddress /\
+           C_ARGUMENTS
+            [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p] s /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s = ctr0 /\
+           wordlist_from_memory(key_p,15) s =
+             MAP (word_reversefields 8) rk /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < wb_blocks len_bits
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = returnaddress /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events len_bits in_p out_p tag_p ivec_p key_p htable_p pc
+                     stackpointer returnaddress /\
+              memaccess_inbounds e2
+                [in_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
+                 key_p, 240; htable_p, 192; word_sub stackpointer (word 80), 80]
+                [out_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
+                 word_sub stackpointer (word 80), 80]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * wb_blocks len_bits);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16);
+                  memory :> bytes(word_sub stackpointer (word 80), 80)])`,
+  ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_SAFE "H_CORE" THEN
+  REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; LENGTH_WB_MC; ALLPAIRS;
+              PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; C_ARGUMENTS; WB_KEYS_FROM_WORDLIST] THEN
+  CONCRETIZE_F_EVENTS_TAC
+    `\(len_bits:int64) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
+      (key_p:int64) (htable_p:int64) (pc:num) (sp:int64) (retaddr:int64).
+      if val len_bits MOD 128 = 0 then
+        (if val len_bits = 0 then
+           f_ev_zero len_bits in_p out_p tag_p ivec_p key_p htable_p pc sp retaddr
+         else
+           APPEND
+             (f_ev_epi in_p out_p tag_p ivec_p key_p htable_p pc sp retaddr)
+             (APPEND
+               (f_ev_core (wb_blocks len_bits) in_p out_p tag_p ivec_p key_p htable_p sp pc)
+               (f_ev_pro in_p out_p tag_p ivec_p key_p htable_p pc sp retaddr)))
+       else
+         f_ev_mis len_bits in_p out_p tag_p ivec_p key_p htable_p pc sp retaddr
+      :(uarch_event)list` THEN
+  REPEAT META_EXISTS_TAC THEN
+  REPEAT STRIP_TAC THEN
+  SUBGOAL_THEN `ctr0:int128 = word_reversefields 8 (ctr_block nonce c)` SUBST_ALL_TAC THENL
+   [UNDISCH_TAC `word_reversefields 8 ctr0 = ctr_block nonce c` THEN
+    DISCH_THEN(SUBST1_TAC o SYM) THEN REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS]; ALL_TAC] THEN
+  ABBREV_TAC `nb = wb_blocks len_bits` THEN
+  ASM_CASES_TAC `val(len_bits:int64) MOD 128 = 0` THENL
+   [ALL_TAC;
+    (* ===== PATH A: misaligned length ===== *)
+    SUBGOAL_THEN `nb = 0` SUBST_ALL_TAC THENL
+     [EXPAND_TAC "nb" THEN REWRITE_TAC[wb_blocks] THEN ASM_REWRITE_TAC[COND_CLAUSES]; ALL_TAC] THEN
+    SUBGOAL_THEN `~(val(len_bits:int64) = 0)` ASSUME_TAC THENL
+     [DISCH_TAC THEN UNDISCH_TAC `~(val(len_bits:int64) MOD 128 = 0)` THEN
+      ASM_REWRITE_TAC[] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+    SUBGOAL_THEN `~(len_bits:int64 = word 0)` ASSUME_TAC THENL
+     [ASM_REWRITE_TAC[GSYM VAL_EQ_0]; ALL_TAC] THEN
+    SUBGOAL_THEN `~(word_and (len_bits:int64) (word 0x7f) = word 0)` ASSUME_TAC THENL
+     [ASM_REWRITE_TAC[WB_MASK7_EQ_MOD]; ALL_TAC] THEN
+    SUBGOAL_THEN `~(val(word_and (len_bits:int64) (word 0x7f)) = 0)` ASSUME_TAC THENL
+     [ASM_REWRITE_TAC[VAL_EQ_0]; ALL_TAC] THEN
+    REWRITE_TAC[MULT_CLAUSES; ADD_CLAUSES] THEN
+    ENSURES_INIT_TAC "s0" THEN
+    ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [1] THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[ASSUME `~(val(len_bits:int64) = 0)`;
+                               ASSUME `~(len_bits:int64 = word 0)`; COND_CLAUSES]) THEN
+    ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [2] THEN
+    ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [3] THEN
+    RULE_ASSUM_TAC(REWRITE_RULE[
+      ASSUME `~(word_and (len_bits:int64) (word 0x7f) = word 0)`;
+      ASSUME `~(val(word_and (len_bits:int64) (word 0x7f)) = 0)`; COND_CLAUSES]) THEN
+    ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [4;5] THEN
+    ENSURES_FINAL_STATE_TAC THEN
+    ASM_REWRITE_TAC[COND_CLAUSES] THEN
+    DISCHARGE_SAFETY_PROPERTY_TAC] THEN
+  ASM_CASES_TAC `val(len_bits:int64) = 0` THENL
+   [(* ===== PATH B: zero length ===== *)
+    SUBGOAL_THEN `nb = 0` SUBST_ALL_TAC THENL
+     [EXPAND_TAC "nb" THEN REWRITE_TAC[wb_blocks] THEN
+      ASM_REWRITE_TAC[COND_CLAUSES] THEN CONV_TAC NUM_REDUCE_CONV; ALL_TAC] THEN
+    SUBGOAL_THEN `len_bits:int64 = word 0` SUBST_ALL_TAC THENL
+     [ASM_REWRITE_TAC[GSYM VAL_EQ_0]; ALL_TAC] THEN
+    REWRITE_TAC[MULT_CLAUSES; ADD_CLAUSES] THEN
+    ENSURES_INIT_TAC "s0" THEN
+    ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [1;2;3] THEN
+    ENSURES_FINAL_STATE_TAC THEN
+    ASM_REWRITE_TAC[VAL_WORD_0; COND_CLAUSES] THEN
+    DISCHARGE_SAFETY_PROPERTY_TAC;
+    ALL_TAC] THEN
+  (* ===== PATH C: main (nonzero whole blocks) ===== *)
+  SUBGOAL_THEN `1 <= nb` ASSUME_TAC THENL
+   [EXPAND_TAC "nb" THEN REWRITE_TAC[wb_blocks] THEN ASM_REWRITE_TAC[] THEN
+    MP_TAC(SPECL [`val(len_bits:int64)`; `128`] (CONJUNCT2 DIVISION_SIMP)) THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(len_bits:int64) = 128 * nb` ASSUME_TAC THENL
+   [EXPAND_TAC "nb" THEN ASM_SIMP_TAC[WB_LEN_EQ_128_BLOCKS]; ALL_TAC] THEN
+  SUBGOAL_THEN `128 * nb < 2 EXP 64` ASSUME_TAC THENL
+   [FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN MP_TAC(ISPEC `len_bits:int64` VAL_BOUND) THEN
+    REWRITE_TAC[DIMINDEX_64] THEN ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `val(word(128 * nb):int64) = 128 * nb` ASSUME_TAC THENL
+   [MATCH_MP_TAC VAL_WORD_EQ THEN REWRITE_TAC[DIMINDEX_64] THEN ASM_ARITH_TAC; ALL_TAC] THEN
+  SUBGOAL_THEN `wb_blocks(word(128 * nb):int64) = nb` ASSUME_TAC THENL
+   [ASM_REWRITE_TAC[wb_blocks] THEN
+    SIMP_TAC[DIV_MULT; MOD_MULT; ARITH_EQ] THEN REWRITE_TAC[COND_CLAUSES]; ALL_TAC] THEN
+  SUBGOAL_THEN `len_bits:int64 = word (128 * nb)` SUBST_ALL_TAC THENL
+   [FIRST_X_ASSUM(fun th -> if concl th = `val(len_bits:int64) = 128 * nb`
+      then MP_TAC th else failwith "") THEN
+    DISCH_THEN(SUBST1_TAC o SYM) THEN REWRITE_TAC[WORD_VAL]; ALL_TAC] THEN
+  ENSURES_EXISTING_PRESERVED_TAC `SP` THEN
+  ENSURES_EXISTING_PRESERVED_TAC `X30` THEN
+  MAP_EVERY (fun c -> ENSURES_PRESERVED_DREG_TAC ("init_"^fst(dest_const c)) c)
+    [`D8`;`D9`;`D10`;`D11`;`D12`;`D13`;`D14`;`D15`] THEN
+  REWRITE_TAC(!simulation_precanon_thms) THEN
+  ENSURES_INIT_TAC "s0" THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[htable_mem_8; htable_mem_4]) THEN
+  RULE_ASSUM_TAC(CONV_RULE(TRY_CONV(
+    EXPAND_CASES_CONV THENC ONCE_DEPTH_CONV NUM_MULT_CONV THENC REWRITE_CONV[WORD_ADD_0]))) THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [1] THEN
+  SUBGOAL_THEN `~(128 * nb = 0)` ASSUME_TAC THENL
+   [UNDISCH_TAC `1 <= nb` THEN ARITH_TAC; ALL_TAC] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_GUARD1_NONZERO_GEN
+    (CONJ (ASSUME `1 <= nb`) (ASSUME `128 * nb < 2 EXP 64`));
+    ASSUME `~(128 * nb = 0)`; COND_CLAUSES]) THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [2] THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC [3] THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_GUARD2_MASK_GEN
+    (CONJ (ASSUME `1 <= nb`) (ASSUME `128 * nb < 2 EXP 64`));
+    VAL_WORD_0; COND_CLAUSES]) THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC (4--14) THEN
+  RULE_ASSUM_TAC(REWRITE_RULE[MATCH_MP WB_X9_NORM (ASSUME `128 * nb < 2 EXP 64`)]) THEN
+  USE_THEN "H_CORE" (fun th0 ->
+    let th = REWRITE_RULE[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
+               MODIFIABLE_SIMD_REGS; MODIFIABLE_GPRS; MODIFIABLE_UPPER_SIMD_REGS] th0 in
+    MP_TAC (GEN_REWRITE_RULE I [RIGHT_FORALL_IMP_THM]
+      (SPECL [`e:(uarch_event)list`; `in_p:int64`; `out_p:int64`; `tag_p:int64`;
+              `ivec_p:int64`; `key_p:int64`; `htable_p:int64`;
+              `word_sub stackpointer (word 80):int64`; `128 * nb`;
+              `tag0:int128`; `nonce:(96)word`; `c:num`; `rk:int128 list`;
+              `inblock:num->int128`; `nb:num`; `pc:num`] th))) THEN
+  ANTS_TAC THENL
+   [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN
+    REPEAT CONJ_TAC THEN
+    (NONOVERLAPPING_TAC ORELSE ASM_ARITH_TAC ORELSE CONV_TAC WORD_RULE ORELSE
+     ASM_REWRITE_TAC[WORD_REVERSEFIELDS_REVERSEFIELDS]); ALL_TAC] THEN
+  ONCE_REWRITE_TAC[GSYM LEFT_EXISTS_IMP_THM] THEN
+  META_EXISTS_TAC THEN
+  REWRITE_TAC[htable_mem_8; htable_mem_4] THEN
+  ARM_BIGSTEP_TAC AESV8_GCM_8X_ENC_256_WB_EXEC "s15" THENL
+   [ CONV_TAC(LAND_CONV CONS_TO_APPEND_CONV) THEN AP_THM_TAC THEN AP_TERM_TAC THEN
+     UNIFY_REFL_TAC; ALL_TAC ] THEN
+  ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC (16--22) THEN
+  ENSURES_FINAL_STATE_TAC THEN
+  ASM_REWRITE_TAC[COND_CLAUSES] THEN
+  CONJ_TAC THENL [
+    SAFE_META_EXISTS_TAC allowed_vars_e THEN
+    CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
+    CONJ_TAC THENL [
+      REWRITE_TAC[APPEND_NIL] THEN
+      BINOP_TAC THENL [
+        UNIFY_F_EVENTS_TAC;
+        BINOP_TAC THENL [
+          ASM_REWRITE_TAC[] THEN UNIFY_F_EVENTS_TAC;
+          UNIFY_F_EVENTS_TAC ] ];
+      DISCHARGE_MEMACCESS_INBOUNDS_TAC ];
+    SIMP_TAC[WORD_ZX_ZX; DIMINDEX_64; DIMINDEX_128; LE_REFL; ARITH] THEN
+    REPEAT CONJ_TAC THEN CONV_TAC WORD_RULE ]
+);;
+
+(* --- IBT subroutine safety (REQUIRED): derived from the NOIBT one by
+   ARM_ADD_IBT_RULE, mirroring AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT. --- *)
+let AESV8_GCM_8X_ENC_256_SUBROUTINE_SAFE = prove
+ (`exists f_events.
+   !e in_p out_p tag_p ivec_p key_p htable_p
+     tag0 nonce ctr0 c rk inblock len_bits pc stackpointer returnaddress.
+    aligned 16 stackpointer /\
+    word_reversefields 8 ctr0 = ctr_block nonce c /\
+    val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
+    ALLPAIRS nonoverlapping
+      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
+       (word_sub stackpointer (word 80), 80)]
+      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_mc);
+       (in_p, 16 * wb_blocks len_bits); (key_p, 240); (htable_p, 192)] /\
+    PAIRWISE nonoverlapping
+      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
+       (word_sub stackpointer (word 80), 80)]
+    ==> ensures arm
+      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
+           read PC s = word pc /\
+           read SP s = stackpointer /\
+           read X30 s = returnaddress /\
+           C_ARGUMENTS
+            [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p] s /\
+           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
+           read (memory :> bytes128 ivec_p) s = ctr0 /\
+           wordlist_from_memory(key_p,15) s =
+             MAP (word_reversefields 8) rk /\
+           htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
+           (!j. j < wb_blocks len_bits
+                ==> read (memory :> bytes128 (word_add in_p (word (16 * j)))) s =
+                    inblock j) /\
+           read events s = e)
+      (\s. read PC s = returnaddress /\
+           (exists e2.
+              read events s = APPEND e2 e /\
+              e2 = f_events len_bits in_p out_p tag_p ivec_p key_p htable_p pc
+                     stackpointer returnaddress /\
+              memaccess_inbounds e2
+                [in_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
+                 key_p, 240; htable_p, 192; word_sub stackpointer (word 80), 80]
+                [out_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
+                 word_sub stackpointer (word 80), 80]))
+      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+       MAYCHANGE [memory :> bytes(out_p, 16 * wb_blocks len_bits);
+                  memory :> bytes(tag_p, 16);
+                  memory :> bytes(ivec_p, 16);
+                  memory :> bytes(word_sub stackpointer (word 80), 80)])`,
+  MATCH_ACCEPT_TAC(ARM_ADD_IBT_RULE ~extra:[htable_mem_8; htable_mem_4; wordlist_from_memory]
+                     aesv8_gcm_8x_enc_256_wb_mc aesv8_gcm_8x_enc_256_wb_tmc
+                     AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE));;
