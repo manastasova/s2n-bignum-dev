@@ -153,7 +153,7 @@ let subroutine_signatures = [
    ])
 );
 
-("aesv8_gcm_8x_enc_256_wb",
+("aesv8_gcm_8x_dec_256_wb",
   ([(*args*)
      ("in", "uint8_t*", (*is const?*)"true");
      ("len_bits", "uint64_t", (*is const?*)"false");
@@ -180,7 +180,7 @@ let subroutine_signatures = [
    ])
 );
 
-("aesv8_gcm_8x_dec_256_wb",
+("aesv8_gcm_8x_enc_256_wb",
   ([(*args*)
      ("in", "uint8_t*", (*is const?*)"true");
      ("len_bits", "uint64_t", (*is const?*)"false");

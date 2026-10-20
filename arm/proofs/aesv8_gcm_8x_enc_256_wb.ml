@@ -9995,6 +9995,7 @@ let AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT = prove
 (* ========================================================================= *)
 
 needs "arm/proofs/consttime.ml";;
+needs "arm/proofs/subroutine_signatures.ml";;
 
 (* --- Core-level leg safety: FAST1..FAST4 (fixed nb, straight-line). ------- *)
 (* Entry pc+0x38, exit pc+0x11c4; MAYCHANGE frame (ABI, Q8..Q15, out/tag/     *)
@@ -11891,53 +11892,97 @@ let AESV8_GCM_8X_ENC_256_SAFE = prove
     (FIRST_ASSUM ACCEPT_TAC ORELSE ASM_ARITH_TAC ORELSE (REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; LENGTH_WB_MC] THEN ASM_REWRITE_TAC[]) ORELSE CONV_TAC WORD_RULE)])
 ;;
 
+(* --- C6: the two exported safety statements below are the terms that          *)
+(* mk_safety_spec generates from the correctness theorems and the C signature,   *)
+(* pinned with ASSERT_CONCL_TAC so the load fails unless the written statement   *)
+(* is exactly the generated one.  The enc correctness theorems carry a GLOBAL    *)
+(* counter hypothesis `word_reversefields 8 ctr0 = ctr_block nonce c` (the dec   *)
+(* kernel keeps the analogous content inside the state predicate instead), which *)
+(* mk_safety_spec would copy verbatim into the safety spec and so re-introduce   *)
+(* a memory-content constraint that review E3 removed.  We therefore feed it a   *)
+(* content-free form of the correctness theorem: ctr0 is instantiated to         *)
+(* word_reversefields 8 (ctr_block nonce c), which discharges the hypothesis by  *)
+(* the reversefields involution.  The generated bounds size the in/out buffers   *)
+(* from the C length len_bits/8 (tag 16, ivec 16, key 240, htable 24*8=192, the  *)
+(* 80-byte frame); apart from the loaded code no memory contents are             *)
+(* constrained.  ~keep_maychanges keeps the correctness MAYCHANGE frame.         *)
+let enc_safety_contentfree th =
+  GENL [`in_p:int64`; `out_p:int64`; `tag_p:int64`; `ivec_p:int64`;
+        `key_p:int64`; `htable_p:int64`; `tag0:int128`; `nonce:(96)word`;
+        `c:num`; `rk:((128)word)list`; `inblock:num->(128)word`;
+        `len_bits:int64`; `pc:num`; `stackpointer:int64`; `returnaddress:int64`]
+    (REWRITE_RULE[WORD_REVERSEFIELDS_REVERSEFIELDS]
+      (INST [`word_reversefields 8 (ctr_block nonce c):int128`, `ctr0:int128`]
+        (SPEC_ALL th)));;
+
+let enc_safety_full_spec_tmc,enc_safety_public_vars_tmc = mk_safety_spec
+    ~keep_maychanges:true
+    (assoc "aesv8_gcm_8x_enc_256_wb" subroutine_signatures)
+    (enc_safety_contentfree AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_CORRECT)
+    AESV8_GCM_8X_ENC_256_WB_EXEC;;
+
+let enc_safety_full_spec,enc_safety_public_vars = mk_safety_spec
+    ~keep_maychanges:true
+    (assoc "aesv8_gcm_8x_enc_256_wb" subroutine_signatures)
+    (enc_safety_contentfree AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT)
+    AESV8_GCM_8X_ENC_256_WB_EXEC;;
+
 (* --- NOIBT subroutine safety (REQUIRED): 3-path wrapper mirroring            *)
 (* AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_CORRECT.  f_events dispatches on the   *)
 (* public length guards (misaligned / zero / main); main = prologue + CORE_SAFE *)
 (* callee bigstep (in-frame SP = word_sub sp 0x50) + epilogue.                  *)
+(* The statement is the mk_safety_spec-generated enc_safety_full_spec_tmc.      *)
 let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
  (`exists f_events.
-   !e in_p out_p tag_p ivec_p key_p htable_p
-     len_bits pc stackpointer returnaddress.
-    aligned 16 stackpointer /\
-    val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
-    ALLPAIRS nonoverlapping
-      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
-       (word_sub stackpointer (word 80), 80)]
-      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_tmc);
-       (in_p, 16 * wb_blocks len_bits); (key_p, 240); (htable_p, 192)] /\
-    PAIRWISE nonoverlapping
-      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
-       (word_sub stackpointer (word 80), 80)]
-    ==> ensures arm
-      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
-           read PC s = word pc /\
-           read SP s = stackpointer /\
-           read X30 s = returnaddress /\
-           C_ARGUMENTS
-            [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p] s /\
-           read events s = e)
-      (\s. read PC s = returnaddress /\
-           (exists e2.
-              read events s = APPEND e2 e /\
-              e2 = f_events len_bits in_p out_p tag_p ivec_p key_p htable_p pc
-                     stackpointer returnaddress /\
-              memaccess_inbounds e2
-                [in_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
-                 key_p, 240; htable_p, 192; word_sub stackpointer (word 80), 80]
-                [out_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
-                 word_sub stackpointer (word 80), 80]))
-      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
-       MAYCHANGE [memory :> bytes(out_p, 16 * wb_blocks len_bits);
-                  memory :> bytes(tag_p, 16);
-                  memory :> bytes(ivec_p, 16);
-                  memory :> bytes(word_sub stackpointer (word 80), 80)])`,
+    forall e in_p out_p tag_p ivec_p key_p htable_p len_bits pc stackpointer returnaddress.
+        aligned 16 stackpointer /\
+        val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
+        ALLPAIRS nonoverlapping
+        [out_p,16 * wb_blocks len_bits; tag_p,16; ivec_p,16;
+         word_sub stackpointer (word 80),80]
+        [word pc,LENGTH aesv8_gcm_8x_enc_256_wb_tmc;
+         in_p,16 * wb_blocks len_bits; key_p,240; htable_p,192] /\
+        PAIRWISE nonoverlapping
+        [out_p,16 * wb_blocks len_bits; tag_p,16; ivec_p,16;
+         word_sub stackpointer (word 80),80]
+        ==> ensures arm
+            (\s.
+                 aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_tmc /\
+                 read PC s = word pc /\
+                 read SP s = stackpointer /\
+                 read X30 s = returnaddress /\
+                 C_ARGUMENTS
+                 [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p]
+                 s /\
+                 read events s = e)
+            (\s.
+                 read PC s = returnaddress /\
+                 (exists e2.
+                      read events s = APPEND e2 e /\
+                      e2 =
+                      f_events in_p key_p htable_p out_p tag_p ivec_p
+                      len_bits
+                      pc
+                      (word_sub stackpointer (word 80))
+                      returnaddress /\
+                      memaccess_inbounds e2
+                      [in_p,val len_bits DIV 8 * 1; tag_p,16; ivec_p,16;
+                       key_p,240; htable_p,192; out_p,val len_bits DIV 8 * 1;
+                       word_sub stackpointer (word 80),80]
+                      [out_p,val len_bits DIV 8 * 1; tag_p,16; ivec_p,16;
+                       word_sub stackpointer (word 80),80]))
+            (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+             MAYCHANGE
+             [memory :> bytes (out_p,16 * wb_blocks len_bits);
+              memory :> bytes (tag_p,16); memory :> bytes (ivec_p,16);
+              memory :> bytes (word_sub stackpointer (word 80),80)])`,
+  ASSERT_CONCL_TAC enc_safety_full_spec_tmc THEN
   ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_SAFE "H_CORE" THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; LENGTH_WB_MC; ALLPAIRS;
               PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; C_ARGUMENTS; KEY15_SPLIT] THEN
   CONCRETIZE_F_EVENTS_TAC
-    `\(len_bits:int64) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
-      (key_p:int64) (htable_p:int64) (pc:num) (sp:int64) (retaddr:int64).
+    `\(in_p:int64) (key_p:int64) (htable_p:int64) (out_p:int64) (tag_p:int64)
+      (ivec_p:int64) (len_bits:int64) (pc:num) (sp:int64) (retaddr:int64).
       if val len_bits MOD 128 = 0 then
         (if val len_bits = 0 then
            f_ev_zero len_bits in_p out_p tag_p ivec_p key_p htable_p pc sp retaddr
@@ -12057,6 +12102,7 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
   ARM_STEPS_TAC AESV8_GCM_8X_ENC_256_WB_EXEC (16--22) THEN
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[COND_CLAUSES] THEN
+  ABBREV_TAC `spoff:int64 = word_sub stackpointer (word 80)` THEN
   CONJ_TAC THENL [
     SAFE_META_EXISTS_TAC allowed_vars_e THEN
     CONJ_TAC THENL [ EXISTS_E2_TAC allowed_vars_e; ALL_TAC ] THEN
@@ -12068,6 +12114,7 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
           ASM_REWRITE_TAC[] THEN UNIFY_F_EVENTS_TAC;
           UNIFY_F_EVENTS_TAC ] ];
       DISCHARGE_MEMACCESS_INBOUNDS_TAC ];
+    EXPAND_TAC "spoff" THEN
     SIMP_TAC[WORD_ZX_ZX; DIMINDEX_64; DIMINDEX_128; LE_REFL; ARITH] THEN
     REPEAT CONJ_TAC THEN CONV_TAC WORD_RULE ]
 );;
@@ -12076,41 +12123,49 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
    ARM_ADD_IBT_RULE, mirroring AESV8_GCM_8X_ENC_256_SUBROUTINE_CORRECT. --- *)
 let AESV8_GCM_8X_ENC_256_SUBROUTINE_SAFE = prove
  (`exists f_events.
-   !e in_p out_p tag_p ivec_p key_p htable_p
-     len_bits pc stackpointer returnaddress.
-    aligned 16 stackpointer /\
-    val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
-    ALLPAIRS nonoverlapping
-      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
-       (word_sub stackpointer (word 80), 80)]
-      [(word pc, LENGTH aesv8_gcm_8x_enc_256_wb_mc);
-       (in_p, 16 * wb_blocks len_bits); (key_p, 240); (htable_p, 192)] /\
-    PAIRWISE nonoverlapping
-      [(out_p, 16 * wb_blocks len_bits); (tag_p, 16); (ivec_p, 16);
-       (word_sub stackpointer (word 80), 80)]
-    ==> ensures arm
-      (\s. aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
-           read PC s = word pc /\
-           read SP s = stackpointer /\
-           read X30 s = returnaddress /\
-           C_ARGUMENTS
-            [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p] s /\
-           read events s = e)
-      (\s. read PC s = returnaddress /\
-           (exists e2.
-              read events s = APPEND e2 e /\
-              e2 = f_events len_bits in_p out_p tag_p ivec_p key_p htable_p pc
-                     stackpointer returnaddress /\
-              memaccess_inbounds e2
-                [in_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
-                 key_p, 240; htable_p, 192; word_sub stackpointer (word 80), 80]
-                [out_p, 16 * wb_blocks len_bits; tag_p, 16; ivec_p, 16;
-                 word_sub stackpointer (word 80), 80]))
-      (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
-       MAYCHANGE [memory :> bytes(out_p, 16 * wb_blocks len_bits);
-                  memory :> bytes(tag_p, 16);
-                  memory :> bytes(ivec_p, 16);
-                  memory :> bytes(word_sub stackpointer (word 80), 80)])`,
+    forall e in_p out_p tag_p ivec_p key_p htable_p len_bits pc stackpointer returnaddress.
+        aligned 16 stackpointer /\
+        val in_p + 16 * wb_blocks len_bits < 2 EXP 63 /\
+        ALLPAIRS nonoverlapping
+        [out_p,16 * wb_blocks len_bits; tag_p,16; ivec_p,16;
+         word_sub stackpointer (word 80),80]
+        [word pc,LENGTH aesv8_gcm_8x_enc_256_wb_mc;
+         in_p,16 * wb_blocks len_bits; key_p,240; htable_p,192] /\
+        PAIRWISE nonoverlapping
+        [out_p,16 * wb_blocks len_bits; tag_p,16; ivec_p,16;
+         word_sub stackpointer (word 80),80]
+        ==> ensures arm
+            (\s.
+                 aligned_bytes_loaded s (word pc) aesv8_gcm_8x_enc_256_wb_mc /\
+                 read PC s = word pc /\
+                 read SP s = stackpointer /\
+                 read X30 s = returnaddress /\
+                 C_ARGUMENTS
+                 [in_p; len_bits; out_p; tag_p; ivec_p; key_p; htable_p]
+                 s /\
+                 read events s = e)
+            (\s.
+                 read PC s = returnaddress /\
+                 (exists e2.
+                      read events s = APPEND e2 e /\
+                      e2 =
+                      f_events in_p key_p htable_p out_p tag_p ivec_p
+                      len_bits
+                      pc
+                      (word_sub stackpointer (word 80))
+                      returnaddress /\
+                      memaccess_inbounds e2
+                      [in_p,val len_bits DIV 8 * 1; tag_p,16; ivec_p,16;
+                       key_p,240; htable_p,192; out_p,val len_bits DIV 8 * 1;
+                       word_sub stackpointer (word 80),80]
+                      [out_p,val len_bits DIV 8 * 1; tag_p,16; ivec_p,16;
+                       word_sub stackpointer (word 80),80]))
+            (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
+             MAYCHANGE
+             [memory :> bytes (out_p,16 * wb_blocks len_bits);
+              memory :> bytes (tag_p,16); memory :> bytes (ivec_p,16);
+              memory :> bytes (word_sub stackpointer (word 80),80)])`,
+  ASSERT_CONCL_TAC enc_safety_full_spec THEN
   MATCH_ACCEPT_TAC(ARM_ADD_IBT_RULE ~extra:[htable_mem_8; htable_mem_4; wordlist_from_memory]
                      aesv8_gcm_8x_enc_256_wb_mc aesv8_gcm_8x_enc_256_wb_tmc
                      AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE));;
