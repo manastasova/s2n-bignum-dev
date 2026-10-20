@@ -3121,35 +3121,7 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
            read X10 s = mod_p /\
            read X11 s = key_p /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -3192,35 +3164,7 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
            read X10 s = mod_p /\
            read X11 s = key_p /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -3266,35 +3210,7 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
             read X10 s = mod_p /\
             read X11 s = key_p /\
             read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-            read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 16))) s =
-              word_reversefields 8 (EL 1 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 32))) s =
-              word_reversefields 8 (EL 2 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 48))) s =
-              word_reversefields 8 (EL 3 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 64))) s =
-              word_reversefields 8 (EL 4 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 80))) s =
-              word_reversefields 8 (EL 5 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 96))) s =
-              word_reversefields 8 (EL 6 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 112))) s =
-              word_reversefields 8 (EL 7 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 128))) s =
-              word_reversefields 8 (EL 8 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 144))) s =
-              word_reversefields 8 (EL 9 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 160))) s =
-              word_reversefields 8 (EL 10 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 176))) s =
-              word_reversefields 8 (EL 11 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 192))) s =
-              word_reversefields 8 (EL 12 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 208))) s =
-              word_reversefields 8 (EL 13 rk) /\
-            read (memory :> bytes128 (word_add key_p (word 224))) s =
-              word_reversefields 8 (EL 14 rk) /\
+            wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
             read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
             read (memory :> bytes128 ivec_p) s =
               word_reversefields 8 (ctr_block nonce c) /\
@@ -3324,7 +3240,7 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
                  ==> read (memory :> bytes128 (word_add out_p (word (16 * j)))) s =
                      word_xor (aes_ctr_block aes256_cipher c nonce rk (j)) (inblock j))) /\
            ((read NF s <=> read VF s) <=> (i = k))` THEN
-  REWRITE_TAC[htable_mem_8; htable_mem_4] THEN
+  REWRITE_TAC[htable_mem_8; htable_mem_4; KEY15_SPLIT] THEN
   REPEAT CONJ_TAC THENL
    [(* Subgoal 1: 0 < k *)
     ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC;
@@ -3883,35 +3799,7 @@ let AESV8_GCM_8X_ENC_256_SETUP_GEN = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -3933,35 +3821,7 @@ let AESV8_GCM_8X_ENC_256_SETUP_GEN = prove
            read X11 s = key_p /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -3994,6 +3854,7 @@ let AESV8_GCM_8X_ENC_256_SETUP_GEN = prove
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
        MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
        MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; ALLPAIRS; ALL;
               NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -4066,35 +3927,7 @@ let AESV8_GCM_8X_ENC_256_SETUP_G1 = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -4116,35 +3949,7 @@ let AESV8_GCM_8X_ENC_256_SETUP_G1 = prove
            read X11 s = key_p /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -4176,6 +3981,7 @@ let AESV8_GCM_8X_ENC_256_SETUP_G1 = prove
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
        MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
        MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; ALLPAIRS; ALL;
               NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -4468,35 +4274,7 @@ let AESV8_GCM_8X_ENC_256_PREPRETAIL_GEN = prove
            read X10 s = mod_p /\
            read X11 s = key_p /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -4538,35 +4316,7 @@ let AESV8_GCM_8X_ENC_256_PREPRETAIL_GEN = prove
            read X10 s = mod_p /\
            read X11 s = key_p /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -4602,6 +4352,7 @@ let AESV8_GCM_8X_ENC_256_PREPRETAIL_GEN = prove
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
        MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
        MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   (* body CLOSED CHEAT-FREE.  Drive the 308-instr drain with the                *)
   (* extended-guard stepper NSTEP_GP (protects Q17..Q21 so the reduce's mid      *)
   (* accumulator v18 stays un-normalized in both the pmull and ext positions),   *)
@@ -7126,35 +6877,7 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM8 = prove
            read X10 s = mod_p /\
            read X11 s = key_p /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -7203,6 +6926,7 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM8 = prove
        MAYCHANGE [memory :> bytes(out_p, 16 * nb);
                   memory :> bytes(tag_p, 16);
                   memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[htable_mem_8; htable_mem_4; MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI;
               ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -7360,35 +7084,7 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM = prove
            read X10 s = mod_p /\
            read X11 s = key_p /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -7833,35 +7529,7 @@ let AESV8_GCM_8X_ENC_256_TAIL_REM = prove
            read X10 s = mod_p /\
            read X11 s = key_p /\
            read (memory :> bytes64 mod_p) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -7968,35 +7636,7 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -8050,35 +7690,7 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT = prove
         read X11 s = key_p /\
         read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
           word 0xc200000000000000 /\
-        read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 16))) s =
-          word_reversefields 8 (EL 1 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 32))) s =
-          word_reversefields 8 (EL 2 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 48))) s =
-          word_reversefields 8 (EL 3 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 64))) s =
-          word_reversefields 8 (EL 4 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 80))) s =
-          word_reversefields 8 (EL 5 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 96))) s =
-          word_reversefields 8 (EL 6 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 112))) s =
-          word_reversefields 8 (EL 7 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 128))) s =
-          word_reversefields 8 (EL 8 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 144))) s =
-          word_reversefields 8 (EL 9 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 160))) s =
-          word_reversefields 8 (EL 10 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 176))) s =
-          word_reversefields 8 (EL 11 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 192))) s =
-          word_reversefields 8 (EL 12 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 208))) s =
-          word_reversefields 8 (EL 13 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 224))) s =
-          word_reversefields 8 (EL 14 rk) /\
+        wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
         read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
         read (memory :> bytes128 ivec_p) s =
           word_reversefields 8 (ctr_block nonce c) /\
@@ -8148,35 +7760,7 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT = prove
         read X11 s = key_p /\
         read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
           word 0xc200000000000000 /\
-        read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 16))) s =
-          word_reversefields 8 (EL 1 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 32))) s =
-          word_reversefields 8 (EL 2 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 48))) s =
-          word_reversefields 8 (EL 3 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 64))) s =
-          word_reversefields 8 (EL 4 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 80))) s =
-          word_reversefields 8 (EL 5 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 96))) s =
-          word_reversefields 8 (EL 6 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 112))) s =
-          word_reversefields 8 (EL 7 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 128))) s =
-          word_reversefields 8 (EL 8 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 144))) s =
-          word_reversefields 8 (EL 9 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 160))) s =
-          word_reversefields 8 (EL 10 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 176))) s =
-          word_reversefields 8 (EL 11 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 192))) s =
-          word_reversefields 8 (EL 12 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 208))) s =
-          word_reversefields 8 (EL 13 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 224))) s =
-          word_reversefields 8 (EL 14 rk) /\
+        wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
         read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
         read (memory :> bytes128 ivec_p) s =
           word_reversefields 8 (ctr_block nonce c) /\
@@ -8260,35 +7844,7 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT = prove
         read X11 s = key_p /\
         read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
           word 0xc200000000000000 /\
-        read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 16))) s =
-          word_reversefields 8 (EL 1 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 32))) s =
-          word_reversefields 8 (EL 2 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 48))) s =
-          word_reversefields 8 (EL 3 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 64))) s =
-          word_reversefields 8 (EL 4 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 80))) s =
-          word_reversefields 8 (EL 5 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 96))) s =
-          word_reversefields 8 (EL 6 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 112))) s =
-          word_reversefields 8 (EL 7 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 128))) s =
-          word_reversefields 8 (EL 8 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 144))) s =
-          word_reversefields 8 (EL 9 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 160))) s =
-          word_reversefields 8 (EL 10 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 176))) s =
-          word_reversefields 8 (EL 11 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 192))) s =
-          word_reversefields 8 (EL 12 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 208))) s =
-          word_reversefields 8 (EL 13 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 224))) s =
-          word_reversefields 8 (EL 14 rk) /\
+        wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
         read (memory :> bytes128 ivec_p) s =
           word_reversefields 8 (ctr_block nonce c) /\
         read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -8353,21 +7909,7 @@ let AESV8_GCM_8X_ENC_256_GEN_CORRECT = prove
           read X10 s = word_add stackpointer (word 0x40) /\ read X11 s = key_p /\
           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
             word 0xc200000000000000 /\
-          read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 16))) s = word_reversefields 8 (EL 1 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 32))) s = word_reversefields 8 (EL 2 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 48))) s = word_reversefields 8 (EL 3 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 64))) s = word_reversefields 8 (EL 4 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 80))) s = word_reversefields 8 (EL 5 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 96))) s = word_reversefields 8 (EL 6 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 112))) s = word_reversefields 8 (EL 7 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 128))) s = word_reversefields 8 (EL 8 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 144))) s = word_reversefields 8 (EL 9 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 160))) s = word_reversefields 8 (EL 10 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 176))) s = word_reversefields 8 (EL 11 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 192))) s = word_reversefields 8 (EL 12 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 208))) s = word_reversefields 8 (EL 13 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 224))) s = word_reversefields 8 (EL 14 rk) /\
+          wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
           read (memory :> bytes128 ivec_p) s = word_reversefields 8 (ctr_block nonce c) /\
           read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -8524,35 +8066,7 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1 = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -8594,35 +8108,7 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1 = prove
         read X11 s = key_p /\
         read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
           word 0xc200000000000000 /\
-        read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 16))) s =
-          word_reversefields 8 (EL 1 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 32))) s =
-          word_reversefields 8 (EL 2 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 48))) s =
-          word_reversefields 8 (EL 3 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 64))) s =
-          word_reversefields 8 (EL 4 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 80))) s =
-          word_reversefields 8 (EL 5 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 96))) s =
-          word_reversefields 8 (EL 6 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 112))) s =
-          word_reversefields 8 (EL 7 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 128))) s =
-          word_reversefields 8 (EL 8 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 144))) s =
-          word_reversefields 8 (EL 9 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 160))) s =
-          word_reversefields 8 (EL 10 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 176))) s =
-          word_reversefields 8 (EL 11 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 192))) s =
-          word_reversefields 8 (EL 12 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 208))) s =
-          word_reversefields 8 (EL 13 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 224))) s =
-          word_reversefields 8 (EL 14 rk) /\
+        wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
         read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
         read (memory :> bytes128 ivec_p) s =
           word_reversefields 8 (ctr_block nonce c) /\
@@ -8706,35 +8192,7 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1 = prove
         read X11 s = key_p /\
         read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
           word 0xc200000000000000 /\
-        read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 16))) s =
-          word_reversefields 8 (EL 1 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 32))) s =
-          word_reversefields 8 (EL 2 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 48))) s =
-          word_reversefields 8 (EL 3 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 64))) s =
-          word_reversefields 8 (EL 4 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 80))) s =
-          word_reversefields 8 (EL 5 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 96))) s =
-          word_reversefields 8 (EL 6 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 112))) s =
-          word_reversefields 8 (EL 7 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 128))) s =
-          word_reversefields 8 (EL 8 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 144))) s =
-          word_reversefields 8 (EL 9 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 160))) s =
-          word_reversefields 8 (EL 10 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 176))) s =
-          word_reversefields 8 (EL 11 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 192))) s =
-          word_reversefields 8 (EL 12 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 208))) s =
-          word_reversefields 8 (EL 13 rk) /\
-        read (memory :> bytes128 (word_add key_p (word 224))) s =
-          word_reversefields 8 (EL 14 rk) /\
+        wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
         read (memory :> bytes128 ivec_p) s =
           word_reversefields 8 (ctr_block nonce c) /\
         read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -8799,21 +8257,7 @@ let AESV8_GCM_8X_ENC_256_FIXED_CORRECT_G1 = prove
           read X10 s = word_add stackpointer (word 0x40) /\ read X11 s = key_p /\
           read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
             word 0xc200000000000000 /\
-          read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 16))) s = word_reversefields 8 (EL 1 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 32))) s = word_reversefields 8 (EL 2 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 48))) s = word_reversefields 8 (EL 3 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 64))) s = word_reversefields 8 (EL 4 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 80))) s = word_reversefields 8 (EL 5 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 96))) s = word_reversefields 8 (EL 6 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 112))) s = word_reversefields 8 (EL 7 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 128))) s = word_reversefields 8 (EL 8 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 144))) s = word_reversefields 8 (EL 9 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 160))) s = word_reversefields 8 (EL 10 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 176))) s = word_reversefields 8 (EL 11 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 192))) s = word_reversefields 8 (EL 12 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 208))) s = word_reversefields 8 (EL 13 rk) /\
-          read (memory :> bytes128 (word_add key_p (word 224))) s = word_reversefields 8 (EL 14 rk) /\
+          wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
           read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
           read (memory :> bytes128 ivec_p) s = word_reversefields 8 (ctr_block nonce c) /\
           read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -9170,35 +8614,7 @@ let AESV8_GCM_8X_ENC_256_SETUP0 = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -9220,35 +8636,7 @@ let AESV8_GCM_8X_ENC_256_SETUP0 = prove
            read X11 s = key_p /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -9284,6 +8672,7 @@ let AESV8_GCM_8X_ENC_256_SETUP0 = prove
       (MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
        MAYCHANGE [Q8; Q9; Q10; Q11; Q12; Q13; Q14; Q15] ,,
        MAYCHANGE [memory :> bytes(out_p, 16 * nb)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; ALLPAIRS; ALL;
               NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -9343,35 +8732,7 @@ let AESV8_GCM_8X_ENC_256_SETUP0_TAIL = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -9414,35 +8775,7 @@ let AESV8_GCM_8X_ENC_256_SETUP0_TAIL = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read X11 s = key_p /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s = word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
            read Q28 s = word_reversefields 8 (EL 14 rk) /\
@@ -9503,35 +8836,7 @@ let AESV8_GCM_8X_ENC_256_SETUP0_TAIL = prove
            read X11 s = key_p /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -9668,35 +8973,7 @@ let AESV8_GCM_8X_ENC_256_FAST2 = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -9720,6 +8997,7 @@ let AESV8_GCM_8X_ENC_256_FAST2 = prove
        MAYCHANGE [memory :> bytes(out_p, 16 * nb);
                   memory :> bytes(tag_p, 16);
                   memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; htable_mem_4; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -9832,35 +9110,7 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -9884,6 +9134,7 @@ let AESV8_GCM_8X_ENC_256_FAST4 = prove
        MAYCHANGE [memory :> bytes(out_p, 16 * nb);
                   memory :> bytes(tag_p, 16);
                   memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; htable_mem_4; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -10005,35 +9256,7 @@ let AESV8_GCM_8X_ENC_256_FAST1 = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -10057,6 +9280,7 @@ let AESV8_GCM_8X_ENC_256_FAST1 = prove
        MAYCHANGE [memory :> bytes(out_p, 16 * nb);
                   memory :> bytes(tag_p, 16);
                   memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; htable_mem_4; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -10160,35 +9384,7 @@ let AESV8_GCM_8X_ENC_256_FAST3 = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s =
              word_reversefields 8 (ctr_block nonce c) /\
@@ -10212,6 +9408,7 @@ let AESV8_GCM_8X_ENC_256_FAST3 = prove
        MAYCHANGE [memory :> bytes(out_p, 16 * nb);
                   memory :> bytes(tag_p, 16);
                   memory :> bytes(ivec_p, 16)])`,
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI] THEN
   REWRITE_TAC[LENGTH_WB_MC; htable_mem_8; htable_mem_4; ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
   REPEAT STRIP_TAC THEN
@@ -10338,35 +9535,7 @@ let AESV8_GCM_8X_ENC_256_CORRECT = prove
            read X10 s = word_add stackpointer (word 0x40) /\
            read (memory :> bytes64 (word_add stackpointer (word 0x40))) s =
              word 0xc200000000000000 /\
-           read (memory :> bytes128 key_p) s = word_reversefields 8 (EL 0 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 16))) s =
-             word_reversefields 8 (EL 1 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 32))) s =
-             word_reversefields 8 (EL 2 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 48))) s =
-             word_reversefields 8 (EL 3 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 64))) s =
-             word_reversefields 8 (EL 4 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 80))) s =
-             word_reversefields 8 (EL 5 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 96))) s =
-             word_reversefields 8 (EL 6 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 112))) s =
-             word_reversefields 8 (EL 7 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 128))) s =
-             word_reversefields 8 (EL 8 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 144))) s =
-             word_reversefields 8 (EL 9 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 160))) s =
-             word_reversefields 8 (EL 10 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 176))) s =
-             word_reversefields 8 (EL 11 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 192))) s =
-             word_reversefields 8 (EL 12 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 208))) s =
-             word_reversefields 8 (EL 13 rk) /\
-           read (memory :> bytes128 (word_add key_p (word 224))) s =
-             word_reversefields 8 (EL 14 rk) /\
+           wordlist_from_memory(key_p,15) s = MAP (word_reversefields 8) rk /\
            read (memory :> bytes128 tag_p) s = word_reversefields 8 tag0 /\
            read (memory :> bytes128 ivec_p) s = ctr0 /\
            htable_mem_8 (ghash_twist (aes256_cipher (word 0) rk)) htable_p s /\
@@ -10554,33 +9723,6 @@ let WB_LEN_EQ_128_BLOCKS = prove
   MP_TAC(SPECL [`val(x:int64)`; `128`] (CONJUNCT2 DIVISION_SIMP)) THEN
   ASM_ARITH_TAC);;
 
-(* The upstream house form states the round keys as one compact list equation            *)
-(* This converts it into the                                                             *)
-(* pointwise reads the interior legs consume, and yields `LENGTH rk = 15`      *)
-(* as a bonus -- the quantified form alone leaves the length unconstrained.    *)
-
-let WB_KEYS_FROM_WORDLIST = prove
- (`!key_p:int64 rk s.
-        (wordlist_from_memory(key_p,15) s :int128 list =
-         MAP (word_reversefields 8) rk) <=>
-        LENGTH rk = 15 /\
-            (!n. n < 15
-                 ==> read (memory :> bytes128 (word_add key_p (word (16 * n)))) s =
-                     word_reversefields 8 (EL n rk))`,
-  REPEAT GEN_TAC THEN
-  CONV_TAC(ONCE_DEPTH_CONV WORDLIST_FROM_MEMORY_CONV) THEN
-  REWRITE_TAC[LIST_EQ; LENGTH; LENGTH_MAP] THEN
-  CONV_TAC NUM_REDUCE_CONV THEN
-  MATCH_MP_TAC(TAUT
-    `(p <=> p') /\ (p ==> (q <=> q')) ==> (p /\ q <=> p' /\ q')`) THEN
-  CONJ_TAC THENL [ARITH_TAC; ALL_TAC] THEN
-  STRIP_TAC THEN FIRST_ASSUM(fun th -> REWRITE_TAC[SYM th]) THEN
-  ASM_SIMP_TAC[EL_MAP] THEN
-  SUBGOAL_THEN `LENGTH(rk:int128 list) = 15` SUBST1_TAC THENL
-   [ASM_ARITH_TAC; ALL_TAC] THEN
-  CONV_TAC(BINOP_CONV EXPAND_CASES_CONV) THEN CONV_TAC NUM_REDUCE_CONV THEN
-  CONV_TAC(TOP_DEPTH_CONV EL_CONV) THEN REWRITE_TAC[WORD_ADD_0]);;
-
 let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_CORRECT = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p
      tag0 nonce ctr0 c rk inblock len_bits pc stackpointer returnaddress.
@@ -10632,7 +9774,7 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_CORRECT = prove
   REWRITE_TAC[C_ARGUMENTS; C_RETURN; SOME_FLAGS] THEN
   (* Expand the compact round-key list, in place inside the precondition,                *)
   (* into the pointwise reads the interior legs consume.                       *)
-  REWRITE_TAC[WB_KEYS_FROM_WORDLIST] THEN
+  REWRITE_TAC[KEY15_SPLIT] THEN
   REPEAT STRIP_TAC THEN
   (* All three paths start from the same normalised counter block.            *)
   SUBGOAL_THEN `ctr0:int128 = word_reversefields 8 (ctr_block nonce c)`
@@ -10768,7 +9910,7 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_CORRECT = prove
     `word_reversefields 8 (ctr_block nonce c):int128`; `c:num`;
     `rk:int128 list`;
     `inblock:num->int128`; `nb:num`; `pc:num`]
-   AESV8_GCM_8X_ENC_256_CORRECT) THEN
+   (REWRITE_RULE[KEY15_SPLIT] AESV8_GCM_8X_ENC_256_CORRECT)) THEN
   REWRITE_TAC[LENGTH_WB_MC] THEN
   ANTS_TAC THENL
    [REWRITE_TAC[ALLPAIRS; PAIRWISE; ALL; NONOVERLAPPING_CLAUSES] THEN
@@ -12792,7 +11934,7 @@ let AESV8_GCM_8X_ENC_256_NOIBT_SUBROUTINE_SAFE = prove
                   memory :> bytes(word_sub stackpointer (word 80), 80)])`,
   ASSUME_CALLEE_SAFETY_TAILED_TAC AESV8_GCM_8X_ENC_256_SAFE "H_CORE" THEN
   REWRITE_TAC[MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI; LENGTH_WB_MC; ALLPAIRS;
-              PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; C_ARGUMENTS; WB_KEYS_FROM_WORDLIST] THEN
+              PAIRWISE; ALL; NONOVERLAPPING_CLAUSES; C_ARGUMENTS; KEY15_SPLIT] THEN
   CONCRETIZE_F_EVENTS_TAC
     `\(len_bits:int64) (in_p:int64) (out_p:int64) (tag_p:int64) (ivec_p:int64)
       (key_p:int64) (htable_p:int64) (pc:num) (sp:int64) (retaddr:int64).
