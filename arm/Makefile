@@ -426,7 +426,7 @@ UNOPT_OBJ = p256/unopt/bignum_montmul_p256_base.o \
 AES_XTS_OBJ = aes-xts/aes_xts_decrypt.o \
               aes-xts/aes_xts_encrypt.o
 
-AES_GCM_OBJ = aes-gcm/aesv8_gcm_8x_enc_256_wb.o \
+AES_GCM_OBJ = aes_gcm/aesv8_gcm_8x_enc_256_wb.o \
               aes_gcm/aes128_gcm_dec.o \
               aes_gcm/aes128_gcm_enc.o \
               aes_gcm/aes256_gcm_dec.o \

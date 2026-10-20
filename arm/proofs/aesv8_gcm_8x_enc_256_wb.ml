@@ -28,11 +28,11 @@ needs "common/polyval_ghash.ml";;
 (* The machine code.                                                         *)
 (* ------------------------------------------------------------------------- *)
 
-(* print_literal_from_elf "arm/aes-gcm/aesv8_gcm_8x_enc_256_wb.o";;          *)
+(* print_literal_from_elf "arm/aes_gcm/aesv8_gcm_8x_enc_256_wb.o";;          *)
 
 let aesv8_gcm_8x_enc_256_wb_mc =
   define_assert_from_elf "aesv8_gcm_8x_enc_256_wb_mc"
-                         "arm/aes-gcm/aesv8_gcm_8x_enc_256_wb.o"
+                         "arm/aes_gcm/aesv8_gcm_8x_enc_256_wb.o"
 [
   0xd503245f;       (* arm_BTI *)
   0xb4008f01;       (* arm_CBZ X1 (word 4576) *)
