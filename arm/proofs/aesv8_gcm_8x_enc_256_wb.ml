@@ -1873,11 +1873,6 @@ let CTR_BLOCK_RECONSTRUCT_REV32 = prove
   word_reversefields 32 (ctr_block nonce ctr)`,
   REWRITE_TAC[ctr_block] THEN CONV_TAC WORD_BLAST);;
 
-(* index = counter now, so this is just the definition folded.
-   Kept as a named lemma so the SETUP/main-loop ciphertext closers keep the same
-   REWRITE_TAC[AES_CTR_BLOCK_RECONSTRUCT] fold hook. *)
-
-
 (*** Direct implementation of AES256 using the hardware primitives.
  *** 14 aese (rk0..rk13), 13 interleaved aesmc, and a final word_xor rk14. ***)
 
