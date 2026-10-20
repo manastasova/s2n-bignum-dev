@@ -576,6 +576,14 @@ aes_gcm/aesv8_gcm_8x_dec_256_wb.native: $(AES_GCM_PROOF_UTILS) \
                                         ../common/ghash_nist_bridge.ml \
                                         ../common/ghash_nblock_karatsuba.ml \
                                         ../common/gmult_nblock_lemmas.ml
+# The 8x whole-blocks encrypt proof loads the shared spec/common lemmas, the
+# constant-time safety infrastructure, and the FIPS-197 and GHASH lemma stacks.
+aes_gcm/aesv8_gcm_8x_enc_256_wb.native: $(AES_GCM_PROOF_UTILS) \
+                                        proofs/consttime.ml \
+                                        ../common/fips197.ml \
+                                        ../common/polyval_ghash.ml \
+                                        ../common/ghash_nist_bridge.ml \
+                                        ../common/karatsuba_pmul.ml
 
 # aes_encrypt_decrypt tutorial concatenates proofs for both aes_encrypt.S and aes_decrypt.S
 tutorial/aes_encrypt_decrypt.native: tutorial/aes_encrypt_decrypt.ml \
