@@ -3302,7 +3302,7 @@ let AESV8_GCM_8X_ENC_256_MAIN_LOOP = prove
     (* Q8..Q15 ciphertext, NEW out-blocks, flag, PC) close via S014_CHEAP3         *)
     (* (): case-split bound 8*((i+1)+1), eor3 WORD_BITWISE_RULE                     *)
     (* AC-normalize, CTR_BLOCK_RECONSTRUCT_REV8/REV32 + WORD_SUBWORD_* +            *)
-    (* XOR_AES256_CIPHER_RECONSTRUCT + AES_CTR_BLOCK_RECONSTRUCT + FIRST_ASSUM      *)
+    (* XOR_AES256_CIPHER_RECONSTRUCT + aes_ctr_block/ADD_CLAUSES + FIRST_ASSUM      *)
     (* MATCH + WORD_RULE/ARITH - re-validate against the +2-corrected goal.         *)
     X_GEN_TAC `i:num` THEN STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN
     SUBGOAL_THEN
@@ -3763,7 +3763,7 @@ let SETUP_RECON_TAC_GEN : tactic =
 (*       against the real branch + reconcile with the P8 tail / P9           *)
 (*         assembly.)                                                        *)
 (*     - FINAL_STATE reconstruction mirrors the MAIN_LOOP body cheap-close   *)
-(*       (XOR_AES256_CIPHER_RECONSTRUCT + AES_CTR_BLOCK_RECONSTRUCT +        *)
+(*       (XOR_AES256_CIPHER_RECONSTRUCT + aes_ctr_block/ADD_CLAUSES +        *)
 (*       AES256_CIPHER_KEYLIST for Q8..Q15; CTR_BLOCK_RECONSTRUCT_* for      *)
 (*         Q0..Q4;                                                           *)
 (*       plain Q19 = nist_ghash..(8*0) = tag0, PROVED trivially s031).       *)
@@ -4238,15 +4238,15 @@ let PP_DISPATCH : tactic = fun (asl,w as gl) ->
   else ASM_REWRITE_TAC[] gl;;
 
 (* ------------------------------------------------------------------------- *)
-(* PREPRETAIL_GEN: PREPRETAIL with the VESTIGIAL `~(k = 0)`                  *)
-(* precond conjunct DROPPED, so it also covers k=0 (the g=1 reassembly leg,  *)
-(* nblocks 9..16, where the main loop runs 0 times and prepretail+tail do    *)
-(* all the work).  The body (@4892-4900) is pure straight-line GHASH drain   *)
-(* (REWRITE+STRIP+INIT + MAP_EVERY NSTEP_GP (1--308) + FINAL_STATE +         *)
-(* PP_DISPATCH) with NO branch and ZERO uses of `~(k = 0)` - verified s084   *)
-(* by diff-check (NSTEP_GP is k-independent; PP_DISPATCH/Q19_FOLD_TAC_K use  *)
-(* 8*k symbolically but never case-split k=0).  Re-proves byte-identically   *)
-(* (PP_GEN_HYPS=0).  The body below is IDENTICAL to PREPRETAIL's.            *)
+(* PREPRETAIL_GEN: the pipeline-drain (PREPRETAIL stage) theorem, with the   *)
+(* VESTIGIAL `~(k = 0)` precond conjunct DROPPED, so it also covers k=0 (the *)
+(* g=1 reassembly leg, nblocks 9..16, where the main loop runs 0 times and   *)
+(* prepretail+tail do all the work).  The body is pure straight-line GHASH   *)
+(* drain (REWRITE+STRIP+INIT + MAP_EVERY NSTEP_GP (1--308) + FINAL_STATE +   *)
+(* PP_DISPATCH) with NO branch and ZERO uses of `~(k = 0)` (NSTEP_GP is      *)
+(* k-independent; PP_DISPATCH/Q19_FOLD_TAC_K use 8*k symbolically but never  *)
+(* case-split k=0).  The non-generalized duplicate was removed (review E7),  *)
+(* so this is now the sole prepretail-stage theorem.                         *)
 (* ------------------------------------------------------------------------- *)
 let AESV8_GCM_8X_ENC_256_PREPRETAIL_GEN = prove
  (`!in_p out_p tag_p ivec_p key_p htable_p mod_p end_p
